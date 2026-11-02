@@ -268,6 +268,12 @@ impl enji::Commands for EnjiEngine {
     fn set_backdrop(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetBackdrop(shown))
     }
+    fn set_show_format(&mut self, shown: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetShowFormat(shown))
+    }
+    fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetCoverLyrics(shown))
+    }
     fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError> {
         self.submit(Job::SetAppearance(appearance))
     }

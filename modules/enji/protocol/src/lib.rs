@@ -410,6 +410,18 @@ pub mod enji {
         pub buffering: bool,
         /// Only a short preview: the song is for members.
         pub preview: bool,
+        /// How the playing song is encoded, such as `FLAC · 921 kbps · 44.1
+        /// kHz · 16 bit`; empty until it is known.
+        #[content]
+        pub format: String,
+        /// The line being sung, its translation and the line after it, for
+        /// the cover on a phone; empty without lyrics.
+        #[content]
+        pub lyric_now: String,
+        #[content]
+        pub lyric_now_translation: String,
+        #[content]
+        pub lyric_next: String,
         /// How far the song is, from 0 to 1.
         pub progress: f64,
         #[content]
@@ -451,6 +463,10 @@ pub mod enji {
         pub show_translation: bool,
         /// The playing song's cover, blurred, behind the whole window.
         pub backdrop: bool,
+        /// The playing song's encoding under its name.
+        pub show_format: bool,
+        /// On a phone, the sung line under the cover.
+        pub cover_lyrics: bool,
         pub appearance: Appearance,
 
         /// A short word that something went well, such as a welcome.
@@ -578,6 +594,8 @@ pub mod enji {
         fn page_changed(&mut self, library: bool) -> Result<(), CommandError>;
         fn set_show_translation(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_backdrop(&mut self, shown: bool) -> Result<(), CommandError>;
+        fn set_show_format(&mut self, shown: bool) -> Result<(), CommandError>;
+        fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;
         fn dismiss_error(&mut self) -> Result<(), CommandError>;
         /// The songs a module lists under `source`, so the commands that

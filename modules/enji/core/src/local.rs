@@ -461,6 +461,51 @@ fn tags_of(url: &str, name: &str) -> Option<lofty::file::TaggedFile> {
     tagged(bern::files::open(url).ok()?, name)
 }
 
+/// How a file keeps its music, such as `FLAC · 921 kbps · 44.1 kHz · 16
+/// bit`: what its header says, empty when it says nothing.
+pub fn format(url: &str, name: &str) -> String {
+    use lofty::file::FileType;
+    let Some(file) = tags_of(url, name) else {
+        return String::new();
+    };
+    let properties = file.properties();
+    let codec = match file.file_type() {
+        FileType::Flac => "FLAC",
+        FileType::Mpeg => "MP3",
+        // ALAC keeps samples of a depth, AAC none.
+        FileType::Mp4 if properties.bit_depth().is_some() => "ALAC",
+        FileType::Mp4 | FileType::Aac => "AAC",
+        FileType::Wav => "WAV",
+        FileType::Aiff => "AIFF",
+        FileType::Vorbis => "Ogg Vorbis",
+        FileType::Opus => "Opus",
+        FileType::Ape => "APE",
+        FileType::WavPack => "WavPack",
+        _ => "",
+    };
+    let bitrate = properties.audio_bitrate().or(properties.overall_bitrate()).filter(|&kbps| kbps > 0);
+    let mut parts = Vec::new();
+    if !codec.is_empty() {
+        parts.push(codec.to_string());
+    }
+    if let Some(kbps) = bitrate {
+        parts.push(format!("{kbps} kbps"));
+    }
+    if let Some(rate) = properties.sample_rate().filter(|&rate| rate > 0) {
+        parts.push(kilohertz(rate));
+    }
+    if let Some(depth) = properties.bit_depth().filter(|&depth| depth > 0) {
+        parts.push(format!("{depth} bit"));
+    }
+    parts.join(" · ")
+}
+
+/// A sample rate in kilohertz as players write it: `44.1 kHz`, `48 kHz`.
+fn kilohertz(rate: u32) -> String {
+    let khz = rate as f64 / 1000.0;
+    if khz.fract() == 0.0 { format!("{khz:.0} kHz") } else { format!("{:.1} kHz", khz) }
+}
+
 /// The full picture a file carries, written out the first time its song
 /// plays; `None` for a file without one.
 pub fn artwork(url: &str, name: &str) -> Option<PathBuf> {

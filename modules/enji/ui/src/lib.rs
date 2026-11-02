@@ -1354,7 +1354,11 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             Stack {
                                 Canvas {}
                                 Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
-                                Progress
+                                // Only while a picture is coming: a song
+                                // without one keeps the place.
+                                if song.artwork.url != "" {
+                                    Progress
+                                }
                                 Image(source: song.cover, aspect: 1, fit: cover, corner: 18)
                                 Image(source: song.artwork, aspect: 1, fit: cover, corner: 18, glow: 1.05, glow_opacity: 0.22)
                             }
@@ -1370,6 +1374,22 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                                 like_button(app: app)
                             }
                             Text(content: song.artists, style: headline, emphasis: secondary, lines: 1)
+                            if app.show_format && app.format != "" {
+                                Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
+                            }
+                            // The sung line, its translation and the next,
+                            // while the cover shows in place of the lyrics.
+                            if app.cover_lyrics && app.lyric_now != "" {
+                                Column(gap: 3, padding_y: 8, align: leading) {
+                                    Text(content: app.lyric_now, style: callout, bold: true, lines: 2)
+                                    if app.show_translation && app.lyric_now_translation != "" {
+                                        Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
+                                    }
+                                    if app.lyric_next != "" {
+                                        Text(content: app.lyric_next, style: footnote, emphasis: tertiary, lines: 1)
+                                    }
+                                }
+                            }
                         }
                     }
                     Column(gap: 14, padding_x: 28, padding_y: 18) {
@@ -1459,7 +1479,13 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                             Canvas(width: 400, height: 400) {
                                 Shape(kind: rounded, corner: 20, fill: fill.subtle)
                             }
-                            Progress
+                            // Only while a picture is coming: a song without
+                            // one keeps the place.
+                            if song.artwork.url != "" {
+                                Progress
+                            } else {
+                                Image(source: "assets/cover-place.png", width: 400, height: 400, fit: cover, corner: 20)
+                            }
                             Image(source: song.cover, width: 400, height: 400, fit: cover, corner: 20)
                             Image(source: song.artwork, width: 400, height: 400, fit: cover, corner: 20, glow: 1.05, glow_opacity: 0.22)
                         }
@@ -1473,6 +1499,9 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                 like_button(app: app)
                             }
                             Text(content: song.artists, style: headline, emphasis: secondary, lines: 1)
+                            if app.show_format && app.format != "" {
+                                Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
+                            }
                         }
                         Row(gap: 10, align: center) {
                             Text(content: app.elapsed, style: caption, emphasis: secondary)
@@ -2064,6 +2093,28 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Text(content: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" })
                             Spacer
                             Switch(id: translation, label: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, label_hidden: true, checked: app.show_translation, style: switch) => app.set_show_translation(app.show_translation)
+                        }
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "音质信息", "en" => "Audio Format" }, icon: "info.circle", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "播放页显示编码与比特率", "en" => "Codec and Bitrate on the Playing Page" })
+                            Spacer
+                            Switch(id: show_format, label: tr! { "zh-Hans" => "播放页显示编码与比特率", "en" => "Codec and Bitrate on the Playing Page" }, label_hidden: true, checked: app.show_format, style: switch) => app.set_show_format(app.show_format)
+                        }
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, icon: "quote.bubble", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "手机竖屏时封面下显示歌词", "en" => "Lyrics Under the Cover on a Phone" })
+                            Spacer
+                            Switch(id: cover_lyrics, label: tr! { "zh-Hans" => "手机竖屏时封面下显示歌词", "en" => "Lyrics Under the Cover on a Phone" }, label_hidden: true, checked: app.cover_lyrics, style: switch) => app.set_cover_lyrics(app.cover_lyrics)
                         }
                         Column(padding_x: 16) { Divider }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {

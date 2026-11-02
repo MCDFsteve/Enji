@@ -12,17 +12,24 @@ pub struct Line {
 /// at the same time. Credits, tags and empty lines are left out.
 pub fn parse(lrc: &str, translation: &str) -> Vec<Line> {
     let translated = timed(translation);
-    timed(lrc)
-        .into_iter()
-        .map(|(time, text)| Line {
+    let mut lines: Vec<Line> = Vec::new();
+    for (time, text) in timed(lrc) {
+        // Without a translation of their own, a second line at the same
+        // moment is the first one's translation, as bilingual LRC files
+        // write it.
+        if translated.is_empty() {
+            if let Some(last) = lines.last_mut().filter(|last| (last.time - time).abs() < 0.05 && last.translation.is_none()) {
+                last.translation = Some(text);
+                continue;
+            }
+        }
+        lines.push(Line {
             time,
-            translation: translated
-                .iter()
-                .find(|(at, _)| (at - time).abs() < 0.05)
-                .map(|(_, text)| text.clone()),
+            translation: translated.iter().find(|(at, _)| (at - time).abs() < 0.05).map(|(_, text)| text.clone()),
             text,
-        })
-        .collect()
+        });
+    }
+    lines
 }
 
 fn timed(lrc: &str) -> Vec<(f64, String)> {
@@ -64,6 +71,17 @@ fn time(tag: &str) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_second_line_at_the_same_moment_is_its_translation() {
+        let lines = parse("[00:01.00]你好\n[00:01.00]Hello\n[00:03.00]再见\n", "");
+        assert_eq!(lines.len(), 2);
+        assert_eq!((lines[0].text.as_str(), lines[0].translation.as_deref()), ("你好", Some("Hello")));
+        assert_eq!((lines[1].text.as_str(), lines[1].translation.as_deref()), ("再见", None));
+        // A translation of their own wins: both lines stay lines.
+        let lines = parse("[00:01.00]你好\n[00:01.00]Hello\n", "[00:01.00]哈喽\n");
+        assert_eq!(lines.len(), 2);
+    }
 
     #[test]
     fn lines_take_their_translations_and_tags_are_left_out() {

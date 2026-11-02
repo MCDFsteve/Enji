@@ -60,6 +60,8 @@ pub enum Job {
     PageChanged(bool),
     SetTranslation(bool),
     SetBackdrop(bool),
+    SetShowFormat(bool),
+    SetCoverLyrics(bool),
     SetAppearance(Appearance),
     ToggleLike,
     Shuffle(Source),
@@ -117,7 +119,9 @@ pub enum Job {
     LocalInfo { token: u64, lines: Vec<lyrics::Line>, cover: String },
     SignedIn(String),
     Account(i64),
-    Ready { token: u64, stream: Stream, preview: bool, lines: Vec<lyrics::Line> },
+    Ready { token: u64, stream: Stream, preview: bool, lines: Vec<lyrics::Line>, format: String },
+    /// How the playing local file is encoded, read from its header.
+    Format { token: u64, format: String },
     Failed { token: u64, message: String },
 }
 
@@ -209,6 +213,10 @@ pub fn initial_state() -> State {
         playing: false,
         buffering: false,
         preview: false,
+        format: String::new(),
+        lyric_now: String::new(),
+        lyric_now_translation: String::new(),
+        lyric_next: String::new(),
         progress: 0.0,
         elapsed: "0:00".into(),
         total: "0:00".into(),
@@ -238,6 +246,8 @@ pub fn initial_state() -> State {
         },
         show_translation: saved["show_translation"].as_bool().unwrap_or(true),
         backdrop: saved["backdrop"].as_bool().unwrap_or(true),
+        show_format: saved["show_format"].as_bool().unwrap_or(true),
+        cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
         appearance: match pick("appearance").as_str() {
             "Light" => Appearance::Light,
             "Dark" => Appearance::Dark,
@@ -263,6 +273,8 @@ fn save_settings(state: &State) {
         "quality": format!("{:?}", state.quality),
         "show_translation": state.show_translation,
         "backdrop": state.backdrop,
+        "show_format": state.show_format,
+        "cover_lyrics": state.cover_lyrics,
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
         "online_info": state.online_info,
@@ -708,6 +720,14 @@ impl Worker {
                 s.backdrop = shown;
                 save_settings(s);
             }),
+            Job::SetShowFormat(shown) => self.shared.update(|s| {
+                s.show_format = shown;
+                save_settings(s);
+            }),
+            Job::SetCoverLyrics(shown) => self.shared.update(|s| {
+                s.cover_lyrics = shown;
+                save_settings(s);
+            }),
             Job::SetAppearance(appearance) => self.shared.update(|s| {
                 s.appearance = appearance;
                 save_settings(s);
@@ -1003,6 +1023,7 @@ impl Worker {
                         s.lyrics = shown;
                         s.line = 0;
                         dress(&mut s.lyrics, 0, s.browsing);
+                        sung(s);
                         s.scroll_to = 0;
                         s.scroll_tick += 1;
                     });
@@ -1023,7 +1044,7 @@ impl Worker {
                     }
                 }
             }
-            Job::Ready { token, stream, preview, lines } => {
+            Job::Ready { token, stream, preview, lines, format } => {
                 if token != self.token {
                     stream.cancel();
                     return;
@@ -1041,14 +1062,23 @@ impl Worker {
                     s.buffering = false;
                     s.playing = true;
                     s.preview = preview;
+                    if !format.is_empty() {
+                        s.format = format;
+                    }
                     s.has_lyrics = !shown.is_empty();
                     s.lyrics = shown;
                     s.line = 0;
                     s.browsing = false;
                     dress(&mut s.lyrics, 0, false);
+                    sung(s);
                     s.scroll_to = 0;
                     s.scroll_tick += 1;
                 });
+            }
+            Job::Format { token, format } => {
+                if token == self.token {
+                    self.shared.update(|s| s.format = format);
+                }
             }
             Job::Failed { token, message } => {
                 if token != self.token {
@@ -2011,6 +2041,8 @@ impl Worker {
             s.has_lyrics = false;
             s.line = 0;
             s.browsing = false;
+            s.format.clear();
+            sung(s);
         });
         self.load_panel();
         let (client, http, jobs, token) = (enji_kit::client(), self.http.clone(), self.jobs.clone(), self.token);
@@ -2034,7 +2066,7 @@ impl Worker {
                     .map(str::to_string)
                     .ok_or_else(|| format!("《{}》暂时不能播放", song.name))?;
                 // Only a preview of a song for members.
-                Ok::<_, String>((url, !data["freeTrialInfo"].is_null()))
+                Ok::<_, String>((url, !data["freeTrialInfo"].is_null(), streamed(data)))
             };
             let lyric_query = Query::new().param("id", &id);
             let lyric = client.lyric_new(&lyric_query);
@@ -2048,13 +2080,13 @@ impl Worker {
                 })
                 .unwrap_or_default();
             let response = match url {
-                Ok((url, preview)) => match http.get(&url).send().await.and_then(|r| r.error_for_status()) {
-                    Ok(response) => Ok((response, preview)),
+                Ok((url, preview, format)) => match http.get(&url).send().await.and_then(|r| r.error_for_status()) {
+                    Ok(response) => Ok((response, preview, format)),
                     Err(e) => Err(format!("下载《{}》失败：{e}", song.name)),
                 },
                 Err(message) => Err(message),
             };
-            let (mut response, preview) = match response {
+            let (mut response, preview, format) = match response {
                 Ok(found) => found,
                 Err(message) => {
                     let _ = jobs.send(Job::Failed { token, message });
@@ -2063,7 +2095,7 @@ impl Worker {
             };
             // It plays from the first bytes on; the rest follows.
             let stream = Stream::new(response.content_length());
-            let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview, lines });
+            let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview, lines, format });
             while let Ok(Some(chunk)) = response.chunk().await {
                 if stream.cancelled() {
                     return;
@@ -2090,6 +2122,12 @@ impl Worker {
         let track = self.library.tracks.iter().find(|track| track.url == song.file);
         let name = track.map(|track| track.name.clone()).or_else(|| bern::files::name(&song.file)).unwrap_or_default();
         let lines = local::lyrics(&song.file, &name, track.and_then(|track| track.lyrics.as_deref()));
+        {
+            let (jobs, url, name) = (jobs.clone(), song.file.clone(), name.clone());
+            tokio::task::spawn_blocking(move || {
+                let _ = jobs.send(Job::Format { token, format: local::format(&url, &name) });
+            });
+        }
         // The full picture, which lists show small, is taken from the file.
         if song.cover.url.starts_with("file:") {
             let (jobs, url) = (jobs.clone(), song.file.clone());
@@ -2107,7 +2145,7 @@ impl Worker {
         } else if online && netease && song.id < 0 && (lines.is_empty() || song.cover.url.is_empty()) {
             self.look_up(song.clone(), lines.is_empty());
         }
-        let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview: false, lines });
+        let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview: false, lines, format: String::new() });
         std::thread::spawn(move || {
             let mut file = file;
             let mut chunk = vec![0u8; 256 * 1024];
@@ -2358,6 +2396,7 @@ impl Worker {
             }
             s.browsing = false;
             dress(&mut s.lyrics, s.line, false);
+            sung(s);
             s.scroll_to = s.line;
             s.scroll_tick += 1;
         });
@@ -2402,6 +2441,7 @@ impl Worker {
             if s.line != line {
                 s.line = line;
                 dress(&mut s.lyrics, line, s.browsing);
+                sung(s);
                 // Browsed lyrics stay where the person put them.
                 if !s.browsing {
                     s.scroll_to = line;
@@ -2545,6 +2585,34 @@ fn refusal(body: &Value, fallback: &str) -> String {
         .or(body["body"]["message"].as_str())
         .filter(|text| !text.is_empty())
         .map_or_else(|| fallback.to_string(), |text| format!("{fallback}：{text}"))
+}
+
+/// The sung line, its translation and the next line with words, which a
+/// phone shows under the cover.
+fn sung(s: &mut State) {
+    let at = s.lyrics.iter().position(|line| line.key == s.line);
+    let now = at.map(|i| &s.lyrics[i]).filter(|line| !line.text.trim().is_empty());
+    let next = at.and_then(|i| s.lyrics[i + 1..].iter().find(|line| !line.text.trim().is_empty()));
+    let (text, translation) = now.map_or_else(Default::default, |line| (line.text.clone(), line.translation.clone()));
+    let next = next.map(|line| line.text.clone()).unwrap_or_default();
+    s.lyric_now = text;
+    s.lyric_now_translation = translation;
+    s.lyric_next = next;
+}
+
+/// How NetEase streams a song, such as `FLAC · 900 kbps`, from the address
+/// it handed over.
+fn streamed(data: &serde_json::Value) -> String {
+    let kind = data["type"].as_str().unwrap_or("").to_uppercase();
+    let kbps = data["br"].as_i64().unwrap_or(0) / 1000;
+    let mut parts = Vec::new();
+    if !kind.is_empty() {
+        parts.push(kind);
+    }
+    if kbps > 0 {
+        parts.push(format!("{kbps} kbps"));
+    }
+    parts.join(" · ")
 }
 
 /// Lines of lyrics as the lyrics page shows them.
