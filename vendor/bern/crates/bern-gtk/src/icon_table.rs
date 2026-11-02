@@ -65,6 +65,8 @@
     ("link", "insert-link-symbolic"),
     ("list.bullet", "view-list-bullet-symbolic"),
     ("list.bullet.rectangle", "view-list-symbolic"),
+    ("lock.fill", "changes-prevent-symbolic"),
+    ("lock.open.fill", "changes-allow-symbolic"),
     ("magnifyingglass", "system-search-symbolic"),
     ("minus", "list-remove-symbolic"),
     ("moon", "weather-clear-night-symbolic"),

@@ -765,6 +765,20 @@ pub unsafe extern "system" fn Java_dev_bern_runtime_BernNative_nowPlayingCommand
     }
 }
 
+/// A button of an overlay's bar was pressed (`bern::overlay`).
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_dev_bern_runtime_BernNative_overlayPressed(
+    env: *mut JNIEnv,
+    _: jobject,
+    overlay: jbyteArray,
+    button: jbyteArray,
+) {
+    let (overlay, button) = unsafe { (bytes_in(env, overlay), bytes_in(env, button)) };
+    if let (Ok(overlay), Ok(button)) = (std::str::from_utf8(&overlay), std::str::from_utf8(&button)) {
+        bern_command::overlay::press(overlay, button);
+    }
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_dev_bern_runtime_BernNative_scriptStart(
     _: *mut JNIEnv,

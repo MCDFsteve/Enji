@@ -10,7 +10,7 @@ Added here since, to go upstream once every platform has it:
 
 - `bern::now_playing` (`crates/bern-command/src/now_playing.rs`): the system's now playing and the media commands it sends; macOS and iOS through MediaPlayer, Windows through the system media transport controls, Linux through MPRIS, Android through the host.
 - `[app].background_audio`: iOS plays the application's own audio on behind the lock screen; Android keeps it playing with a media playback foreground service.
-- `bern::overlay` (`crates/bern-command/src/overlay.rs`, `crates/bern-gtk/src/overlay.rs`): text floating over other windows, such as desktop lyrics or a line on the Windows taskbar; a borderless panel on macOS, a layered window on Windows, a system overlay on Android (`[app].overlays` declares the permission), an undecorated GTK window on Linux.
+- `bern::overlay` (`crates/bern-command/src/overlay.rs`, `crates/bern-gtk/src/overlay.rs`): text floating over other windows, such as desktop lyrics or a line on the Windows taskbar; a borderless panel on macOS, a layered window on Windows, a system overlay on Android (`[app].overlays` declares the permission), an undecorated GTK window on Linux. A free overlay can carry a bar of buttons (`overlay::Button`, presses through `take_presses`) that shows while the pointer is over it, or on a tap on Android; locked, only the buttons that unlock it show and take the pointer. The GTK icon table gains `lock.fill` and `lock.open.fill` for it.
 - `captions.bubble.fill` in the GTK, WinUI 3 and Web icon tables.
 
 To update, copy `crates/` from a newer upstream commit and change the commit above.

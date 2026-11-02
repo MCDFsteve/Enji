@@ -820,6 +820,7 @@ object BernNative {
 
     external fun start(fingerprint: Long, resources: ByteArray, bridge: BernBridge): ByteArray
     external fun nowPlayingCommand(name: ByteArray)
+    external fun overlayPressed(overlay: ByteArray, button: ByteArray)
     external fun stop(app: Long)
     external fun snapshot(app: Long): ByteArray
     external fun engineId(app: Long): ByteArray
@@ -2313,11 +2314,29 @@ class BernPlaybackService : android.app.Service() {
 
 /// Text over other apps (`bern::overlay`): a row of lines with a shadow on a
 /// system overlay window, once the user allows drawing over other apps.
-/// Locked, touches go through it; unlocked, it shows a plate and drags, and
-/// where it was left is kept.
+/// Locked, touches go through it; unlocked, it shows a plate and drags, a
+/// tap shows its bar of buttons over the lines for a few seconds (the
+/// window rises by the bar, so the lines stay), and where it was left is
+/// kept.
 internal object BernOverlay {
     private val views = mutableMapOf<String, android.widget.LinearLayout>()
     private val layouts = mutableMapOf<String, android.view.WindowManager.LayoutParams>()
+    /// What each overlay last showed, and those whose bar shows.
+    private val shown = mutableMapOf<String, String>()
+    private val barred = mutableSetOf<String>()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private const val BAR_SECONDS = 5L
+    /// The bar's height: its buttons and the room under them.
+    private const val BAR_HEIGHT = 48
+
+    /// Mark the bar of `id` as showing or not, raising the window by it or
+    /// lowering it back.
+    private fun barred(context: Context, id: String, on: Boolean) {
+        if (on == barred.contains(id)) return
+        if (on) barred.add(id) else barred.remove(id)
+        val rise = (BAR_HEIGHT * context.resources.displayMetrics.density).toInt()
+        layouts[id]?.let { it.y += if (on) -rise else rise }
+    }
 
     fun allowed(context: Context): Boolean =
         android.os.Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(context)
@@ -2331,11 +2350,25 @@ internal object BernOverlay {
 
     private fun kept(context: Context) = context.getSharedPreferences("bern.overlay", Context.MODE_PRIVATE)
 
+    /// Show the bar of `id`, or put it away, and put it away again a few
+    /// seconds after.
+    private fun bar(context: Context, id: String, on: Boolean) {
+        main.removeCallbacksAndMessages(id)
+        val buttons = shown[id]?.let { org.json.JSONObject(it).optJSONArray("buttons")?.length() } ?: 0
+        barred(context, id, on && buttons > 0)
+        if (on && buttons > 0) {
+            main.postAtTime({ bar(context, id, false) }, id, android.os.SystemClock.uptimeMillis() + BAR_SECONDS * 1000)
+        }
+        shown[id]?.let { show(context, id, it) }
+    }
+
     fun show(context: Context, id: String, json: String) {
         if (!allowed(context)) return
+        shown[id] = json
         val manager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
         val overlay = org.json.JSONObject(json)
         val lines = overlay.optJSONArray("lines") ?: org.json.JSONArray()
+        val buttons = overlay.optJSONArray("buttons") ?: org.json.JSONArray()
         val locked = overlay.optBoolean("locked")
         val density = context.resources.displayMetrics.density
         val layout = layouts.getOrPut(id) {
@@ -2352,6 +2385,7 @@ internal object BernOverlay {
                 y = kept(context).getInt("$id.y", (context.resources.displayMetrics.heightPixels * 0.18).toInt())
             }
         }
+        if (locked) barred(context, id, false)
         val touchable = android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         layout.flags = if (locked) layout.flags or touchable else layout.flags and touchable.inv()
         val view = views[id] ?: android.widget.LinearLayout(context).also { created ->
@@ -2359,21 +2393,31 @@ internal object BernOverlay {
             created.gravity = android.view.Gravity.CENTER_HORIZONTAL
             val pad = (12 * density).toInt()
             created.setPadding(pad, pad / 2, pad, pad / 2)
+            val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop
             var startX = 0
             var startY = 0
             var downX = 0f
             var downY = 0f
+            var moved = false
             created.setOnTouchListener { _, event ->
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
-                        startX = layout.x; startY = layout.y; downX = event.rawX; downY = event.rawY
+                        startX = layout.x; startY = layout.y; downX = event.rawX; downY = event.rawY; moved = false
                     }
                     android.view.MotionEvent.ACTION_MOVE -> {
-                        layout.x = startX + (event.rawX - downX).toInt()
-                        layout.y = startY + (event.rawY - downY).toInt()
-                        manager.updateViewLayout(created, layout)
+                        if (Math.abs(event.rawX - downX) > slop || Math.abs(event.rawY - downY) > slop) moved = true
+                        if (moved) {
+                            layout.x = startX + (event.rawX - downX).toInt()
+                            layout.y = startY + (event.rawY - downY).toInt()
+                            manager.updateViewLayout(created, layout)
+                        }
                     }
-                    android.view.MotionEvent.ACTION_UP -> kept(context).edit().putInt("$id.x", layout.x).putInt("$id.y", layout.y).apply()
+                    android.view.MotionEvent.ACTION_UP ->
+                        if (moved) {
+                            // Where the lines are, without the bar over them.
+                            val rise = if (barred.contains(id)) (BAR_HEIGHT * density).toInt() else 0
+                            kept(context).edit().putInt("$id.x", layout.x).putInt("$id.y", layout.y + rise).apply()
+                        } else bar(context, id, !barred.contains(id))
                 }
                 true
             }
@@ -2381,6 +2425,36 @@ internal object BernOverlay {
             views[id] = created
         }
         view.removeAllViews()
+        val withBar = barred.contains(id) && buttons.length() > 0 && overlay.optString("place") != "taskbar"
+        if (withBar) {
+            val row = android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                setPadding(0, 0, 0, ((BAR_HEIGHT - 36) * density).toInt())
+            }
+            val side = (36 * density).toInt()
+            for (i in 0 until buttons.length()) {
+                val button = buttons.getJSONObject(i)
+                val buttonId = button.optString("id")
+                row.addView(android.widget.ImageView(context).apply {
+                    setImageDrawable(BernOverlaySymbol(button.optString("symbol")))
+                    val inset = (9 * density).toInt()
+                    setPadding(inset, inset, inset, inset)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(0x4D000000)
+                    }
+                    contentDescription = button.optString("symbol")
+                    setOnClickListener {
+                        BernNative.overlayPressed(id.toByteArray(), buttonId.toByteArray())
+                        bar(context, id, true)
+                    }
+                }, android.widget.LinearLayout.LayoutParams(side, side).apply {
+                    if (i > 0) marginStart = (10 * density).toInt()
+                })
+            }
+            view.addView(row)
+        }
         for (i in 0 until lines.length()) {
             val line = lines.getJSONObject(i)
             val text = line.optString("text")
@@ -2394,17 +2468,82 @@ internal object BernOverlay {
                 gravity = android.view.Gravity.CENTER_HORIZONTAL
             })
         }
+        val hasLines = view.childCount > (if (withBar) 1 else 0)
         view.background = if (locked) null else android.graphics.drawable.GradientDrawable().apply {
             setColor(0x4D000000)
             cornerRadius = 12 * density
         }
-        view.visibility = if (view.childCount == 0) android.view.View.GONE else android.view.View.VISIBLE
+        view.visibility = if (hasLines) android.view.View.VISIBLE else android.view.View.GONE
         manager.updateViewLayout(view, layout)
     }
 
     fun hide(context: Context, id: String) {
+        main.removeCallbacksAndMessages(id)
+        barred(context, id, false)
+        shown.remove(id)
         val view = views.remove(id) ?: return
         layouts.remove(id)
         (context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).removeView(view)
     }
+}
+
+/// A symbol of an overlay's bar, drawn in white in a 24-unit square: the
+/// ones `bern::overlay::Button` names.
+internal class BernOverlaySymbol(private val symbol: String) : android.graphics.drawable.Drawable() {
+    private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+    private val stroke = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt()
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 2.4f
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+
+    override fun draw(canvas: android.graphics.Canvas) {
+        val side = minOf(bounds.width(), bounds.height()).toFloat()
+        canvas.save()
+        canvas.translate(bounds.left + (bounds.width() - side) / 2f, bounds.top + (bounds.height() - side) / 2f)
+        canvas.scale(side / 24f, side / 24f)
+        fun triangle(path: android.graphics.Path, vararg points: Float) {
+            path.moveTo(points[0], points[1]); path.lineTo(points[2], points[3]); path.lineTo(points[4], points[5]); path.close()
+        }
+        val solid = android.graphics.Path()
+        val line = android.graphics.Path()
+        val cw = android.graphics.Path.Direction.CW
+        when (symbol) {
+            "play.fill" -> triangle(solid, 7f, 4f, 20f, 12f, 7f, 20f)
+            "pause.fill" -> {
+                solid.addRoundRect(android.graphics.RectF(6f, 4f, 10f, 20f), 1f, 1f, cw)
+                solid.addRoundRect(android.graphics.RectF(14f, 4f, 18f, 20f), 1f, 1f, cw)
+            }
+            "forward.fill" -> { triangle(solid, 3f, 5f, 12f, 12f, 3f, 19f); triangle(solid, 12f, 5f, 21f, 12f, 12f, 19f) }
+            "backward.fill" -> { triangle(solid, 21f, 5f, 12f, 12f, 21f, 19f); triangle(solid, 12f, 5f, 3f, 12f, 12f, 19f) }
+            "lock.fill", "lock.open.fill" -> {
+                solid.addRoundRect(android.graphics.RectF(5f, 11f, 19f, 21f), 2f, 2f, cw)
+                if (symbol == "lock.fill") {
+                    line.moveTo(8f, 11f); line.lineTo(8f, 7f)
+                    line.arcTo(android.graphics.RectF(8f, 3f, 16f, 11f), 180f, 180f); line.lineTo(16f, 11f)
+                } else {
+                    line.moveTo(16f, 11f); line.lineTo(16f, 5f)
+                    line.arcTo(android.graphics.RectF(8f, 1f, 16f, 9f), 0f, -180f); line.lineTo(8f, 7f)
+                }
+            }
+            "xmark" -> { line.moveTo(6f, 6f); line.lineTo(18f, 18f); line.moveTo(18f, 6f); line.lineTo(6f, 18f) }
+        }
+        canvas.drawPath(solid, fill)
+        canvas.drawPath(line, stroke)
+        canvas.restore()
+    }
+
+    override fun setAlpha(alpha: Int) {
+        fill.alpha = alpha
+        stroke.alpha = alpha
+    }
+
+    override fun setColorFilter(filter: android.graphics.ColorFilter?) {
+        fill.colorFilter = filter
+        stroke.colorFilter = filter
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
 }
