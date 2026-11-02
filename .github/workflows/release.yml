@@ -37,11 +37,16 @@ jobs:
             . -> target
             vendor/bern -> target
 
+      # The Bern CLI keeps credentials in the Secret Service over D-Bus;
+      # the Linux app also needs GTK, libadwaita and ALSA.
       - name: Linux libraries
-        if: matrix.target == 'linux'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libasound2-dev libdbus-1-dev pkg-config
+          sudo apt-get install -y libdbus-1-dev libasound2-dev pkg-config
+          if [ "${{ matrix.target }}" = linux ]; then
+            sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+          fi
 
       - name: Java
         if: matrix.target == 'android'
@@ -79,11 +84,18 @@ jobs:
         run: cargo build --manifest-path vendor/bern/Cargo.toml -p bern-cli --release
 
       - name: Package
-        shell: bash
+        if: runner.os != 'Windows'
         env:
           BERN_ANDROID_KEYSTORE_PASSWORD: ${{ matrix.target == 'android' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
           BERN_ANDROID_KEY_ALIAS: ${{ matrix.target == 'android' && secrets.ANDROID_KEY_ALIAS || '' }}
         run: vendor/bern/target/release/bern package --target ${{ matrix.target }}
+
+      # From cmd, so the build fetches the Windows App SDK with Windows' own
+      # tar: Git's, first on the bash path, reads "D:" as a host name.
+      - name: Package
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: vendor\bern\target\release\bern.exe package --target windows
 
       - uses: actions/upload-artifact@v4
         with:
