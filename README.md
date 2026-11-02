@@ -71,11 +71,15 @@
 - **登录**：扫码、手机验证码或密码登录，登录信息只保存在你自己的设备上。
 - **我的歌单**：我喜欢的音乐、自建和收藏的歌单；可以新建歌单、把歌加进去、给歌点红心。
 - **搜索**：网易云和本机的歌一起搜，有热搜榜和搜索记录。
-- **歌词**：跟着歌逐行滚动，带中文翻译，点一行就跳到那里；也能看歌曲评论。
+- **歌词**：跟着歌逐行滚动，带中文翻译，点一行就跳到那里；也能看歌曲评论。手机竖着拿时，封面下方也显示正在唱的那一行。
 - **音质**：标准、较高、极高、无损、Hi-Res 可选（320k 以上需要网易云会员）。
-- **本地音乐**：MP3、FLAC、M4A、WAV 等常见格式都能放。电脑上添加文件夹；iPhone 上把歌放进“文件”App 的 Enji 文件夹；Android 上选一个文件夹。
+- **本地音乐**：MP3、FLAC、M4A、WAV 等常见格式都能放，播放时写出格式和码率，例如“FLAC · 921 kbps · 44.1 kHz · 16 bit”。电脑上添加文件夹；iPhone 上把歌放进“文件”App 的 Enji 文件夹；Android 上选一个文件夹。
+- **下载**：把歌连同歌词和封面存到本机，电脑上在“音乐”文件夹的 Enji 里。下载过的歌和本机的歌在列表里都有标记。
+- **系统的播放控件**：键盘上的媒体键、macOS 菜单栏、iPhone 的锁屏和控制中心、Windows 的媒体浮窗、Linux 桌面的媒体控件、Android 的通知栏，都能看到正在放的歌并控制播放。切到别的 App 或锁屏后音乐不停。
+- **桌面歌词**：电脑和 Android 上，歌词可以浮在所有窗口上面，拖到哪里就停在哪里；锁定后鼠标点击会穿过它。
+- **插件**：在设置里的插件商店安装插件，比如 Windows 任务栏歌词、跟着鼓点跳动的封面。插件用 JavaScript 编写，见 [enji-plugins](https://github.com/MCDFsteve/enji-plugins)。
 - **播放记录**：最近听过什么，每首歌听了几次。
-- **外观**：浅色、深色或跟随系统，中文和英文界面。
+- **外观**：浅色、深色或跟随系统，中文和英文界面；格式、封面下的歌词和桌面歌词都能在设置里关掉。
 
 ## 下载
 
@@ -155,11 +159,13 @@ open target/bern/macos/Enji.app
 
 macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。
 
+系统的播放控件在 macOS、iPhone 模拟器、Android 模拟器和 Ubuntu 上试过，桌面歌词在 macOS 和 Android 上试过；Windows 上的这两样，以及 Linux 的桌面歌词，还没有实际试过。
+
 ## 免责声明
 
 - Enji 是第三方客户端，不是网易云音乐官方出品，与网易公司无关。
 - 本项目仅供学习和技术交流。
-- Enji 只通过网易云音乐的接口播放你本来就能听的内容，不提供任何音乐资源，也不绕过会员和版权限制。
+- Enji 只通过网易云音乐的接口播放你本来就能听的内容，不提供任何音乐资源，也不绕过会员和版权限制。试听片段不能下载；下载的歌请只用于个人收听，不要传播。
 - 歌曲、歌词、封面等内容的版权归网易云音乐及各自的权利人所有。
 - 使用时请遵守网易云音乐的用户协议和当地法律法规，因使用本项目产生的一切后果由使用者自行承担。
 - 如果你是权利人，认为本项目侵犯了你的权益，请提交 Issue，我们会尽快处理。
@@ -172,4 +178,5 @@ macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 模拟
 - [ncm-api-rs](https://github.com/SPlayer-Dev/ncm-api-rs)：网易云音乐接口
 - [Misuzu Music](https://github.com/AimesSoft/MisuzuMusic)：随机播放、本地歌曲识别和封面光效的做法
 - [symphonia](https://github.com/pdeljanov/Symphonia)、[rodio](https://github.com/RustAudio/rodio)、[lofty](https://github.com/Serial-ATA/lofty-rs)：解码、播放和标签
+- [Boa](https://github.com/boa-dev/boa)：运行插件的 JavaScript 引擎；插件的格式参照 NipaPlay Next
 - [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)：图标里的均衡器图形

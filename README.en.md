@@ -71,11 +71,15 @@
 - **Sign in** with a QR code, an SMS code or a password. Your sign-in stays on your own device.
 - **Your playlists**: liked songs, playlists you made or saved; create playlists, add songs to them, like a song.
 - **Search** NetEase and your own music at once, with trending searches and your search history.
-- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too.
+- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. Holding a phone upright, the line being sung also shows under the cover.
 - **Quality**: standard, higher, extreme, lossless or Hi-Res (above 320k needs NetEase VIP).
-- **Your own music**: MP3, FLAC, M4A, WAV and other common formats. On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
+- **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
+- **Downloads**: keep songs on your device with their lyrics and covers; on a computer they go to Enji in your Music folder. Downloaded songs and your own files are marked in every list.
+- **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification all show what's playing and control it. The music keeps playing when you switch apps or lock the screen.
+- **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them; locked, clicks go through them.
+- **Plugins**: install plugins from the plugin market in Settings, such as lyrics on the Windows taskbar or a cover that pulses with the beat. Plugins are written in JavaScript; see [enji-plugins](https://github.com/MCDFsteve/enji-plugins).
 - **History**: what you played recently, and how many times you played each song.
-- **Looks**: light, dark or follow the system; Chinese or English.
+- **Looks**: light, dark or follow the system; Chinese or English. The format line, the lyrics under the cover and the desktop lyrics can each be turned off in Settings.
 
 ## Download
 
@@ -155,11 +159,13 @@ open target/bern/macos/Enji.app
 
 Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo simulator and the Android emulator.
 
+The system's media controls have been tried on macOS, the iPhone simulator, the Android emulator and Ubuntu, and desktop lyrics on macOS and Android. Both are still untried on Windows, as are desktop lyrics on Linux.
+
 ## Disclaimer
 
 - Enji is a third-party client, not an official NetEase Cloud Music app, and has no affiliation with NetEase.
 - This project is for learning and technical exchange only.
-- Enji only plays, through NetEase Cloud Music's own interfaces, what you could already listen to. It provides no music and does not get around VIP or copyright restrictions.
+- Enji only plays, through NetEase Cloud Music's own interfaces, what you could already listen to. It provides no music and does not get around VIP or copyright restrictions. Previews can't be downloaded; keep downloaded songs for your own listening and don't share them.
 - Songs, lyrics and covers belong to NetEase Cloud Music and their respective rights holders.
 - Follow NetEase Cloud Music's terms of service and the laws where you live; you are responsible for how you use this project.
 - If you hold rights and believe this project infringes them, open an issue and it will be handled promptly.
@@ -172,4 +178,5 @@ Browsing, search, playback and lyrics have been used on a real Mac and a real Wi
 - [ncm-api-rs](https://github.com/SPlayer-Dev/ncm-api-rs): the NetEase Cloud Music API
 - [Misuzu Music](https://github.com/AimesSoft/MisuzuMusic): how shuffle, local song matching and the cover glow work
 - [symphonia](https://github.com/pdeljanov/Symphonia), [rodio](https://github.com/RustAudio/rodio), [lofty](https://github.com/Serial-ATA/lofty-rs): decoding, playback and tags
+- [Boa](https://github.com/boa-dev/boa): the JavaScript engine plugins run in; the plugin format follows NipaPlay Next's
 - [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons): the equalizer in the icon
