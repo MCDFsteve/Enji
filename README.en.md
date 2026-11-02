@@ -149,7 +149,7 @@ open target/bern/macos/Enji.app
 | Android | JDK 21, the Android SDK and NDK, `rustup target add aarch64-linux-android` |
 | Linux | GTK 4 and libadwaita development packages |
 
-`vendor/bern/` is a Bern snapshot with the cover glow and blurred backdrop Enji uses, which upstream doesn't have yet; see [UPSTREAM.md](vendor/bern/UPSTREAM.md).
+`vendor/bern/` holds the Bern that Enji is built with, so there's nothing else to download. The white light that follows the pointer over covers (`glow`), the blur on the playing page (`blur`) and iOS packaging are not in Bern's repository yet; see [UPSTREAM.md](vendor/bern/UPSTREAM.md).
 
 ## Status
 
