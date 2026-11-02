@@ -75,7 +75,7 @@
 
 ## Download
 
-Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg` for macOS, `-setup.exe` for Windows, `.apk` for Android, `.deb` for Linux. The macOS and Windows builds aren't code-signed; the release notes say how to open them the first time. For iPhone, build it yourself with Xcode.
+Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg` for macOS, `.ipa` for iPhone and iPad, `-setup.exe` for Windows, `.apk` for Android, `.deb` for Linux. The macOS, iOS and Windows builds aren't signed by a developer: install the `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time.
 
 ## For AI
 

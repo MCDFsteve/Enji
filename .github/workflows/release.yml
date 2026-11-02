@@ -24,6 +24,7 @@ jobs:
       matrix:
         include:
           - { name: macOS, os: macos-26, target: macos }
+          - { name: iOS, os: macos-26, target: ios }
           - { name: Windows, os: windows-latest, target: windows }
           - { name: Android, os: ubuntu-24.04, target: android }
           - { name: Linux, os: ubuntu-24.04, target: linux }
@@ -47,6 +48,11 @@ jobs:
           if [ "${{ matrix.target }}" = linux ]; then
             sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
           fi
+
+      # The simulator build, then the device build the .ipa holds.
+      - name: iOS targets
+        if: matrix.target == 'ios'
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
       - name: Java
         if: matrix.target == 'android'
@@ -91,11 +97,15 @@ jobs:
         run: vendor/bern/target/release/bern package --target ${{ matrix.target }}
 
       # From cmd, so the build fetches the Windows App SDK with Windows' own
-      # tar: Git's, first on the bash path, reads "D:" as a host name.
+      # tar: Git's, first on the bash path, reads "D:" as a host name. The
+      # Rust cache brings back target\bern-winrt without all of the
+      # packages in it, so they are fetched again.
       - name: Package
         if: runner.os == 'Windows'
         shell: cmd
-        run: vendor\bern\target\release\bern.exe package --target windows
+        run: |
+          if exist target\bern-winrt rmdir /s /q target\bern-winrt
+          vendor\bern\target\release\bern.exe package --target windows
 
       - uses: actions/upload-artifact@v4
         with:

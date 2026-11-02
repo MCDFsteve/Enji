@@ -75,7 +75,7 @@
 
 ## 下载
 
-到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：macOS 用 `.dmg`，Windows 用 `-setup.exe`，Android 用 `.apk`，Linux 用 `.deb`。macOS 和 Windows 版没有代码签名，第一次打开时怎么放行写在发布说明里。iPhone 版需要自己用 Xcode 构建。
+到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：macOS 用 `.dmg`，iPhone / iPad 用 `.ipa`，Windows 用 `-setup.exe`，Android 用 `.apk`，Linux 用 `.deb`。macOS、iOS 和 Windows 版没有开发者签名：`.ipa` 需要用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名安装，其余的第一次打开时怎么放行写在发布说明里。
 
 ## 交给 AI
 
