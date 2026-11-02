@@ -37,6 +37,10 @@
 <td width="50%" align="center"><a href="docs/screenshots/windows-charts.png"><img src="docs/screenshots/windows-charts.png" alt="Windows 上的排行榜页：左侧导航栏，网格排列的榜单封面，底部播放条"></a><br><sub>Windows · 排行榜</sub></td>
 <td width="50%" align="center"><a href="docs/screenshots/windows-now-playing.png"><img src="docs/screenshots/windows-now-playing.png" alt="Windows 上的播放页：左边封面和播放控制，右边逐行歌词与中文翻译，背后是模糊的封面"></a><br><sub>Windows · 播放页</sub></td>
 </tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/linux-charts.png"><img src="docs/screenshots/linux-charts.png" alt="Linux（GNOME）上的排行榜页：左侧边栏，网格排列的榜单封面，底部播放条"></a><br><sub>Linux · 排行榜</sub></td>
+<td width="50%" align="center"><a href="docs/screenshots/linux-now-playing.png"><img src="docs/screenshots/linux-now-playing.png" alt="Linux（GNOME）上的播放页：左边封面和播放控制，右边逐行歌词与中文翻译，背后是模糊的封面"></a><br><sub>Linux · 播放页</sub></td>
+</tr>
 </table>
 
 <table>
@@ -149,7 +153,7 @@ open target/bern/macos/Enji.app
 
 ## 现状
 
-macOS 和 Windows 实机、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。Linux 版只通过了 `bern check`。
+macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。
 
 ## 免责声明
 

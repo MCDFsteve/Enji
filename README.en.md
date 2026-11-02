@@ -37,6 +37,10 @@
 <td width="50%" align="center"><a href="docs/screenshots/windows-charts.png"><img src="docs/screenshots/windows-charts.png" alt="Charts on Windows: navigation pane, a grid of chart covers and the player bar"></a><br><sub>Windows · Charts</sub></td>
 <td width="50%" align="center"><a href="docs/screenshots/windows-now-playing.png"><img src="docs/screenshots/windows-now-playing.png" alt="Now playing on Windows: the cover and controls on the left, lyrics with Chinese translation on the right, the blurred cover behind"></a><br><sub>Windows · Now playing</sub></td>
 </tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/linux-charts.png"><img src="docs/screenshots/linux-charts.png" alt="Charts on Linux (GNOME): sidebar, a grid of chart covers and the player bar"></a><br><sub>Linux · Charts</sub></td>
+<td width="50%" align="center"><a href="docs/screenshots/linux-now-playing.png"><img src="docs/screenshots/linux-now-playing.png" alt="Now playing on Linux (GNOME): the cover and controls on the left, lyrics with Chinese translation on the right, the blurred cover behind"></a><br><sub>Linux · Now playing</sub></td>
+</tr>
 </table>
 
 <table>
@@ -149,7 +153,7 @@ open target/bern/macos/Enji.app
 
 ## Status
 
-Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, the iPhone Duo simulator and the Android emulator. Linux has only passed `bern check`.
+Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo simulator and the Android emulator.
 
 ## Disclaimer
 

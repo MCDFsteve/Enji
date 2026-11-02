@@ -16,12 +16,12 @@
 
 **Android**：如果装过自己构建的测试版，需要先卸载再安装；之后的版本都能直接覆盖更新。
 
-Linux 版能构建，但还没在真机上实际运行过。
+Linux 版在 Ubuntu 24.04 虚拟机（ARM64）里实际用过；这里发布的是 x64 版。
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
 
 ## Download
 
-macOS (Apple silicon): `.dmg`, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. iPhone / iPad (iOS 17+): `.ipa`, not signed for distribution; install it with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID. Windows (x64): `-setup.exe` or the portable `.zip`, unsigned. Android 8.0+: `.apk`. Linux (Ubuntu 24.04 or newer): `.deb` or `.tar.gz`, not yet tried on a real machine.
+macOS (Apple silicon): `.dmg`, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. iPhone / iPad (iOS 17+): `.ipa`, not signed for distribution; install it with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID. Windows (x64): `-setup.exe` or the portable `.zip`, unsigned. Android 8.0+: `.apk`. Linux (Ubuntu 24.04 or newer, x64): `.deb` or `.tar.gz`, used in an ARM64 Ubuntu 24.04 virtual machine.
 
 Enji is an unofficial, third-party NetEase Cloud Music client, not affiliated with NetEase, for learning and technical exchange only.
