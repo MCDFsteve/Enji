@@ -23,6 +23,7 @@
     ("calendar", "x-office-calendar-symbolic"),
     ("camera", "camera-photo-symbolic"),
     ("captions.bubble", "media-view-subtitles-symbolic"),
+    ("captions.bubble.fill", "media-view-subtitles-symbolic"),
     ("character.cursor.ibeam", "input-keyboard-symbolic"),
     ("chart.bar", "network-cellular-signal-excellent-symbolic"),
     ("checkmark", "object-select-symbolic"),

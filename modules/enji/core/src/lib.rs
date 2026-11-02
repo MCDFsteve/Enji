@@ -281,6 +281,12 @@ impl enji::Commands for EnjiEngine {
     fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetCoverLyrics(shown))
     }
+    fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetDesktopLyrics(shown))
+    }
+    fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetDesktopLyricsLocked(locked))
+    }
     fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError> {
         self.submit(Job::SetAppearance(appearance))
     }

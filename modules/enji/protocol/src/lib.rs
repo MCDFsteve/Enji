@@ -484,6 +484,12 @@ pub mod enji {
         pub show_format: bool,
         /// On a phone, the sung line under the cover.
         pub cover_lyrics: bool,
+        /// The sung line floating over everything else on the screen.
+        pub desktop_lyrics: bool,
+        /// Clicks go through the desktop lyrics; unlocked, they can be moved.
+        pub desktop_lyrics_locked: bool,
+        /// This system shows desktop lyrics.
+        pub desktop_lyrics_supported: bool,
         pub appearance: Appearance,
 
         /// A short word that something went well, such as a welcome.
@@ -618,6 +624,8 @@ pub mod enji {
         /// Download the playing song.
         fn download_current(&mut self) -> Result<(), CommandError>;
         fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
+        fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
+        fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;
         fn dismiss_error(&mut self) -> Result<(), CommandError>;
         /// The songs a module lists under `source`, so the commands that

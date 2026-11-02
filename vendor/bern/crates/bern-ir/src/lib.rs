@@ -381,6 +381,10 @@ pub struct AppInfo {
     /// mode).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub background_audio: bool,
+    /// `[app].overlays`: the application draws text over other apps
+    /// (`bern::overlay`), which Android asks the user to allow.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub overlays: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -23,6 +23,7 @@ fn app() -> Application {
             publisher: None,
             files_folder: false,
             background_audio: false,
+            overlays: false,
         },
         languages: Languages {
             supported: vec!["en".into()],

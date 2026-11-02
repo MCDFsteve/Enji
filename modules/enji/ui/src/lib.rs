@@ -1579,6 +1579,13 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                     IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
                                 }
                             }
+                            if app.desktop_lyrics_supported {
+                                if app.desktop_lyrics {
+                                    IconButton(id: desktop_lyrics_on, icon: "captions.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "关闭桌面歌词", "en" => "Hide Desktop Lyrics" }) => app.set_desktop_lyrics(false)
+                                } else {
+                                    IconButton(id: desktop_lyrics_off, icon: "captions.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }) => app.set_desktop_lyrics(true)
+                                }
+                            }
                             PopoverButton(id: now_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
                                 queue_list(app: app)
                             }
@@ -2154,6 +2161,32 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Text(content: tr! { "zh-Hans" => "手机竖屏时封面下显示歌词", "en" => "Lyrics Under the Cover on a Phone" })
                             Spacer
                             Switch(id: cover_lyrics, label: tr! { "zh-Hans" => "手机竖屏时封面下显示歌词", "en" => "Lyrics Under the Cover on a Phone" }, label_hidden: true, checked: app.cover_lyrics, style: switch) => app.set_cover_lyrics(app.cover_lyrics)
+                        }
+                        if app.desktop_lyrics_supported {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, icon: "captions.bubble", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" })
+                                Spacer
+                                Switch(id: desktop_lyrics, label: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, label_hidden: true, checked: app.desktop_lyrics, style: switch) => app.set_desktop_lyrics(app.desktop_lyrics)
+                            }
+                            if app.desktop_lyrics {
+                                Column(padding_x: 16) { Divider }
+                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                    Column(width: 22, align: center) {
+                                        Stack(variant: quiet) {
+                                            Label(title: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, icon: "checkmark.circle", display: icon, font_size: 15)
+                                        }
+                                    }
+                                    Text(content: tr! { "zh-Hans" => "锁定桌面歌词（点击穿透）", "en" => "Lock Desktop Lyrics (Clicks Pass Through)" })
+                                    Spacer
+                                    Switch(id: desktop_lyrics_locked, label: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, label_hidden: true, checked: app.desktop_lyrics_locked, style: switch) => app.set_desktop_lyrics_locked(app.desktop_lyrics_locked)
+                                }
+                            }
                         }
                         Column(padding_x: 16) { Divider }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {

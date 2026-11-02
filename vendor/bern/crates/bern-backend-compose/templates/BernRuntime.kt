@@ -819,6 +819,7 @@ object BernNative {
     }
 
     external fun start(fingerprint: Long, resources: ByteArray, bridge: BernBridge): ByteArray
+    external fun nowPlayingCommand(name: ByteArray)
     external fun stop(app: Long)
     external fun snapshot(app: Long): ByteArray
     external fun engineId(app: Long): ByteArray
@@ -952,6 +953,11 @@ class BernBridge(context: Context) {
                 ""
             }
             "open_path" -> onMain { openPath(first); "" }
+            "now_playing" -> onMain { BernNowPlaying.update(application, first); "" }
+            "overlay_allowed" -> if (BernOverlay.allowed(application)) "yes" else "no"
+            "overlay_ask" -> onMain { BernOverlay.ask(application); "" }
+            "overlay_show" -> onMain { BernOverlay.show(application, first, second); "" }
+            "overlay_hide" -> onMain { BernOverlay.hide(application, first); "" }
             "import_folder" -> importFolder(Uri.parse(first), File(second)).absolutePath
             "export_path" -> exportPath(File(first), Uri.parse(second)).toString()
             else -> error("Unsupported platform operation: $operation")
@@ -2104,5 +2110,301 @@ fun BernWindowRoot(
                 },
             )
         }
+    }
+}
+
+/// The system's now playing (`bern::now_playing`): a media session with
+/// what plays, the media notification the system's media controls show,
+/// and, where the application declares `background_audio`, a foreground
+/// service that keeps the music playing behind other apps. The session's
+/// commands go to the engine by name.
+internal object BernNowPlaying {
+    const val ID = 0x6e70
+    private const val CHANNEL = "bern.now_playing"
+    private const val ACTION = "dev.bern.runtime.NOW_PLAYING"
+    private var session: android.media.session.MediaSession? = null
+    private var receiver: android.content.BroadcastReceiver? = null
+    /// The notification shown last, which the service stands on.
+    var notification: android.app.Notification? = null
+        private set
+    private var playing = false
+
+    private fun send(name: String) = BernNative.nowPlayingCommand(name.toByteArray())
+
+    /// `json` is what the engine shows: title, artist, album, artwork as
+    /// base64, duration, position and playing; empty when nothing plays.
+    fun update(context: Context, json: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (json.isEmpty()) {
+            session?.isActive = false
+            playing = false
+            BernPlaybackService.running?.stop()
+            manager.cancel(ID)
+            notification = null
+            return
+        }
+        val now = org.json.JSONObject(json)
+        val session = session ?: android.media.session.MediaSession(context, "bern").also { created ->
+            created.setCallback(object : android.media.session.MediaSession.Callback() {
+                override fun onPlay() = send("play")
+                override fun onPause() = send("pause")
+                override fun onStop() = send("pause")
+                override fun onSkipToNext() = send("next")
+                override fun onSkipToPrevious() = send("previous")
+                override fun onSeekTo(position: Long) = send("seek:${position / 1000.0}")
+            })
+            session = created
+        }
+        val artwork = now.optString("artwork").takeIf { it.isNotEmpty() }?.let {
+            val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }
+        val title = now.optString("title")
+        val artist = now.optString("artist")
+        session.setMetadata(
+            android.media.MediaMetadata.Builder()
+                .putString(android.media.MediaMetadata.METADATA_KEY_TITLE, title)
+                .putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, artist)
+                .putString(android.media.MediaMetadata.METADATA_KEY_ALBUM, now.optString("album"))
+                .putLong(android.media.MediaMetadata.METADATA_KEY_DURATION, (now.optDouble("duration", 0.0) * 1000).toLong())
+                .apply { if (artwork != null) putBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, artwork) }
+                .build()
+        )
+        playing = now.optBoolean("playing")
+        val state = android.media.session.PlaybackState.Builder()
+            .setActions(
+                android.media.session.PlaybackState.ACTION_PLAY or android.media.session.PlaybackState.ACTION_PAUSE or
+                    android.media.session.PlaybackState.ACTION_PLAY_PAUSE or android.media.session.PlaybackState.ACTION_STOP or
+                    android.media.session.PlaybackState.ACTION_SKIP_TO_NEXT or android.media.session.PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                    android.media.session.PlaybackState.ACTION_SEEK_TO
+            )
+            .setState(
+                if (playing) android.media.session.PlaybackState.STATE_PLAYING else android.media.session.PlaybackState.STATE_PAUSED,
+                (now.optDouble("position", 0.0) * 1000).toLong(),
+                if (playing) 1f else 0f
+            )
+            .build()
+        session.setPlaybackState(state)
+        session.isActive = true
+        listen(context)
+        if (android.os.Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null) {
+            val name = context.applicationInfo.loadLabel(context.packageManager)
+            manager.createNotificationChannel(
+                android.app.NotificationChannel(CHANNEL, name, android.app.NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) }
+            )
+        }
+        val action = { icon: Int, label: String, command: String, code: Int ->
+            android.app.Notification.Action.Builder(
+                android.graphics.drawable.Icon.createWithResource(context, icon),
+                label,
+                android.app.PendingIntent.getBroadcast(
+                    context, code,
+                    android.content.Intent(ACTION).setPackage(context.packageName).putExtra("command", command),
+                    android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            ).build()
+        }
+        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
+            android.app.PendingIntent.getActivity(context, 0, it, android.app.PendingIntent.FLAG_IMMUTABLE)
+        }
+        val builder = if (android.os.Build.VERSION.SDK_INT >= 26) android.app.Notification.Builder(context, CHANNEL)
+            else @Suppress("DEPRECATION") android.app.Notification.Builder(context)
+        val shown = builder
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(artist)
+            .setLargeIcon(artwork)
+            .setContentIntent(launch)
+            .setOngoing(playing)
+            .setShowWhen(false)
+            .setVisibility(android.app.Notification.VISIBILITY_PUBLIC)
+            .addAction(action(android.R.drawable.ic_media_previous, "Previous", "previous", 1))
+            .addAction(
+                if (playing) action(android.R.drawable.ic_media_pause, "Pause", "pause", 2)
+                else action(android.R.drawable.ic_media_play, "Play", "play", 3)
+            )
+            .addAction(action(android.R.drawable.ic_media_next, "Next", "next", 4))
+            .setStyle(android.app.Notification.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
+            .build()
+        notification = shown
+        val service = BernPlaybackService.running
+        if (playing && service == null && BernPlaybackService.declared(context)) {
+            try {
+                val intent = android.content.Intent(context, BernPlaybackService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
+            } catch (error: Exception) {
+                manager.notify(ID, shown)
+            }
+        } else if (service != null) {
+            service.show(shown, playing)
+        } else {
+            manager.notify(ID, shown)
+        }
+    }
+
+    /// The notification's buttons, heard by the application alone.
+    private fun listen(context: Context) {
+        if (receiver != null) return
+        val heard = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: android.content.Intent) {
+                intent.getStringExtra("command")?.let(::send)
+            }
+        }
+        val filter = android.content.IntentFilter(ACTION)
+        if (android.os.Build.VERSION.SDK_INT >= 33) context.registerReceiver(heard, filter, Context.RECEIVER_NOT_EXPORTED)
+        else @Suppress("UnspecifiedRegisterReceiverFlag") context.registerReceiver(heard, filter)
+        receiver = heard
+    }
+}
+
+/// Keeps the application playing while another app is in front: a
+/// foreground service of the media playback kind, standing on the now
+/// playing notification. Paused, it leaves the foreground and the
+/// notification stays.
+class BernPlaybackService : android.app.Service() {
+    companion object {
+        var running: BernPlaybackService? = null
+            private set
+
+        /// Whether the application declares the service
+        /// (`[app].background_audio`).
+        fun declared(context: Context): Boolean = try {
+            context.packageManager.getServiceInfo(android.content.ComponentName(context, BernPlaybackService::class.java), 0)
+            true
+        } catch (error: Exception) {
+            false
+        }
+    }
+
+    override fun onBind(intent: android.content.Intent?): android.os.IBinder? = null
+
+    override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
+        running = this
+        val shown = BernNowPlaying.notification ?: run { stopSelf(); return START_NOT_STICKY }
+        show(shown, true)
+        return START_NOT_STICKY
+    }
+
+    fun show(notification: android.app.Notification, playing: Boolean) {
+        if (playing) {
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                startForeground(BernNowPlaying.ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(BernNowPlaying.ID, notification)
+            }
+        } else {
+            if (android.os.Build.VERSION.SDK_INT >= 24) stopForeground(android.app.Service.STOP_FOREGROUND_DETACH)
+            else @Suppress("DEPRECATION") stopForeground(false)
+            (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).notify(BernNowPlaying.ID, notification)
+        }
+    }
+
+    fun stop() {
+        if (android.os.Build.VERSION.SDK_INT >= 24) stopForeground(android.app.Service.STOP_FOREGROUND_REMOVE)
+        else @Suppress("DEPRECATION") stopForeground(true)
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        running = null
+        super.onDestroy()
+    }
+}
+
+/// Text over other apps (`bern::overlay`): a row of lines with a shadow on a
+/// system overlay window, once the user allows drawing over other apps.
+/// Locked, touches go through it; unlocked, it shows a plate and drags, and
+/// where it was left is kept.
+internal object BernOverlay {
+    private val views = mutableMapOf<String, android.widget.LinearLayout>()
+    private val layouts = mutableMapOf<String, android.view.WindowManager.LayoutParams>()
+
+    fun allowed(context: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(context)
+
+    fun ask(context: Context) {
+        if (android.os.Build.VERSION.SDK_INT < 23) return
+        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
+    private fun kept(context: Context) = context.getSharedPreferences("bern.overlay", Context.MODE_PRIVATE)
+
+    fun show(context: Context, id: String, json: String) {
+        if (!allowed(context)) return
+        val manager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+        val overlay = org.json.JSONObject(json)
+        val lines = overlay.optJSONArray("lines") ?: org.json.JSONArray()
+        val locked = overlay.optBoolean("locked")
+        val density = context.resources.displayMetrics.density
+        val layout = layouts.getOrPut(id) {
+            android.view.WindowManager.LayoutParams(
+                android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+                android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+                if (android.os.Build.VERSION.SDK_INT >= 26) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else @Suppress("DEPRECATION") android.view.WindowManager.LayoutParams.TYPE_PHONE,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                android.graphics.PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
+                x = kept(context).getInt("$id.x", 0)
+                y = kept(context).getInt("$id.y", (context.resources.displayMetrics.heightPixels * 0.18).toInt())
+            }
+        }
+        val touchable = android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        layout.flags = if (locked) layout.flags or touchable else layout.flags and touchable.inv()
+        val view = views[id] ?: android.widget.LinearLayout(context).also { created ->
+            created.orientation = android.widget.LinearLayout.VERTICAL
+            created.gravity = android.view.Gravity.CENTER_HORIZONTAL
+            val pad = (12 * density).toInt()
+            created.setPadding(pad, pad / 2, pad, pad / 2)
+            var startX = 0
+            var startY = 0
+            var downX = 0f
+            var downY = 0f
+            created.setOnTouchListener { _, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        startX = layout.x; startY = layout.y; downX = event.rawX; downY = event.rawY
+                    }
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        layout.x = startX + (event.rawX - downX).toInt()
+                        layout.y = startY + (event.rawY - downY).toInt()
+                        manager.updateViewLayout(created, layout)
+                    }
+                    android.view.MotionEvent.ACTION_UP -> kept(context).edit().putInt("$id.x", layout.x).putInt("$id.y", layout.y).apply()
+                }
+                true
+            }
+            manager.addView(created, layout)
+            views[id] = created
+        }
+        view.removeAllViews()
+        for (i in 0 until lines.length()) {
+            val line = lines.getJSONObject(i)
+            val text = line.optString("text")
+            if (text.isEmpty()) continue
+            view.addView(android.widget.TextView(context).apply {
+                this.text = text
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, line.optDouble("size", 18.0).toFloat())
+                setTextColor(android.graphics.Color.parseColor(line.optString("color", "#ffffffff")))
+                if (line.optBoolean("bold")) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setShadowLayer(4 * density, 0f, 1.5f * density, 0xD9000000.toInt())
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+            })
+        }
+        view.background = if (locked) null else android.graphics.drawable.GradientDrawable().apply {
+            setColor(0x4D000000)
+            cornerRadius = 12 * density
+        }
+        view.visibility = if (view.childCount == 0) android.view.View.GONE else android.view.View.VISIBLE
+        manager.updateViewLayout(view, layout)
+    }
+
+    fun hide(context: Context, id: String) {
+        val view = views.remove(id) ?: return
+        layouts.remove(id)
+        (context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).removeView(view)
     }
 }

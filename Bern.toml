@@ -11,6 +11,8 @@ files_folder = true
 # Music plays on behind the lock screen and in the background, where
 # the system's now playing shows it.
 background_audio = true
+# Desktop lyrics float over other apps (Android asks the user to allow it).
+overlays = true
 
 # The equalizer (Fluent's device eq, MIT) in the accent: on macOS and iOS a
 # Liquid Glass icon, white and black in the dark appearance; on Windows and

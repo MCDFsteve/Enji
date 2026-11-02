@@ -2249,6 +2249,7 @@ pub fn compile(config: &Config) -> Result<Compiled, Vec<Diagnostic>> {
                 publisher: config.publisher.clone(),
                 files_folder: config.files_folder,
                 background_audio: config.background_audio,
+                overlays: config.overlays,
             },
             languages: ir::Languages {
                 supported: config.languages.clone(),

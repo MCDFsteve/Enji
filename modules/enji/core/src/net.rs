@@ -62,6 +62,8 @@ pub enum Job {
     SetBackdrop(bool),
     SetShowFormat(bool),
     SetCoverLyrics(bool),
+    SetDesktopLyrics(bool),
+    SetDesktopLyricsLocked(bool),
     Download(Source, usize),
     DownloadCurrent,
     DownloadProgress { id: i64, progress: f64 },
@@ -257,6 +259,9 @@ pub fn initial_state() -> State {
         backdrop: saved["backdrop"].as_bool().unwrap_or(true),
         show_format: saved["show_format"].as_bool().unwrap_or(true),
         cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
+        desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
+        desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
+        desktop_lyrics_supported: bern::overlay::supported(),
         appearance: match pick("appearance").as_str() {
             "Light" => Appearance::Light,
             "Dark" => Appearance::Dark,
@@ -284,6 +289,8 @@ fn save_settings(state: &State) {
         "backdrop": state.backdrop,
         "show_format": state.show_format,
         "cover_lyrics": state.cover_lyrics,
+        "desktop_lyrics": state.desktop_lyrics,
+        "desktop_lyrics_locked": state.desktop_lyrics_locked,
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
         "online_info": state.online_info,
@@ -745,6 +752,24 @@ impl Worker {
                 s.cover_lyrics = shown;
                 save_settings(s);
             }),
+            Job::SetDesktopLyrics(shown) => {
+                // Android asks the user first; the lyrics show once allowed.
+                if shown && !bern::overlay::allowed() {
+                    bern::overlay::ask();
+                }
+                self.shared.update(|s| {
+                    s.desktop_lyrics = shown;
+                    save_settings(s);
+                });
+                self.desktop_lyrics();
+            }
+            Job::SetDesktopLyricsLocked(locked) => {
+                self.shared.update(|s| {
+                    s.desktop_lyrics_locked = locked;
+                    save_settings(s);
+                });
+                self.desktop_lyrics();
+            }
             Job::Download(source, index) => {
                 if let Some(song) = self.list_of(&source).get(index).cloned() {
                     self.download(song);
@@ -1101,6 +1126,7 @@ impl Worker {
                         s.scroll_to = 0;
                         s.scroll_tick += 1;
                     });
+                    self.desktop_lyrics();
                 }
                 if !cover.is_empty() {
                     if let Some(song) = self.queue.get(self.at).cloned() {
@@ -1149,6 +1175,7 @@ impl Worker {
                     s.scroll_tick += 1;
                 });
                 self.show_now_playing(Some(0.0));
+                self.desktop_lyrics();
             }
             Job::Format { token, format } => {
                 if token == self.token {
@@ -1311,6 +1338,40 @@ impl Worker {
             position: position.unwrap_or(self.position),
             playing,
         }));
+    }
+
+    /// The sung line and the next (or its translation) floating over the
+    /// screen while desktop lyrics are on; the song's name before its lyrics
+    /// come; nothing when they are off or no song is on.
+    fn desktop_lyrics(&self) {
+        use bern::overlay::{Line, Overlay};
+        let shown = self.shared.read(|s| {
+            let song = s.current.as_ref().filter(|_| s.desktop_lyrics)?;
+            let (first, second) = if s.lyric_now.is_empty() {
+                (song.name.clone(), song.artists.clone())
+            } else if s.show_translation && !s.lyric_now_translation.is_empty() {
+                (s.lyric_now.clone(), s.lyric_now_translation.clone())
+            } else {
+                (s.lyric_now.clone(), s.lyric_next.clone())
+            };
+            Some((first, second, s.desktop_lyrics_locked))
+        });
+        let Some((first, second, locked)) = shown else {
+            return bern::overlay::hide("lyrics");
+        };
+        // Phones show it smaller, over another app.
+        let (large, small) = if cfg!(target_os = "android") { (20.0, 14.0) } else { (30.0, 18.0) };
+        bern::overlay::show(
+            "lyrics",
+            &Overlay {
+                lines: vec![
+                    Line { text: first, size: large, bold: true, color: [255, 255, 255, 255] },
+                    Line { text: second, size: small, bold: false, color: [255, 255, 255, 215] },
+                ],
+                place: bern::overlay::Place::Free,
+                locked,
+            },
+        );
     }
 
     /// Read or download `song`'s cover for the system's now playing.
@@ -2216,6 +2277,7 @@ impl Worker {
             sung(s);
         });
         self.show_now_playing(Some(0.0));
+        self.desktop_lyrics();
         self.fetch_now_artwork(&song);
         self.load_panel();
         let (client, http, jobs, token) = (enji_kit::client(), self.http.clone(), self.jobs.clone(), self.token);
@@ -2574,6 +2636,7 @@ impl Worker {
             s.scroll_to = s.line;
             s.scroll_tick += 1;
         });
+        self.desktop_lyrics();
     }
 
     /// Where the song is, its lyric line, and the next song when it ends.
@@ -2626,6 +2689,7 @@ impl Worker {
             crate::plays::played(id);
             self.show_counts();
         }
+        let line_changed = self.shared.read(|s| s.line != line);
         self.shared.update(|s| {
             let length = s.current.as_ref().map_or(0.0, |song| song.seconds);
             s.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
@@ -2641,6 +2705,9 @@ impl Worker {
                 }
             }
         });
+        if line_changed {
+            self.desktop_lyrics();
+        }
     }
 }
 
