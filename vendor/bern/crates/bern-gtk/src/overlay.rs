@@ -22,7 +22,7 @@ impl Host for Overlays {
         let id = id.to_string();
         glib::MainContext::default().invoke(move || {
             WINDOWS.with(|windows| {
-                if let Some(window) = windows.borrow().get(&id) {
+                if let Some((window, _)) = windows.borrow().get(&id) {
                     window.set_visible(false);
                 }
             });
@@ -111,10 +111,10 @@ fn show(id: &str, overlay: &Overlay) {
     // Locked, an empty input region lets the pointer through.
     if let Some(surface) = window.surface() {
         if overlay.locked {
-            surface.set_input_region(&gtk::cairo::Region::create());
+            surface.set_input_region(Some(&gtk::cairo::Region::create()));
         } else {
             let all = gtk::cairo::RectangleInt::new(0, 0, surface.width().max(1), surface.height().max(1));
-            surface.set_input_region(&gtk::cairo::Region::create_rectangle(&all));
+            surface.set_input_region(Some(&gtk::cairo::Region::create_rectangle(&all)));
         }
     }
 }
