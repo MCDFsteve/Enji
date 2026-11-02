@@ -62,6 +62,7 @@ pub fn dress(song: &mut Song) {
     });
     if let Some(copy) = copy {
         song.file = copy.file.clone();
+        song.downloaded = copy.downloaded;
         song.name = copy.name.clone();
         if !copy.artists.is_empty() {
             song.artists = copy.artists.clone();

@@ -5,14 +5,14 @@
 
 use crate::{
     audio::{Audio, Stream},
-    convert, local, lyrics,
+    convert, downloads, local, lyrics,
     shuffle::Shuffle,
     store,
 };
 use bern::{media::MediaSource, wake::Waker};
 use enji_kit::{list, renumbered};
 use enji_protocol::enji::{
-    Appearance, Detail, Folder, Login, LyricLine, Panel, PlayMode, Played, Playlist, Quality, SignInWay, Song,
+    Appearance, Detail, Download, Folder, Login, LyricLine, Panel, PlayMode, Played, Playlist, Quality, SignInWay, Song,
     SongOrder, Source, State,
 };
 use ncm_api_rs::{ApiClient, NcmError, Query};
@@ -62,6 +62,11 @@ pub enum Job {
     SetBackdrop(bool),
     SetShowFormat(bool),
     SetCoverLyrics(bool),
+    Download(Source, usize),
+    DownloadCurrent,
+    DownloadProgress { id: i64, progress: f64 },
+    Downloaded { song: Song, path: PathBuf },
+    DownloadFailed { id: i64, message: String },
     SetAppearance(Appearance),
     ToggleLike,
     Shuffle(Source),
@@ -213,6 +218,8 @@ pub fn initial_state() -> State {
         playing: false,
         buffering: false,
         preview: false,
+        downloads: Vec::new(),
+        has_downloads: false,
         format: String::new(),
         lyric_now: String::new(),
         lyric_now_translation: String::new(),
@@ -374,6 +381,8 @@ struct Worker {
     unmuted: f64,
     /// The local library as it is kept.
     library: local::Library,
+    /// The NetEase songs of the downloaded files.
+    downloaded: downloads::Index,
     /// What was played, the latest first.
     history: Vec<Entry>,
     /// A playlist to play once its songs arrive.
@@ -480,6 +489,7 @@ pub async fn run(
         liked: Default::default(),
         unmuted: 0.8,
         library: local::Library::load(),
+        downloaded: downloads::Index::load(),
         history: Vec::new(),
         play_opened: None,
         daily: Vec::new(),
@@ -728,6 +738,48 @@ impl Worker {
                 s.cover_lyrics = shown;
                 save_settings(s);
             }),
+            Job::Download(source, index) => {
+                if let Some(song) = self.list_of(&source).get(index).cloned() {
+                    self.download(song);
+                }
+            }
+            Job::DownloadCurrent => {
+                if let Some(song) = self.shared.read(|s| s.current.clone()) {
+                    self.download(song);
+                }
+            }
+            Job::DownloadProgress { id, progress } => self.shared.update(|s| {
+                if let Some(download) = s.downloads.iter_mut().find(|download| download.id == id) {
+                    download.progress = progress;
+                }
+            }),
+            Job::Downloaded { song, path } => {
+                let url = local::file_url(&path);
+                self.downloaded.insert(url.clone(), downloads::Origin { id: song.id, album: song.album_id, artist: song.artist_id });
+                self.shared.update(|s| {
+                    s.downloads.retain(|download| download.id != song.id);
+                    s.has_downloads = !s.downloads.is_empty();
+                });
+                self.shared.tell(format!("《{}》已下载", song.name));
+                // The library reads the downloads folder.
+                let covered = self.library.folders.iter().any(|folder| {
+                    let folder = folder.url.trim_end_matches('/');
+                    url.strip_prefix(folder).is_some_and(|rest| rest.starts_with('/'))
+                });
+                if !covered {
+                    self.library.folders.push(local::Folder::new(local::file_url(&downloads::dir())));
+                    self.library.save();
+                    self.publish_library();
+                }
+                self.rescan();
+            }
+            Job::DownloadFailed { id, message } => {
+                self.shared.update(|s| {
+                    s.downloads.retain(|download| download.id != id);
+                    s.has_downloads = !s.downloads.is_empty();
+                });
+                self.shared.fail(message);
+            }
             Job::SetAppearance(appearance) => self.shared.update(|s| {
                 s.appearance = appearance;
                 save_settings(s);
@@ -797,6 +849,8 @@ impl Worker {
                 let places: HashMap<String, usize> =
                     self.library.tracks.iter().enumerate().map(|(i, track)| (track.url.clone(), i)).collect();
                 let folders = &self.library.folders;
+                let mut tracks = tracks;
+                self.downloaded_origins(&mut tracks);
                 for track in tracks.into_iter().filter(|track| folders.iter().any(|folder| track.folder == folder.url)) {
                     match places.get(&track.url) {
                         Some(&i) => self.library.tracks[i] = track,
@@ -812,7 +866,8 @@ impl Worker {
                     self.publish_library();
                 }
             }
-            Job::Scanned(library) => {
+            Job::Scanned(mut library) => {
+                self.downloaded_origins(&mut library.tracks);
                 // Folders added or removed while it read stay as they are now.
                 let folders = self.library.folders.clone();
                 self.library = local::Library {
@@ -1215,6 +1270,59 @@ impl Worker {
             };
             let library = library.scan(now_ms(), report);
             let _ = jobs.send(Job::Scanned(library));
+        });
+    }
+
+    /// The downloaded files of `tracks` known as their NetEase songs, without
+    /// searching.
+    fn downloaded_origins(&self, tracks: &mut [local::Track]) {
+        for track in tracks.iter_mut().filter(|track| track.netease_id <= 0) {
+            if let Some(origin) = self.downloaded.get(&track.url) {
+                track.netease_id = origin.id;
+                track.netease_album = origin.album;
+                track.netease_artist = origin.artist;
+                track.matched = "manual".into();
+            }
+        }
+    }
+
+    /// Download `song` from NetEase, unless it is not a NetEase song, a copy
+    /// is here already, or it is downloading.
+    fn download(&mut self, song: Song) {
+        if song.id <= 0 {
+            return self.shared.fail(format!("《{}》是本地歌曲，不用下载", song.name));
+        }
+        if !song.file.is_empty() {
+            return self.shared.tell(format!("《{}》已在本地", song.name));
+        }
+        let (netease, quality, busy) =
+            self.shared.read(|s| (s.netease, s.quality.clone(), s.downloads.iter().any(|download| download.id == song.id)));
+        if !netease {
+            return self.shared.fail("网易云音乐已在设置中关闭");
+        }
+        if busy {
+            return;
+        }
+        self.shared.update(|s| {
+            s.downloads.push(Download { id: song.id, name: song.name.clone(), artists: song.artists.clone(), progress: 0.0 });
+            s.has_downloads = true;
+        });
+        let (client, http, jobs) = (enji_kit::client(), self.http.clone(), self.jobs.clone());
+        tokio::spawn(async move {
+            let id = song.id;
+            // Reported each percent, not each chunk.
+            let shown = std::sync::atomic::AtomicI64::new(-1);
+            let progress = |part: f64| {
+                let percent = (part * 100.0) as i64;
+                if shown.swap(percent, std::sync::atomic::Ordering::Relaxed) != percent {
+                    let _ = jobs.send(Job::DownloadProgress { id, progress: part.clamp(0.0, 1.0) });
+                }
+            };
+            let job = match downloads::fetch(&client, &http, &song, level(quality), progress).await {
+                Ok(path) => Job::Downloaded { song, path },
+                Err(message) => Job::DownloadFailed { id, message },
+            };
+            let _ = jobs.send(job);
         });
     }
 
@@ -2688,6 +2796,7 @@ mod tests {
             album_id: 0,
             artist_id: 0,
             file: String::new(),
+            downloaded: false,
             plays,
             added,
             place,

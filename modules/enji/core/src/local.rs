@@ -582,6 +582,7 @@ pub fn song(track: &Track, index: usize) -> Song {
         album_id: track.netease_album,
         artist_id: track.netease_artist,
         file: track.url.clone(),
+        downloaded: crate::downloads::holds(&track.url),
         plays: 0,
         added: track.added,
         place: index as i64,

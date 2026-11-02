@@ -55,6 +55,7 @@ pub fn song(value: &Value, index: usize, privilege: Option<&Value>) -> Song {
         album_id: album["id"].as_i64().unwrap_or(0),
         artist_id: artists[0]["id"].as_i64().unwrap_or(0),
         file: String::new(),
+        downloaded: false,
         plays: 0,
         added: 0,
         place: index as i64,
@@ -103,6 +104,7 @@ pub fn song_from_json(value: &Value, index: usize) -> Song {
         plays: 0,
         added: 0,
         place: index as i64,
+        downloaded: false,
     }
 }
 

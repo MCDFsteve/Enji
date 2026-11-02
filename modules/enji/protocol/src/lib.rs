@@ -41,6 +41,8 @@ pub mod enji {
         pub added: i64,
         /// Its place in its list as the list itself orders it, from 0.
         pub place: i64,
+        /// Enji downloaded it: its file is in the downloads folder.
+        pub downloaded: bool,
     }
 
     /// An album: its cover, and its singer and year.
@@ -234,6 +236,18 @@ pub mod enji {
         pub blur: f64,
     }
 
+    /// A song being downloaded, and how far along.
+    #[value]
+    pub struct Download {
+        pub id: i64,
+        #[content]
+        pub name: String,
+        #[content]
+        pub artists: String,
+        /// From 0 to 1.
+        pub progress: f64,
+    }
+
     /// The list a song is played from.
     #[value]
     pub enum Source {
@@ -410,6 +424,9 @@ pub mod enji {
         pub buffering: bool,
         /// Only a short preview: the song is for members.
         pub preview: bool,
+        /// The songs being downloaded, the first started first.
+        pub downloads: Vec<Download>,
+        pub has_downloads: bool,
         /// How the playing song is encoded, such as `FLAC · 921 kbps · 44.1
         /// kHz · 16 bit`; empty until it is known.
         #[content]
@@ -595,6 +612,11 @@ pub mod enji {
         fn set_show_translation(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_backdrop(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_show_format(&mut self, shown: bool) -> Result<(), CommandError>;
+        /// Download the song at `index` of a list from NetEase: the full
+        /// song, tagged, with its lyrics beside it.
+        fn download(&mut self, source: Source, index: i64) -> Result<(), CommandError>;
+        /// Download the playing song.
+        fn download_current(&mut self) -> Result<(), CommandError>;
         fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;
         fn dismiss_error(&mut self) -> Result<(), CommandError>;

@@ -533,6 +533,24 @@ pub fn local_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                         Progress(label: tr! { "zh-Hans" => "正在匹配网易云 {done}/{total}", "en" => "Matching on NetEase {done}/{total}"; done: app.match_done, total: app.match_total })
                     }
                 }
+                // What is downloading, each with how far along it is.
+                if app.has_downloads {
+                    Column(gap: 6, padding_x: 8, padding_y: 8) {
+                        Text(content: tr! { "zh-Hans" => "正在下载", "en" => "Downloading" }, style: footnote, bold: true, emphasis: secondary)
+                        ForEach(items: app.downloads, key: id) |download| {
+                            Row(gap: 12, padding_y: 4, align: center) {
+                                Column(gap: 2, align: leading) {
+                                    Text(content: download.name, lines: 1)
+                                    Text(content: download.artists, style: caption, emphasis: secondary, lines: 1)
+                                }
+                                Spacer
+                                Column(width: if window.compact { 96 } else { 200 }) {
+                                    Progress(value: download.progress, total: 1, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" })
+                                }
+                            }
+                        }
+                    }
+                }
                 if app.has_local {
                     Row(gap: 10, padding_x: 8, padding_y: 8) {
                         Button(id: play_local, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36) => app.play(Source::Local, 0)
@@ -991,20 +1009,21 @@ pub fn song_row(app: enji::Client, song: enji::Song, source: Source, full: bool,
     ui! {
         if removable {
             Button(id: own_song, label: song.name, variant: row, enabled: !song.unavailable) {
-                song_line(app: app, song: song, full: full)
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
                 ContextMenu {
                     MenuItem(id: own_song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
                     MenuItem(id: own_song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
                     MenuItem(id: own_song_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: song.id > 0 && app.login == Login::In) => app.choose_playlist(source, song.index)
                     MenuItem(id: own_song_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: song.artist_id > 0) => app.open_artist(song.artist_id)
                     MenuItem(id: own_song_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: song.album_id > 0) => app.open_album(song.album_id)
+                    MenuItem(id: own_song_download, label: tr! { "zh-Hans" => "下载", "en" => "Download" }, icon: "arrow.down.circle", enabled: song.id > 0 && !song.unavailable) => app.download(source, song.index)
                     Divider
                     MenuItem(id: song_remove, label: tr! { "zh-Hans" => "从歌单中删除", "en" => "Remove from Playlist" }, icon: "trash", role: destructive) => app.remove_from_playlist(song.index)
                 }
             } => app.play(source, song.index)
         } else if song.file != "" && app.netease {
             Button(id: file_song, label: song.name, variant: row) {
-                song_line(app: app, song: song, full: full)
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
                 ContextMenu {
                     MenuItem(id: file_song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
                     MenuItem(id: file_song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
@@ -1017,7 +1036,7 @@ pub fn song_row(app: enji::Client, song: enji::Song, source: Source, full: bool,
             } => app.play(source, song.index)
         } else if !app.netease {
             Button(id: plain_song, label: song.name, variant: row, enabled: !song.unavailable) {
-                song_line(app: app, song: song, full: full)
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
                 ContextMenu {
                     MenuItem(id: plain_song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
                     MenuItem(id: plain_song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
@@ -1025,13 +1044,14 @@ pub fn song_row(app: enji::Client, song: enji::Song, source: Source, full: bool,
             } => app.play(source, song.index)
         } else {
             Button(id: song, label: song.name, variant: row, enabled: !song.unavailable) {
-                song_line(app: app, song: song, full: full)
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
                 ContextMenu {
                     MenuItem(id: song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
                     MenuItem(id: song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
                     MenuItem(id: song_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: song.id > 0 && app.login == Login::In) => app.choose_playlist(source, song.index)
                     MenuItem(id: song_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: song.artist_id > 0) => app.open_artist(song.artist_id)
                     MenuItem(id: song_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: song.album_id > 0) => app.open_album(song.album_id)
+                    MenuItem(id: song_download, label: tr! { "zh-Hans" => "下载", "en" => "Download" }, icon: "arrow.down.circle", enabled: song.id > 0 && !song.unavailable) => app.download(source, song.index)
                 }
             } => app.play(source, song.index)
         }
@@ -1039,10 +1059,11 @@ pub fn song_row(app: enji::Client, song: enji::Song, source: Source, full: bool,
 }
 
 /// What a song's row shows: its number, or a speaker while it plays; its
-/// cover, name and singers; with `full` on a wide window its album; its
-/// length.
+/// cover, name and singers, marked when Enji downloaded it or, with
+/// `marked`, when a copy is here; with `full` on a wide window its album;
+/// its length.
 #[component]
-pub fn song_line(app: enji::Client, song: enji::Song, full: bool) -> impl View {
+pub fn song_line(app: enji::Client, song: enji::Song, full: bool, marked: bool) -> impl View {
     ui! {
         Row(gap: 14, padding_x: 12, padding_y: 7, align: center) {
             if full && !window.compact {
@@ -1066,7 +1087,18 @@ pub fn song_line(app: enji::Client, song: enji::Song, full: bool) -> impl View {
                 } else {
                     Text(content: song.name, lines: 1)
                 }
-                Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+                Row(gap: 4, align: center) {
+                    if song.downloaded {
+                        Stack(variant: tint) {
+                            Label(title: tr! { "zh-Hans" => "已下载", "en" => "Downloaded" }, icon: "arrow.down.circle", display: icon, font_size: 11)
+                        }
+                    } else if marked && song.file != "" {
+                        Stack(variant: quiet) {
+                            Label(title: tr! { "zh-Hans" => "本地", "en" => "On This Device" }, icon: "folder", display: icon, font_size: 11)
+                        }
+                    }
+                    Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+                }
             }
             Spacer
             if full && !window.compact {
@@ -1436,6 +1468,10 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                                 } else {
                                     IconButton(id: phone_details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
                                 }
+                                if song.file == "" {
+                                    Spacer
+                                    IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                                }
                             }
                             Spacer
                             PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
@@ -1538,6 +1574,9 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                     IconButton(id: details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.show_panel(Panel::Details)
                                 } else {
                                     IconButton(id: details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.show_panel(Panel::Details)
+                                }
+                                if song.file == "" {
+                                    IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
                                 }
                             }
                             PopoverButton(id: now_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {

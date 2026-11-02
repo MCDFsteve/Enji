@@ -4,6 +4,7 @@
 
 mod audio;
 mod covers;
+mod downloads;
 mod local;
 mod lyrics;
 mod net;
@@ -270,6 +271,12 @@ impl enji::Commands for EnjiEngine {
     }
     fn set_show_format(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetShowFormat(shown))
+    }
+    fn download(&mut self, source: Source, index: i64) -> Result<(), CommandError> {
+        self.submit(Job::Download(source, place(index)?))
+    }
+    fn download_current(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::DownloadCurrent)
     }
     fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetCoverLyrics(shown))
