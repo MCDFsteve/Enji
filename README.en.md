@@ -71,6 +71,10 @@
 - **History**: what you played recently, and how many times you played each song.
 - **Looks**: light, dark or follow the system; Chinese or English.
 
+## Download
+
+Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg` for macOS, `-setup.exe` for Windows, `.apk` for Android, `.deb` for Linux. The macOS and Windows builds aren't code-signed; the release notes say how to open them the first time. For iPhone, build it yourself with Xcode.
+
 ## For AI
 
 Every build puts an `enji` command line and `enji-mcp` in `target/bern/<platform>/bin/`, with every command described in `skills/enji/SKILL.md`.

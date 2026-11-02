@@ -71,6 +71,10 @@
 - **播放记录**：最近听过什么，每首歌听了几次。
 - **外观**：浅色、深色或跟随系统，中文和英文界面。
 
+## 下载
+
+到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：macOS 用 `.dmg`，Windows 用 `-setup.exe`，Android 用 `.apk`，Linux 用 `.deb`。macOS 和 Windows 版没有代码签名，第一次打开时怎么放行写在发布说明里。iPhone 版需要自己用 Xcode 构建。
+
 ## 交给 AI
 
 每次构建都会在 `target/bern/<平台>/bin/` 生成 `enji` 命令行和 `enji-mcp`，`skills/enji/SKILL.md` 里是全部命令的说明。
