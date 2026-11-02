@@ -592,12 +592,13 @@ mod win {
                 let _ = ShowWindow(hwnd, SW_HIDE);
                 return Ok(());
             }
-            let margin = MARGIN * scale;
+            // On the taskbar the lines fill its height, with no room around.
+            let (margin, gap) = match window.overlay.place {
+                Place::Taskbar => (2.0 * scale, 0.0),
+                Place::Free => (MARGIN * scale, GAP * scale),
+            };
             let width = (lines.iter().map(|line| line.1).fold(0.0, f32::max) + 2.0 * margin).ceil() as i32;
-            let height = (lines.iter().map(|line| line.2).sum::<f32>()
-                + GAP * scale * (lines.len() - 1) as f32
-                + 2.0 * margin)
-                .ceil() as i32;
+            let height = (lines.iter().map(|line| line.2).sum::<f32>() + gap * (lines.len() - 1) as f32 + 2.0 * margin).ceil() as i32;
 
             let screen = GetDC(None);
             let memory = CreateCompatibleDC(Some(screen));
@@ -648,7 +649,7 @@ mod win {
                     );
                 }
                 target.DrawTextLayout(Vector2 { X: left, Y: top }, layout, &brush, D2D1_DRAW_TEXT_OPTIONS_NONE);
-                top += line_height + GAP * scale;
+                top += line_height + gap;
             }
             target.EndDraw(None, None)?;
 
