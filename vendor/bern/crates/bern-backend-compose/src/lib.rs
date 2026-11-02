@@ -273,8 +273,8 @@ impl Target for ComposeAndroid {
                 let images =
                     icon::images(app, "android", &context.project_dir, icon::Shape::AsDrawn)
                         .map_err(failed)?;
-                let launcher =
-                    adaptive_icon(&main, "ic_launcher", &icon::largest(&images).png).map_err(failed)?;
+                let launcher = adaptive_icon(&main, "ic_launcher", &icon::largest(&images).png)
+                    .map_err(failed)?;
                 (launcher, false)
             }
         };
@@ -757,7 +757,11 @@ impl Target for ComposeAndroid {
 /// launchers before Android 8, and an adaptive icon whose layers fill the
 /// launcher's shape ([`icon::adaptive_layers`]); a picture that cannot be
 /// read stays the image alone.
-fn adaptive_icon(main: &std::path::Path, name: &str, png: &[u8]) -> Result<Vec<GeneratedFile>, String> {
+fn adaptive_icon(
+    main: &std::path::Path,
+    name: &str,
+    png: &[u8],
+) -> Result<Vec<GeneratedFile>, String> {
     let legacy = GeneratedFile {
         path: main.join(format!("res/mipmap-xxxhdpi/{name}.png")),
         contents: png.to_vec(),

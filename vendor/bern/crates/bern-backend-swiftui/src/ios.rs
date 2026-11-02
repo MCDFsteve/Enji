@@ -13,7 +13,7 @@ use bern_ir::IR_VERSION;
 use bern_ir::{Application, WindowInitial};
 use bern_target_api::{
     BuildContext, BuildPlan, BuildStep, ColorSource, Diagnostic, GeneratedFile, MediaSupport, Run,
-    SimulatedSystem, Signing, Target, TargetConfig, TargetDescriptor, WindowCapabilities, icon,
+    Signing, SimulatedSystem, Target, TargetConfig, TargetDescriptor, WindowCapabilities, icon,
     skill,
 };
 use std::path::{Path, PathBuf};

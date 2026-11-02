@@ -149,7 +149,7 @@ open target/bern/macos/Enji.app
 | Android | JDK 21、Android SDK 与 NDK，`rustup target add aarch64-linux-android` |
 | Linux | GTK 4 与 libadwaita 开发包 |
 
-`vendor/bern/` 里是构建 Enji 用的那一版 Bern，不用另外下载。其中封面上跟着鼠标的白光（`glow`）、播放页的模糊（`blur`）和 iOS 打包还没合进 Bern 的仓库，详见 [UPSTREAM.md](vendor/bern/UPSTREAM.md)。
+`vendor/bern/` 是 Bern 仓库 [`14a5b26`](https://github.com/AimesSoft/Bern/commit/14a5b2631af1f88077b474c6ff5d566980d1de0e) 提交的副本，不用另外下载，详见 [UPSTREAM.md](vendor/bern/UPSTREAM.md)。
 
 ## 现状
 

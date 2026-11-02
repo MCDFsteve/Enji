@@ -214,7 +214,10 @@ fn imports_of(
             .and_then(toml::Value::as_str)
             .map(str::to_string)
     };
-    let Some((_, module)) = modules.iter().find(|(_, module)| module_id(module).as_deref() == Some(id)) else {
+    let Some((_, module)) = modules
+        .iter()
+        .find(|(_, module)| module_id(module).as_deref() == Some(id))
+    else {
         return Ok(Default::default());
     };
     let mut imported = bern_protocol::TypeTable::default();
@@ -240,7 +243,11 @@ fn protocol_types(
 ) -> Result<bern_protocol::TypeTable, String> {
     let imported = imports_of(id, modules, selection, done, files)?;
     let Some((manifest, module)) = modules.iter().find(|(_, module)| {
-        module.get("module").and_then(|m| m.get("id")).and_then(toml::Value::as_str) == Some(id)
+        module
+            .get("module")
+            .and_then(|m| m.get("id"))
+            .and_then(toml::Value::as_str)
+            == Some(id)
     }) else {
         return Ok(Default::default());
     };
@@ -348,7 +355,10 @@ fn module_pages_of(path: &Path, slot: &str) -> Result<(Vec<ModulePage>, Vec<Path
             pages.push(ModulePage {
                 id: id.to_string(),
                 label,
-                start: page.get("start").and_then(toml::Value::as_bool).unwrap_or(false),
+                start: page
+                    .get("start")
+                    .and_then(toml::Value::as_bool)
+                    .unwrap_or(false),
             });
         }
     }

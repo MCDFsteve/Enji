@@ -529,7 +529,10 @@ mod composite {
             vec![Value::Int(self.0)]
         }
         fn wake(&mut self) {
-            assert!(crate::wake::waker().is_some(), "wake runs with the waker current");
+            assert!(
+                crate::wake::waker().is_some(),
+                "wake runs with the waker current"
+            );
             self.0 += 1;
         }
     }
@@ -603,7 +606,10 @@ mod composite {
             },
             context(),
         );
-        assert_eq!(outcome.result, Ok(Value::List(vec![Value::Text("tally".into())])));
+        assert_eq!(
+            outcome.result,
+            Ok(Value::List(vec![Value::Text("tally".into())]))
+        );
         // Off as the host started, it was woken once as it was switched on.
         assert_eq!(host.snapshot().1[1], Value::Record(vec![Value::Int(1)]));
     }

@@ -268,7 +268,8 @@ test("a blurred element keeps its style's shadow and is cut to its box", () => {
   const { B, F, Element, resizeObservers } = runtime();
   const scope = new B.Scope();
   const node = new Element("div");
-  node.style.filter = "drop-shadow(0 2px 6px rgb(0 0 0 / 0.2))";
+  // As a style leaves it: the shadow in the filter and kept apart for the blur.
+  node.bernShadow = node.style.filter = "drop-shadow(0 2px 6px rgb(0 0 0 / 0.2))";
   B.within(scope, () => F.blur(node, 28));
   assert.equal(node.style.filter, "drop-shadow(0 2px 6px rgb(0 0 0 / 0.2)) blur(28px)");
   resizeObservers.at(-1).callback([]);

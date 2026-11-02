@@ -64,7 +64,9 @@ impl Generator<'_> {
                     "b::TransitionKind::Slide(b::Edge::{edge:?}, {})",
                     float(*distance)
                 ),
-                TransitionKind::Move { edge } => format!("b::TransitionKind::Move(b::Edge::{edge:?})"),
+                TransitionKind::Move { edge } => {
+                    format!("b::TransitionKind::Move(b::Edge::{edge:?})")
+                }
             };
             out.push_str(&format!(
                 "#[allow(dead_code)] static {}: b::Transition = b::Transition {{ kind: {kind}, motion: {} }};\n",

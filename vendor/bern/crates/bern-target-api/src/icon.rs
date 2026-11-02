@@ -288,7 +288,9 @@ pub fn adaptive_layers(png: &[u8]) -> Result<(Vec<u8>, [u8; 3]), String> {
         .pixel(0, 0)
         .map(|pixel| pixel.demultiply())
         .filter(|pixel| pixel.alpha() == 255)
-        .map_or([255, 255, 255], |pixel| [pixel.red(), pixel.green(), pixel.blue()]);
+        .map_or([255, 255, 255], |pixel| {
+            [pixel.red(), pixel.green(), pixel.blue()]
+        });
     let side = ADAPTIVE_SIDE as f32;
     let shown = side * 72.0 / 108.0;
     let scale = shown / source.width().max(1) as f32;
@@ -306,7 +308,10 @@ pub fn adaptive_layers(png: &[u8]) -> Result<(Vec<u8>, [u8; 3]), String> {
         resvg::tiny_skia::Transform::from_row(scale, 0.0, 0.0, scale, offset, offset),
         None,
     );
-    Ok((layer.encode_png().map_err(|error| error.to_string())?, corner))
+    Ok((
+        layer.encode_png().map_err(|error| error.to_string())?,
+        corner,
+    ))
 }
 
 /// The one-colour SVG of `StatusItem(image:)`, a declared resource name.

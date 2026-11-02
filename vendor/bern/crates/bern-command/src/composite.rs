@@ -50,7 +50,9 @@ fn running(engine: Box<dyn EngineProtocol>) -> Running {
 }
 
 fn lock(engine: &Running) -> MutexGuard<'_, Box<dyn EngineProtocol>> {
-    engine.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    engine
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 struct Module {

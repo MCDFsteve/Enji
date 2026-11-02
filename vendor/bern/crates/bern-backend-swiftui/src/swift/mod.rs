@@ -182,7 +182,14 @@ impl<'a> Generator<'a> {
             // be hidden at once by the page it uncovers.
             if ctx.layers {
                 out.open("SwiftUI.Group {");
-                self.node(out, node, &Ctx { layers: false, ..ctx.clone() });
+                self.node(
+                    out,
+                    node,
+                    &Ctx {
+                        layers: false,
+                        ..ctx.clone()
+                    },
+                );
                 out.close("}");
                 out.line(format!(".zIndex({index}.0)"));
                 emitted = true;

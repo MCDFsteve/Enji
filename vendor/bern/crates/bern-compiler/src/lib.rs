@@ -1455,7 +1455,9 @@ fn module_contributions(
             };
             // A selection starts on the enum's first variant.
             if page.start {
-                if let Some(first) = starts.insert(enum_name.clone(), (module.id.clone(), page.id.clone())) {
+                if let Some(first) =
+                    starts.insert(enum_name.clone(), (module.id.clone(), page.id.clone()))
+                {
                     diagnostics.push(Diagnostic::error(format!(
                         "pages `{}` of module `{}` and `{}` of module `{}` both start slot `{}`; one page per slot can",
                         first.1, first.0, page.id, module.id, page.slot
