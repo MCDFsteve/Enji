@@ -4,7 +4,7 @@
 
 <h1>Enji Music</h1>
 
-<p><b>An unofficial, third-party NetEase Cloud Music client written in Rust, native on every platform.</b></p>
+<p><b>A third-party NetEase Cloud Music app for your computer and your phone, light and easy to use.</b></p>
 
 <p><sub>Not made by or affiliated with NetEase.</sub></p>
 
