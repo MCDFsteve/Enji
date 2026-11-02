@@ -4,20 +4,20 @@
 //! it for the interface.
 
 use crate::{
-    audio::{Audio, Stream},
-    convert, downloads, local, lyrics,
+    audio::{self, Audio, Stream},
+    convert, downloads, local, lyrics, plugins,
     shuffle::Shuffle,
     store,
 };
 use bern::{media::MediaSource, wake::Waker};
 use enji_kit::{list, renumbered};
 use enji_protocol::enji::{
-    Appearance, Detail, Download, Folder, Login, LyricLine, Panel, PlayMode, Played, Playlist, Quality, SignInWay, Song,
+    Appearance, Detail, Download, Folder, Login, Offer, Plugin, LyricLine, Panel, PlayMode, Played, Playlist, Quality, SignInWay, Song,
     SongOrder, Source, State,
 };
 use ncm_api_rs::{ApiClient, NcmError, Query};
 use rand::Rng;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     io::Read,
@@ -70,6 +70,14 @@ pub enum Job {
     Downloaded { song: Song, path: PathBuf },
     /// The playing song's cover, read for the system's now playing.
     NowArtwork { token: u64, bytes: Arc<Vec<u8>> },
+    SetPluginEnabled(String, bool),
+    RemovePlugin(String),
+    LoadOffers,
+    Offers(Vec<plugins::Listing>),
+    InstallPlugin(String),
+    ImportPlugin(String),
+    /// A plugin package was unpacked, or why it was not.
+    PluginInstalled(Result<plugins::Pack, String>),
     DownloadFailed { id: i64, message: String },
     SetAppearance(Appearance),
     ToggleLike,
@@ -222,6 +230,12 @@ pub fn initial_state() -> State {
         playing: false,
         buffering: false,
         preview: false,
+        plugins: Vec::new(),
+        has_plugins: false,
+        offers: Vec::new(),
+        has_offers: false,
+        offers_loading: false,
+        cover_pulse: 0,
         downloads: Vec::new(),
         has_downloads: false,
         format: String::new(),
@@ -291,6 +305,7 @@ fn save_settings(state: &State) {
         "cover_lyrics": state.cover_lyrics,
         "desktop_lyrics": state.desktop_lyrics,
         "desktop_lyrics_locked": state.desktop_lyrics_locked,
+        "plugins": state.plugins.iter().filter(|plugin| plugin.enabled).map(|plugin| plugin.id.clone()).collect::<Vec<_>>(),
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
         "online_info": state.online_info,
@@ -395,6 +410,14 @@ struct Worker {
     /// The playing song's cover for the system's now playing, by the token
     /// of the song it is for.
     now_artwork: Option<(u64, Arc<Vec<u8>>)>,
+    /// The enabled plugins, running.
+    plugins: plugins::Plugins,
+    /// The ids of the enabled plugins, kept in the settings.
+    enabled_plugins: Vec<String>,
+    /// What the plugin market lists.
+    listings: Vec<plugins::Listing>,
+    /// The overlays plugins put up, to take down with them.
+    plugin_overlays: std::collections::HashSet<String>,
     /// What was played, the latest first.
     history: Vec<Entry>,
     /// A playlist to play once its songs arrive.
@@ -503,6 +526,13 @@ pub async fn run(
         library: local::Library::load(),
         downloaded: downloads::Index::load(),
         now_artwork: None,
+        plugins: plugins::Plugins::default(),
+        enabled_plugins: store::settings()["plugins"]
+            .as_array()
+            .map(|ids| ids.iter().filter_map(|id| id.as_str().map(String::from)).collect())
+            .unwrap_or_default(),
+        listings: Vec::new(),
+        plugin_overlays: std::collections::HashSet::new(),
         history: Vec::new(),
         play_opened: None,
         daily: Vec::new(),
@@ -521,12 +551,15 @@ pub async fn run(
         worker.shared.update(|s| s.phone_folder = folder.to_string_lossy().to_string());
     }
     worker.publish_library();
+    worker.start_plugins();
     worker.rescan();
     if cookie.is_some() && worker.shared.read(|s| s.netease) {
         worker.fetch_account(false);
     }
     worker.refresh();
     let mut tick = tokio::time::interval(Duration::from_millis(200));
+    // Plugins hear the music's loudness and answer more often than that.
+    let mut quick = tokio::time::interval(Duration::from_millis(50));
     loop {
         tokio::select! {
             job = receive.recv() => match job {
@@ -534,6 +567,7 @@ pub async fn run(
                 None => break,
             },
             _ = tick.tick() => worker.tick(),
+            _ = quick.tick(), if !worker.plugins.is_empty() => worker.plugin_tick(),
         }
     }
 }
@@ -944,6 +978,104 @@ impl Worker {
                     self.show_now_playing(None);
                 }
             }
+            Job::SetPluginEnabled(id, on) => {
+                if let Err(message) = self.plugins.set_running(&id, on) {
+                    self.shared.fail(message);
+                    return self.publish_plugins();
+                }
+                self.enabled_plugins.retain(|enabled| *enabled != id);
+                if on {
+                    self.enabled_plugins.push(id.clone());
+                    self.greet_plugins();
+                } else {
+                    self.hide_plugin_overlays(&id);
+                }
+                self.publish_plugins();
+                self.shared.update(|s| save_settings(s));
+            }
+            Job::RemovePlugin(id) => {
+                let _ = self.plugins.set_running(&id, false);
+                self.hide_plugin_overlays(&id);
+                self.enabled_plugins.retain(|enabled| *enabled != id);
+                plugins::remove(&id);
+                self.publish_plugins();
+                self.shared.update(|s| save_settings(s));
+            }
+            Job::LoadOffers => {
+                self.shared.update(|s| s.offers_loading = true);
+                let (http, jobs) = (self.http.clone(), self.jobs.clone());
+                tokio::spawn(async move {
+                    let mut found = Vec::new();
+                    for index in plugins::indexes() {
+                        let text = if index.starts_with("http") {
+                            match http.get(&index).send().await.and_then(|r| r.error_for_status()) {
+                                Ok(response) => response.text().await.unwrap_or_default(),
+                                Err(_) => String::new(),
+                            }
+                        } else {
+                            std::fs::read_to_string(&index).unwrap_or_default()
+                        };
+                        found.extend(plugins::listings(&index, &text));
+                    }
+                    let _ = jobs.send(Job::Offers(found));
+                });
+            }
+            Job::Offers(listings) => {
+                if listings.is_empty() {
+                    self.shared.fail("连不上插件商店，稍后再试");
+                }
+                self.listings = listings;
+                self.shared.update(|s| s.offers_loading = false);
+                self.publish_plugins();
+            }
+            Job::InstallPlugin(id) => {
+                let Some(listing) = self.listings.iter().find(|listing| listing.pack.id == id).cloned() else { return };
+                let (http, jobs) = (self.http.clone(), self.jobs.clone());
+                tokio::spawn(async move {
+                    let package = if listing.package.starts_with("http") {
+                        match http.get(&listing.package).send().await.and_then(|r| r.error_for_status()) {
+                            Ok(response) => response.bytes().await.map(|bytes| bytes.to_vec()).map_err(|e| e.to_string()),
+                            Err(e) => Err(e.to_string()),
+                        }
+                    } else {
+                        std::fs::read(&listing.package).map_err(|e| e.to_string())
+                    };
+                    let result = package
+                        .map_err(|e| format!("下载插件「{}」失败：{e}", listing.pack.name))
+                        .and_then(|bytes| plugins::unpack(&bytes));
+                    let _ = jobs.send(Job::PluginInstalled(result));
+                });
+            }
+            Job::ImportPlugin(url) => {
+                let jobs = self.jobs.clone();
+                tokio::task::spawn_blocking(move || {
+                    let result = bern::files::open(&url)
+                        .map_err(|e| format!("打不开插件包：{}", e.message))
+                        .and_then(|mut file| {
+                            let mut bytes = Vec::new();
+                            file.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+                            Ok(bytes)
+                        })
+                        .and_then(|bytes| plugins::unpack(&bytes));
+                    let _ = jobs.send(Job::PluginInstalled(result));
+                });
+            }
+            Job::PluginInstalled(result) => match result {
+                Ok(pack) => {
+                    // A running plugin starts again in its new version.
+                    if self.enabled_plugins.contains(&pack.id) {
+                        let _ = self.plugins.set_running(&pack.id, false);
+                        self.hide_plugin_overlays(&pack.id);
+                        if let Err(message) = self.plugins.set_running(&pack.id, true) {
+                            self.shared.fail(message);
+                        }
+                        self.greet_plugins();
+                    }
+                    self.shared.tell(format!("已安装插件「{}」{}", pack.name, pack.version));
+                    self.publish_plugins();
+                }
+                Err(message) => self.shared.fail(message),
+            },
             Job::BeginMatching(source, index) => self.begin_matching(source, index),
             Job::CancelMatching => self.shared.update(|s| s.matching = None),
             Job::SearchMatching(text) => {
@@ -1343,8 +1475,12 @@ impl Worker {
     /// The sung line and the next (or its translation) floating over the
     /// screen while desktop lyrics are on; the song's name before its lyrics
     /// come; nothing when they are off or no song is on.
-    fn desktop_lyrics(&self) {
+    fn desktop_lyrics(&mut self) {
         use bern::overlay::{Line, Overlay};
+        let line = self.shared.read(|s| {
+            json!({ "text": s.lyric_now, "translation": s.lyric_now_translation, "next": s.lyric_next, "index": s.line })
+        });
+        self.send_plugins("lyric", line);
         let shown = self.shared.read(|s| {
             let song = s.current.as_ref().filter(|_| s.desktop_lyrics)?;
             let (first, second) = if s.lyric_now.is_empty() {
@@ -1374,6 +1510,136 @@ impl Worker {
         );
     }
 
+    /// Start the enabled plugins, show them, and tell them what plays.
+    fn start_plugins(&mut self) {
+        let (plugins, errors) = plugins::Plugins::start(&self.enabled_plugins);
+        self.plugins = plugins;
+        for message in errors {
+            self.shared.fail(message);
+        }
+        self.publish_plugins();
+        self.greet_plugins();
+    }
+
+    /// The installed plugins, and the market's with what is installed and
+    /// newer.
+    fn publish_plugins(&mut self) {
+        let installed = plugins::installed();
+        let enabled = &self.enabled_plugins;
+        let shown: Vec<Plugin> = installed
+            .iter()
+            .map(|(pack, _)| Plugin {
+                id: pack.id.clone(),
+                name: pack.name.clone(),
+                version: pack.version.clone(),
+                description: pack.description.clone(),
+                author: pack.author.clone(),
+                enabled: enabled.contains(&pack.id) && pack.fits_here(),
+                fits: pack.fits_here(),
+                platforms: pack.platforms_label(),
+            })
+            .collect();
+        let offers: Vec<Offer> = self
+            .listings
+            .iter()
+            .map(|listing| {
+                let have = installed.iter().find(|(pack, _)| pack.id == listing.pack.id);
+                Offer {
+                    id: listing.pack.id.clone(),
+                    name: listing.pack.name.clone(),
+                    version: listing.pack.version.clone(),
+                    description: listing.pack.description.clone(),
+                    author: listing.pack.author.clone(),
+                    installed: have.is_some(),
+                    newer: have.is_some_and(|(pack, _)| pack.version != listing.pack.version),
+                    fits: listing.pack.fits_here(),
+                    platforms: listing.pack.platforms_label(),
+                }
+            })
+            .collect();
+        self.shared.update(|s| {
+            s.has_plugins = !shown.is_empty();
+            s.plugins = shown;
+            s.has_offers = !offers.is_empty();
+            s.offers = offers;
+        });
+    }
+
+    /// What the plugins may read with each event.
+    fn plugin_snapshot(&self) -> Value {
+        self.shared.read(|s| {
+            json!({
+                "playing": s.playing,
+                "song": s.current.as_ref().map(|song| json!({
+                    "id": song.id, "name": song.name, "artists": song.artists, "album": song.album, "duration": song.seconds,
+                })),
+            })
+        })
+    }
+
+    fn send_plugins(&mut self, event: &str, data: Value) {
+        if self.plugins.is_empty() {
+            return;
+        }
+        let snapshot = self.plugin_snapshot();
+        self.plugins.send(event, &data, &snapshot);
+    }
+
+    /// The song that plays and its sung line, for plugins that just
+    /// started or a song that just began.
+    fn greet_plugins(&mut self) {
+        if self.plugins.is_empty() {
+            return;
+        }
+        let song = self.plugin_snapshot()["song"].clone();
+        if !song.is_null() {
+            self.send_plugins("song", song);
+        }
+        let line = self.shared.read(|s| {
+            json!({ "text": s.lyric_now, "translation": s.lyric_now_translation, "next": s.lyric_next, "index": s.line })
+        });
+        self.send_plugins("lyric", line);
+    }
+
+    /// The music's loudness for the plugins that hear it, and what the
+    /// plugins asked for.
+    fn plugin_tick(&mut self) {
+        let playing = self.shared.read(|s| s.playing);
+        if playing && self.plugins.wants_audio() {
+            let (level, bass) = audio::levels();
+            let position = self.position;
+            self.send_plugins("audio", json!({ "level": level, "bass": bass, "position": position }));
+        }
+        for (plugin, call) in self.plugins.calls() {
+            match call {
+                plugins::Call::OverlayShow(id, spec) => {
+                    let id = plugins::overlay_id(&plugin, &id);
+                    bern::overlay::show(&id, &plugins::overlay(&spec));
+                    self.plugin_overlays.insert(id);
+                }
+                plugins::Call::OverlayHide(id) => {
+                    let id = plugins::overlay_id(&plugin, &id);
+                    bern::overlay::hide(&id);
+                    self.plugin_overlays.remove(&id);
+                }
+                plugins::Call::CoverPulse => self.shared.update(|s| s.cover_pulse += 1),
+                plugins::Call::Toast(message) => self.shared.tell(message),
+                plugins::Call::Log(message) => eprintln!("plugin {plugin}: {message}"),
+                plugins::Call::StorageSet(..) => {}
+            }
+        }
+    }
+
+    /// Take down the overlays a plugin put up.
+    fn hide_plugin_overlays(&mut self, plugin: &str) {
+        let prefix = plugins::overlay_id(plugin, "");
+        let mine: Vec<String> = self.plugin_overlays.iter().filter(|id| id.starts_with(&prefix)).cloned().collect();
+        for id in mine {
+            bern::overlay::hide(&id);
+            self.plugin_overlays.remove(&id);
+        }
+    }
+
     /// Read or download `song`'s cover for the system's now playing.
     fn fetch_now_artwork(&mut self, song: &Song) {
         self.now_artwork = None;
@@ -1388,10 +1654,10 @@ impl Worker {
             }
         } else if url.starts_with("http") {
             tokio::spawn(async move {
-                if let Ok(response) = http.get(&url).send().await.and_then(|r| r.error_for_status()) {
-                    if let Ok(bytes) = response.bytes().await {
-                        let _ = jobs.send(Job::NowArtwork { token, bytes: Arc::new(bytes.to_vec()) });
-                    }
+                if let Ok(response) = http.get(&url).send().await.and_then(|r| r.error_for_status())
+                    && let Ok(bytes) = response.bytes().await
+                {
+                    let _ = jobs.send(Job::NowArtwork { token, bytes: Arc::new(bytes.to_vec()) });
                 }
             });
         }
@@ -2278,6 +2544,7 @@ impl Worker {
         });
         self.show_now_playing(Some(0.0));
         self.desktop_lyrics();
+        self.greet_plugins();
         self.fetch_now_artwork(&song);
         self.load_panel();
         let (client, http, jobs, token) = (enji_kit::client(), self.http.clone(), self.jobs.clone(), self.token);
@@ -2617,6 +2884,8 @@ impl Worker {
         let playing = !self.paused;
         self.shared.update(|s| s.playing = playing);
         self.show_now_playing(None);
+        let position = self.position;
+        self.send_plugins("playback", json!({ "playing": playing, "position": position }));
         // Playing on ends browsing the lyrics.
         if playing && !self.scrolling {
             self.settle(None);
@@ -2625,7 +2894,7 @@ impl Worker {
 
     /// Back from browsing: the lines blurred again and the lyrics at the
     /// sung line, or at `line` when one was chosen.
-    fn settle(&self, line: Option<i64>) {
+    fn settle(&mut self, line: Option<i64>) {
         self.shared.update(|s| {
             if let Some(line) = line {
                 s.line = line;

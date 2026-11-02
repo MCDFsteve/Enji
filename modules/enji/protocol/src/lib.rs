@@ -236,6 +236,48 @@ pub mod enji {
         pub blur: f64,
     }
 
+    /// An installed plugin.
+    #[value]
+    pub struct Plugin {
+        #[content]
+        pub id: String,
+        #[content]
+        pub name: String,
+        #[content]
+        pub version: String,
+        #[content]
+        pub description: String,
+        #[content]
+        pub author: String,
+        pub enabled: bool,
+        /// It works on this system.
+        pub fits: bool,
+        /// The systems it works on, when not all, such as `Windows`.
+        #[content]
+        pub platforms: String,
+    }
+
+    /// A plugin the plugin market lists.
+    #[value]
+    pub struct Offer {
+        #[content]
+        pub id: String,
+        #[content]
+        pub name: String,
+        #[content]
+        pub version: String,
+        #[content]
+        pub description: String,
+        #[content]
+        pub author: String,
+        pub installed: bool,
+        /// A newer version than the installed one.
+        pub newer: bool,
+        pub fits: bool,
+        #[content]
+        pub platforms: String,
+    }
+
     /// A song being downloaded, and how far along.
     #[value]
     pub struct Download {
@@ -424,6 +466,15 @@ pub mod enji {
         pub buffering: bool,
         /// Only a short preview: the song is for members.
         pub preview: bool,
+        /// The installed plugins, by name.
+        pub plugins: Vec<Plugin>,
+        pub has_plugins: bool,
+        /// What the plugin market lists, once asked.
+        pub offers: Vec<Offer>,
+        pub has_offers: bool,
+        pub offers_loading: bool,
+        /// Each pulse a plugin gives the playing cover adds one.
+        pub cover_pulse: i64,
         /// The songs being downloaded, the first started first.
         pub downloads: Vec<Download>,
         pub has_downloads: bool,
@@ -623,6 +674,15 @@ pub mod enji {
         fn download(&mut self, source: Source, index: i64) -> Result<(), CommandError>;
         /// Download the playing song.
         fn download_current(&mut self) -> Result<(), CommandError>;
+        /// Turn an installed plugin on or off.
+        fn set_plugin_enabled(&mut self, id: String, on: bool) -> Result<(), CommandError>;
+        fn remove_plugin(&mut self, id: String) -> Result<(), CommandError>;
+        /// Ask the plugin market what it lists.
+        fn load_offers(&mut self) -> Result<(), CommandError>;
+        /// Install, or update, a plugin the market lists.
+        fn install_plugin(&mut self, id: String) -> Result<(), CommandError>;
+        /// Install a plugin from a `.enj` package.
+        fn import_plugin(&mut self, file: MediaSource) -> Result<(), CommandError>;
         fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;

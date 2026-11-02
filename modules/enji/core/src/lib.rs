@@ -8,6 +8,7 @@ mod downloads;
 mod local;
 mod lyrics;
 mod net;
+mod plugins;
 mod shuffle;
 mod store;
 
@@ -277,6 +278,21 @@ impl enji::Commands for EnjiEngine {
     }
     fn download_current(&mut self) -> Result<(), CommandError> {
         self.submit(Job::DownloadCurrent)
+    }
+    fn set_plugin_enabled(&mut self, id: String, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetPluginEnabled(id, on))
+    }
+    fn remove_plugin(&mut self, id: String) -> Result<(), CommandError> {
+        self.submit(Job::RemovePlugin(id))
+    }
+    fn load_offers(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::LoadOffers)
+    }
+    fn install_plugin(&mut self, id: String) -> Result<(), CommandError> {
+        self.submit(Job::InstallPlugin(id))
+    }
+    fn import_plugin(&mut self, file: MediaSource) -> Result<(), CommandError> {
+        self.submit(Job::ImportPlugin(file.url))
     }
     fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetCoverLyrics(shown))

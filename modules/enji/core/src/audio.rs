@@ -14,9 +14,24 @@ use symphonia::core::{
 };
 use std::{
     io::{Read, Seek, SeekFrom},
-    sync::{mpsc, Arc, Condvar, Mutex},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        mpsc, Arc, Condvar, Mutex,
+    },
     time::Duration,
 };
+
+/// How loud the music being played is: the RMS of the samples decoded
+/// last, from 0 to about 1, and of their low end (below about 150 Hz,
+/// where the drums are). Kept as the bits of an `f32`, read by plugins.
+static LEVEL: AtomicU32 = AtomicU32::new(0);
+static BASS: AtomicU32 = AtomicU32::new(0);
+
+/// The loudness of the music being played and of its low end, before the
+/// volume.
+pub fn levels() -> (f32, f32) {
+    (f32::from_bits(LEVEL.load(Ordering::Relaxed)), f32::from_bits(BASS.load(Ordering::Relaxed)))
+}
 
 /// A song as it downloads.
 #[derive(Clone)]
@@ -149,6 +164,8 @@ struct Decoded {
     at: usize,
     /// Samples to drop after a seek, to land where it was asked.
     skip: usize,
+    /// The low-pass filter of the low end, as it was after the last sample.
+    low: f32,
 }
 
 impl Decoded {
@@ -179,6 +196,7 @@ impl Decoded {
             samples: Vec::new(),
             at: 0,
             skip: 0,
+            low: 0.0,
         };
         // The first packet tells the real layout, which a stream may not
         // have said in its header.
@@ -187,6 +205,25 @@ impl Decoded {
     }
 
     /// The next packet of the track decoded; false at the end.
+    /// The loudness of the samples just decoded, and of their low end.
+    fn meter(&mut self) {
+        let channels = self.channels.max(1) as usize;
+        let frames = self.samples.len() / channels;
+        if frames == 0 {
+            return;
+        }
+        let alpha = 1.0 - (-2.0 * std::f32::consts::PI * 150.0 / self.rate.max(1) as f32).exp();
+        let (mut all, mut low) = (0.0f32, 0.0f32);
+        for frame in self.samples.chunks_exact(channels) {
+            let mono = frame.iter().sum::<f32>() / channels as f32;
+            self.low += alpha * (mono - self.low);
+            all += mono * mono;
+            low += self.low * self.low;
+        }
+        LEVEL.store((all / frames as f32).sqrt().to_bits(), Ordering::Relaxed);
+        BASS.store((low / frames as f32).sqrt().to_bits(), Ordering::Relaxed);
+    }
+
     fn refill(&mut self) -> bool {
         let mut failures = 0;
         loop {
@@ -205,6 +242,7 @@ impl Decoded {
                     self.channels = spec.channels.count() as u16;
                     self.rate = spec.rate;
                     self.samples = buffer.samples().to_vec();
+                    self.meter();
                     self.at = self.skip.min(self.samples.len());
                     self.skip -= self.at;
                     if self.at < self.samples.len() {

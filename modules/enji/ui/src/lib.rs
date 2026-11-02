@@ -31,6 +31,8 @@ pub struct MainDraft {
     pub shelf: Shelf,
     /// A folder chosen to add to the local library.
     pub folder: MediaSource,
+    /// A plugin package chosen to install.
+    pub plugin_file: MediaSource,
     /// A new playlist's name.
     pub new_name: String,
     /// Other words to find the NetEase song a local song is.
@@ -1383,7 +1385,8 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             // narrower than the column, and so is its place.
                             // The empty canvas spans the column, so both stand
                             // in its middle.
-                            Stack {
+                            // A plugin's pulses give it a little nudge each.
+                            Stack(nudge_key: app.cover_pulse, nudge_scale: 1.04) {
                                 Canvas {}
                                 Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
                                 // Only while a picture is coming: a song
@@ -1511,7 +1514,8 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                         // A spinner on the cover's place until a picture of it
                         // comes: the small cover, often loaded already for the
                         // lists and the player bar, then the sharp one over it.
-                        Stack {
+                        // A plugin's pulses give it a little nudge each.
+                        Stack(nudge_key: app.cover_pulse, nudge_scale: 1.04) {
                             Canvas(width: 400, height: 400) {
                                 Shape(kind: rounded, corner: 20, fill: fill.subtle)
                             }
@@ -2198,6 +2202,60 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Text(content: tr! { "zh-Hans" => "列表中显示播放次数", "en" => "Play Counts in Lists" })
                             Spacer
                             Switch(id: play_counts, label: tr! { "zh-Hans" => "列表中显示播放次数", "en" => "Play Counts in Lists" }, label_hidden: true, checked: app.show_plays, style: switch) => app.set_show_plays(app.show_plays)
+                        }
+                    }
+                }
+            }
+            Column(gap: 8) {
+                Column(padding_x: 16) {
+                    Text(content: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, style: footnote, bold: true, emphasis: secondary)
+                }
+                Stack(variant: card) {
+                    Column(gap: 0) {
+                        ForEach(items: app.plugins, key: id) |plugin| {
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(gap: 2, align: leading) {
+                                    Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: plugin.name, version: plugin.version })
+                                    Text(content: plugin.description, style: caption, emphasis: secondary, lines: 2)
+                                    if !plugin.fits {
+                                        Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: plugin.platforms }, style: caption, emphasis: tertiary)
+                                    }
+                                }
+                                Spacer
+                                Switch(id: plugin_enabled, label: plugin.name, label_hidden: true, checked: plugin.enabled, style: switch) => app.set_plugin_enabled(plugin.id, plugin.enabled)
+                                IconButton(id: remove_plugin, icon: "trash", font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "删除插件", "en" => "Remove Plugin" }) => app.remove_plugin(plugin.id)
+                            }
+                            Column(padding_x: 16) { Divider }
+                        }
+                        Row(gap: 10, padding_x: 16, padding_y: 10, align: center) {
+                            Button(id: import_plugin, label: tr! { "zh-Hans" => "导入插件…", "en" => "Import Plugin…" }, icon: "plus", shape: capsule, pick: draft.plugin_file, files: ".enj") => app.import_plugin(draft.plugin_file)
+                            Button(id: plugin_market, label: tr! { "zh-Hans" => "插件商店", "en" => "Plugin Market" }, icon: "square.grid.2x2", shape: capsule) => app.load_offers()
+                            Spacer
+                            if app.offers_loading {
+                                Progress(label: tr! { "zh-Hans" => "正在读取插件商店", "en" => "Reading the market" })
+                            }
+                        }
+                        if app.has_offers {
+                            Column(padding_x: 16) { Divider }
+                            ForEach(items: app.offers, key: id) |offer| {
+                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                    Column(gap: 2, align: leading) {
+                                        Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
+                                        Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
+                                        if !offer.fits {
+                                            Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
+                                        }
+                                    }
+                                    Spacer
+                                    if offer.installed && !offer.newer {
+                                        Text(content: tr! { "zh-Hans" => "已安装", "en" => "Installed" }, style: caption, emphasis: secondary)
+                                    } else if offer.newer {
+                                        Button(id: update_plugin, label: tr! { "zh-Hans" => "更新", "en" => "Update" }, shape: capsule) => app.install_plugin(offer.id)
+                                    } else {
+                                        Button(id: install_plugin, label: tr! { "zh-Hans" => "安装", "en" => "Install" }, shape: capsule, prominence: prominent) => app.install_plugin(offer.id)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
