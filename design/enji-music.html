@@ -1,0 +1,1308 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enji Music 设计稿</title>
+<style>
+:root {
+  --ground: #FBFBFC;
+  --side: #F2F2F4;
+  --line: #E3E3E8;
+  --card: #FFFFFF;
+  --ink: #1C1C1E;
+  --ink-2: #5E5E66;
+  --ink-dim: #A3A3AB;
+  --hover: #EAEAEE;
+  --chip: #EEEEF1;
+  --field: #E6E6EA;
+  --border: #D6D6DC;
+  --accent: #B94047;        /* 臙脂 */
+  --accent-ink: #A3333B;
+  --accent-deep: #8F2F36;
+  --accent-tint: #F2DDDF;
+  --accent-soft: #F6E7E8;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--ink); font: 14px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* device: the whole window on desktop, an iPhone-sized frame in phone mode.
+   Everything below reacts to the device's size (container queries), not the window's. */
+body { overflow: hidden; }
+.device { position: relative; width: 100vw; height: 100vh; overflow: hidden; container: device / size; background: var(--ground); }
+body.phone { background: #DCDCE2; display: grid; place-items: center; }
+body.phone .device { width: auto; height: min(874px, calc(100vh - 56px)); aspect-ratio: 402 / 874; border-radius: 56px; box-shadow: 0 0 0 11px #1C1C1E, 0 0 0 12px #4A4A50, 0 40px 90px rgba(0,0,0,.28); }
+.island { display: none; position: absolute; z-index: 30; top: 11px; left: 50%; width: 122px; height: 35px; margin-left: -61px; border-radius: 20px; background: #000; pointer-events: none; }
+body.phone .island { display: block; }
+
+/* layout switch: a review control that sits outside the app */
+.layout-switch { position: fixed; z-index: 50; top: 12px; right: 16px; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.76); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 4px 16px rgba(0,0,0,.1); }
+.layout-switch button { height: 30px; padding: 0 12px 0 10px; border-radius: 999px; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.layout-switch button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+/* iOS 26 pieces: Liquid Glass tab bar, search button, mini player, account button. Hidden on desktop. */
+.phone-only { display: none !important; }
+.glass { background: rgba(255,255,255,.62); -webkit-backdrop-filter: blur(24px) saturate(190%); backdrop-filter: blur(24px) saturate(190%); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.8), 0 0 0 .5px rgba(0,0,0,.08), 0 10px 30px rgba(0,0,0,.12); }
+.npmini { position: absolute; z-index: 5; left: 14px; right: 14px; bottom: 98px; height: 56px; border-radius: 28px; align-items: center; gap: 10px; padding: 0 6px 0 8px; }
+.npmini .info { flex: 1; min-width: 0; display: block; }
+.npmini .t { font-size: 14px; font-weight: 600; }
+.npmini .a { font-size: 12px; color: var(--ink-2); }
+.tabbar { position: absolute; z-index: 5; left: 14px; right: 90px; bottom: 26px; height: 64px; border-radius: 32px; padding: 4px; gap: 2px; }
+.tabbar a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 28px; font-size: 10px; font-weight: 600; }
+.tabbar a { position: relative; z-index: 1; }
+.tabbar a[aria-current="page"] { color: var(--accent); }
+.tabpill { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; border-radius: 28px; background: rgba(0,0,0,.07); transform-origin: left center; pointer-events: none; opacity: 0; }
+.searchtab { position: absolute; z-index: 5; right: 14px; bottom: 26px; width: 64px; height: 64px; border-radius: 50%; align-items: center; justify-content: center; }
+.searchtab[aria-current="page"] { color: var(--accent); }
+.avatar-btn { position: absolute; z-index: 4; top: 58px; right: 16px; width: 40px; height: 40px; border-radius: 50%; align-items: center; justify-content: center; }
+.liblist { margin: 0 0 28px; padding: 0; list-style: none; }
+.liblist a { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.liblist .chev { margin-left: auto; color: var(--ink-dim); }
+.libicon { width: 44px; height: 44px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--accent-tint); color: var(--accent); }
+
+/* shell */
+.app { height: 100%; display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 84px; }
+.side { display: flex; flex-direction: column; gap: 2px; padding: 16px 12px 12px; background: var(--side); border-right: 1px solid var(--line); overflow-y: auto; }
+.main { overflow-y: auto; padding: 0 40px 48px; }
+.player { grid-column: 1 / -1; display: flex; align-items: center; gap: 24px; padding: 0 20px; background: rgba(255,255,255,0.92); border-top: 1px solid var(--line); }
+
+/* sidebar */
+.lights { display: flex; gap: 8px; padding: 2px 8px 22px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #FF5F57; }
+.lights i:nth-child(2) { background: #FEBC2E; }
+.lights i:nth-child(3) { background: #28C840; }
+.field { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; margin-bottom: 14px; border-radius: 8px; background: var(--field); color: var(--ink-2); font-size: 13px; }
+.field.on { background: #fff; box-shadow: 0 0 0 2px var(--accent); color: var(--accent-ink); font-weight: 600; }
+.nav { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; text-align: left; }
+.nav:hover { background: var(--hover); }
+.nav.on { background: var(--accent-tint); color: var(--accent-ink); font-weight: 600; }
+.nav.pl { height: 40px; padding: 0 8px; }
+.sec { display: flex; align-items: center; justify-content: space-between; padding: 20px 2px 6px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.grow { flex: 1; min-height: 16px; }
+.avatar { width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+
+/* covers: flat color + one glyph, standing in for artwork */
+.cv { flex: none; display: flex; align-items: flex-end; padding: 0 0 .05em .2em; color: rgba(255,255,255,0.92); font-weight: 700; line-height: 1; }
+.cv.c { align-items: center; justify-content: center; padding: 0; }
+.art { position: relative; display: block; aspect-ratio: 1; border-radius: 12px; overflow: hidden; }
+.art .glyph { position: absolute; left: 14px; bottom: 8px; font-size: 64px; font-weight: 700; line-height: 1; color: rgba(255,255,255,0.9); }
+.plays { position: absolute; z-index: 3; top: 8px; right: 8px; display: flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,0.4); color: #fff; font-size: 12px; }
+.cardplay { position: absolute; z-index: 3; right: 10px; bottom: 10px; width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--accent); display: grid; place-items: center; opacity: 0; transition: opacity var(--d-snappy) var(--e-snappy); } /* reveal: hover */
+.card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card:hover .cardplay, .card:focus-visible .cardplay { opacity: 1; }
+.cardtitle { font-weight: 500; line-height: 1.4; }
+.cardsub { font-size: 12px; color: var(--ink-2); margin-top: -4px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 28px 20px; }
+.cards.lg { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 28px 20px; }
+.person { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; font-weight: 500; }
+.person .face { width: 100%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; color: rgba(255,255,255,0.92); font-size: 44px; font-weight: 700; }
+.hit { color: var(--accent); }
+
+/* type */
+.topbar { height: 52px; display: flex; align-items: center; gap: 4px; }
+.title { margin: 4px 0 20px; font-size: 32px; font-weight: 700; letter-spacing: -0.01em; }
+.h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; }
+
+/* controls */
+.iconbtn { width: 40px; height: 40px; flex: none; border-radius: 8px; display: grid; place-items: center; }
+.iconbtn:hover { background: var(--hover); }
+.iconbtn.sm { width: 28px; height: 28px; border-radius: 6px; }
+.iconbtn.nav-arrow { width: 32px; height: 32px; color: var(--ink-2); }
+.iconbtn:disabled { color: #C7C7CC; background: none; }
+.pill { height: 32px; padding: 0 14px; border-radius: 999px; background: var(--chip); font-size: 13px; font-weight: 500; }
+.pill[aria-pressed="true"], .pill[aria-selected="true"] { background: var(--accent-tint); color: var(--accent-ink); }
+.pill.dark[aria-selected="true"] { background: var(--ink); color: #fff; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { height: 40px; padding: 0 20px 0 16px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-deep); }
+.btn.ghost { background: #fff; border: 1px solid var(--border); font-weight: 500; }
+.btn.round { width: 40px; padding: 0; justify-content: center; }
+.tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+.tab { height: 42px; margin-bottom: -1px; border-bottom: 2px solid transparent; font-size: 15px; color: var(--ink-2); }
+.tab[aria-selected="true"] { border-color: var(--accent); color: var(--ink); font-weight: 600; }
+/* Sliders drawn by hand: native ones render inconsistently (a dark box in Safari). --p is the filled share. */
+input[type=range] { -webkit-appearance: none; appearance: none; height: 18px; margin: 0; background: transparent; cursor: pointer; --fill: var(--accent); --track: #D9D9DF; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--fill) var(--p, 50%), var(--track) var(--p, 50%)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--fill); box-shadow: 0 0 0 .5px rgba(0,0,0,.12); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
+input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--fill); }
+input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--fill); }
+
+/* home */
+.hero { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 40px; }
+.daily { flex: 2 1 440px; min-height: 208px; display: flex; gap: 28px; padding: 24px; border-radius: 16px; background: var(--accent); color: #fff; }
+.daily .date { display: flex; flex-direction: column; justify-content: space-between; }
+.daily .day { font-size: 76px; font-weight: 700; line-height: 1; margin-top: 6px; letter-spacing: -0.02em; }
+.daily ol { flex: 1; min-width: 0; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.daily li { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.daily .go { align-self: flex-end; width: 52px; height: 52px; flex: none; border-radius: 50%; background: #fff; color: var(--accent); display: grid; place-items: center; }
+.fm { flex: 1 1 300px; min-height: 208px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; padding: 24px; border-radius: 16px; background: #26222A; color: #fff; }
+.fm .ctl { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.14); display: grid; place-items: center; }
+.fm .ctl.lead { background: #fff; color: #26222A; }
+
+/* charts */
+.chart { border-radius: 14px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+.chart header { display: flex; align-items: center; gap: 14px; padding: 16px; color: #fff; }
+.chart ol { margin: 0; padding: 8px 8px 4px; list-style: none; }
+.chart li { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 8px; border-radius: 8px; }
+.chart li:hover { background: var(--hover); }
+.rank { width: 18px; text-align: center; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.rank.top { color: var(--accent); }
+
+/* playlist */
+.plhead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 28px; margin: 8px 0 28px; }
+.plhead h1 { margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.01em; }
+.meta { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--ink-2); font-size: 13px; }
+.notice { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 16px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-deep); font-size: 13px; text-align: left; }
+.trow { display: grid; grid-template-columns: 48px minmax(0, 1fr) minmax(0, 0.6fr) 52px 88px; align-items: center; padding-right: 12px; }
+.thead { height: 36px; color: var(--ink-2); font-size: 12px; border-bottom: 1px solid var(--line); }
+.tracks { margin: 6px 0 0; padding: 0; list-style: none; }
+.tracks li { height: 60px; border-radius: 10px; }
+.tracks li:hover { background: var(--hover); }
+.tracks li.playing { background: #F8ECED; }
+.num { padding-left: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.song { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.tag { flex: none; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #E8E8EC; color: var(--ink-2); }
+.tag.warn { background: var(--accent-soft); color: var(--accent-deep); }
+.sub { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.dur { display: flex; justify-content: flex-end; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.dim .cv { opacity: .4; }
+.dim .t, .dim .sub, .dim .num, .dim .alb { color: var(--ink-dim); }
+.mini { height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--accent); color: var(--accent); }
+.mini.plain { border-color: var(--border); color: var(--ink); font-weight: 500; background: #fff; }
+
+/* search */
+.search { position: relative; max-width: 720px; margin: 0 0 20px; }
+.search svg { position: absolute; left: 16px; top: 14px; color: var(--ink-2); }
+.search input { width: 100%; height: 48px; padding: 0 48px; border: 1px solid var(--border); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-size: 17px; }
+.search input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+.search input::-webkit-search-cancel-button { display: none; }
+.search .clear { position: absolute; right: 6px; top: 6px; width: 36px; height: 36px; border-radius: 50%; color: var(--ink-2); display: grid; place-items: center; }
+.best { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 22px; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+.best .cardplay { right: 22px; bottom: 22px; width: 48px; height: 48px; background: var(--accent); color: #fff; }
+.best:hover .cardplay { opacity: 1; }
+.srow { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 10px; border-radius: 10px; }
+.srow:hover { background: var(--hover); }
+.split { display: flex; flex-wrap: wrap; gap: 32px; margin-bottom: 40px; }
+.empty { padding: 48px 0; color: var(--ink-2); font-size: 15px; }
+
+/* player bar */
+.pl-left, .pl-right { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 12px; }
+.pl-right { justify-content: flex-end; gap: 4px; }
+.pl-mid { flex: 0 1 520px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ctrls { display: flex; align-items: center; gap: 10px; }
+.playbtn { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
+.playbtn:hover { background: var(--accent-deep); }
+.progress { width: 100%; display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.progress input { flex: 1; min-width: 0; }
+.quality { height: 22px; padding: 0 6px; margin-right: 6px; border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); font-size: 11px; font-weight: 600; }
+.ci { color: var(--ink-2); }
+.liked { color: var(--accent); }
+.lyricbtn { font-size: 16px; font-weight: 700; }
+
+/* lyrics (full window) */
+.lyrics { --deep: #14233E; position: absolute; inset: 0; z-index: 10; display: none; flex-direction: column; overflow: hidden; background: #16171F; color: #fff; }
+.lyrics.open { display: flex; }
+.lyrics .bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lyrics .bg .bgart { position: absolute; inset: -15%; filter: blur(80px) saturate(1.3); opacity: .95; }
+.lyrics .bg .scrim { position: absolute; inset: 0; background: rgba(10,14,24,.42); }
+.artsvg { display: block; width: 100%; height: 100%; }
+.artthumb { flex: none; display: block; overflow: hidden; }
+
+/* Cover glow, ported from Misuzu's HoverGlowOverlay: a white radial light that follows the pointer or finger,
+   radius = short side × data-glow, centre at base × 1, 55% at base × 0.2, added on top (plus blend), 180ms fade.
+   --ga is the base: 0.4 on light pages (Misuzu), 0.22 on the dark now-playing page. */
+[data-glow] { position: relative; overflow: hidden; }
+.glowfx { position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit; opacity: 0; transition: opacity .18s ease;
+  mix-blend-mode: screen; mix-blend-mode: plus-lighter;
+  background: radial-gradient(circle var(--gr, 240px) at var(--gx, 50%) var(--gy, 50%),
+    rgba(255,255,255,var(--ga, .4)) 0%, rgba(255,255,255,calc(var(--ga, .4) * .2)) 55%, rgba(255,255,255,0) 100%); }
+.glowing > .glowfx { opacity: 1; }
+.lyrics header { position: relative; height: 52px; flex: none; display: flex; align-items: center; gap: 20px; padding: 0 20px; }
+.round-w { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.14); display: grid; place-items: center; color: #fff; }
+/* Sized from the device: the cover takes whatever height the controls leave, so the page never scrolls on desktop. */
+.lbody { position: relative; flex: 1; min-height: 0; display: flex; gap: clamp(28px, 5cqw, 80px); padding: 0 clamp(24px, 5cqw, 80px) clamp(16px, 3.5cqh, 36px); overflow: hidden; }
+.np { --cover: clamp(140px, calc(100cqh - 380px), 460px); flex: 0 0 clamp(300px, min(var(--cover), 38cqw), 460px); min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: clamp(10px, 2.2cqh, 22px); }
+.np .big { display: block; width: min(100%, var(--cover)); aspect-ratio: 1; flex: none; border-radius: clamp(10px, 1.6cqh, 18px); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.38); }
+.np h1 { margin: 0; font-size: clamp(19px, 2.8cqh, 26px); line-height: 1.25; }
+.np .by { margin-top: 4px; font-size: clamp(13px, 1.8cqh, 15px); color: rgba(255,255,255,.78); }
+.wctl { border-radius: 50%; display: grid; place-items: center; color: #fff; }
+.wctl.soft { color: rgba(255,255,255,0.78); }
+.wplay { width: clamp(52px, 7.5cqh, 68px); height: clamp(52px, 7.5cqh, 68px); border-radius: 50%; background: #fff; color: #16171F; display: grid; place-items: center; }
+.lyrics input[type=range] { --fill: #fff; --track: rgba(255,255,255,.26); }
+.pane { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: clamp(10px, 2cqh, 18px); }
+.seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,0.12); }
+.seg button { height: 32px; padding: 0 18px; border-radius: 999px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.seg button[aria-selected="true"] { background: #fff; color: #16171F; }
+.seg small { font-size: 11px; font-weight: 500; opacity: .8; }
+.toggle { width: 36px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.08); font-size: 15px; font-weight: 700; }
+.toggle[aria-pressed="true"] { background: rgba(255,255,255,0.24); }
+.lines { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: clamp(12px, 3cqh, 30px); padding: 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 74%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 74%, transparent 100%); }
+.line .jp { font-size: clamp(20px, min(3.6cqh, 2.5cqw), 32px); font-weight: 700; line-height: 1.5; }
+.line .zh { margin-top: 2px; font-size: clamp(13px, min(2cqh, 1.4cqw), 18px); font-weight: 500; }
+.lines::-webkit-scrollbar { display: none; }
+.lines::before, .lines::after { content: ""; flex: none; height: 40%; }
+.line { transform-origin: left center; cursor: pointer; }
+.line:not(.cur) .jp { color: rgba(255,255,255,.88); }
+.line.cur .jp { font-weight: 800; }
+.line.cur .zh { font-weight: 600; color: rgba(255,255,255,0.9); }
+.line .todo { color: rgba(255,255,255,0.5); }
+.lines rt { font-size: 0.4em; font-weight: 500; }
+.noruby rt { display: none; }
+.notrans .zh { display: none; }
+.comment { display: flex; gap: 14px; padding: 14px 12px; border-radius: 14px; }
+.comment:hover { background: rgba(255,255,255,0.08); }
+.comment p { margin: 6px 0 8px; font-size: 15px; line-height: 1.6; }
+.cmeta { display: flex; align-items: center; gap: 16px; font-size: 12px; color: rgba(255,255,255,0.72); }
+.likebtn { height: 28px; padding: 0 8px; margin-left: auto; border-radius: 999px; color: rgba(255,255,255,0.82); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+.wpill { height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+.wpill[aria-pressed="true"] { background: rgba(255,255,255,0.22); }
+.facts { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px 16px; padding: 20px; border-radius: 16px; background: rgba(255,255,255,0.08); }
+.facts dt { color: rgba(255,255,255,0.72); }
+.facts dd { margin: 0; }
+.artistcard { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.08); }
+.artistcard:hover { background: rgba(255,255,255,0.14); }
+
+/* Phone layout (iOS 26): no sidebar or desktop player bar; floating glass tab bar and mini player instead. */
+@container device (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .side, .wide, .player { display: none !important; }
+  .phone-only { display: flex !important; }
+  .main { padding: 62px 16px 180px; }
+  .topbar { display: none; }
+  .topbar.keep { display: flex; height: 44px; margin: -4px 0 4px -2px; }
+  .topbar.keep .iconbtn:disabled { display: none; }
+  .topbar.keep .nav-arrow { width: 40px; height: 40px; border-radius: 50%; color: var(--ink); background: rgba(255,255,255,.7); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: 0 0 0 .5px rgba(0,0,0,.1), 0 4px 12px rgba(0,0,0,.08); }
+  .title { font-size: 34px; margin: 0 0 18px; }
+  .h2 { font-size: 22px; }
+  .cards, .cards.lg { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 14px; }
+  .art .glyph { font-size: 52px; }
+  .people { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 12px; }
+  .person .face { font-size: 30px; }
+  .hero { gap: 14px; margin-bottom: 30px; }
+  .daily { position: relative; flex-direction: column; gap: 16px; min-height: 0; padding: 20px; }
+  .daily .date { flex-direction: row; align-items: flex-end; justify-content: flex-start; gap: 14px; }
+  .daily .day { font-size: 56px; }
+  .daily .go { position: absolute; top: 20px; right: 20px; width: 44px; height: 44px; }
+  .fm { min-height: 0; padding: 20px; }
+  .tabs { gap: 22px; }
+  .plhead { justify-content: center; text-align: center; gap: 18px; margin: 0 0 22px; }
+  .plhead > .cv { width: 210px !important; height: 210px !important; font-size: 136px !important; }
+  .plhead h1 { font-size: 26px; }
+  .plhead .meta, .plhead .actions { justify-content: center; }
+  .trow { grid-template-columns: 34px minmax(0, 1fr) 44px 74px; padding-right: 2px; }
+  .num { padding-left: 8px; }
+  .split { gap: 24px; margin-bottom: 30px; }
+  .search { margin-top: 0; }
+  .search input { height: 44px; font-size: 16px; }
+  .search svg { top: 12px; }
+  .search .clear { top: 4px; }
+  .lyrics header { justify-content: center; height: 100px; padding-top: 48px; }
+  .lyrics header .lights { display: none; }
+}
+/* Phone now-playing: the artwork is the page. In the cover stage it runs full-bleed from the top edge
+   and fades into the deep page colour; title, lyric preview and controls sit on the fade. Opening the
+   lyrics (artwork, preview or toolbar) blurs the same artwork into the background behind the words. */
+.thumb, .tools, .preview, .q, .heroart, .artzone { display: none; }
+.panebody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+@container device (max-width: 820px) {
+  .lyrics { background: var(--deep); }
+  .lyrics .bg { display: none; }
+  .heroart { display: block; position: absolute; left: 0; right: 0; top: 0; height: 66%; overflow: hidden; pointer-events: none;
+    transition: height var(--d-hero) var(--e-hero), transform var(--d-hero) var(--e-hero); } /* animate: hero */
+  .heroart::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,.26) 0, transparent 15%, transparent 50%, var(--deep) 98%); }
+  .heroart::after { transition: opacity var(--d-smooth) var(--e-smooth); }
+  /* The light is on the artwork: it fades out with it into the page instead of stopping at its edge. */
+  .heroart .glowfx { -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent 98%); mask-image: linear-gradient(to bottom, #000 50%, transparent 98%); }
+  .hsharp, .hblur { position: absolute; inset: 0; }
+  /* The blurred backdrop is a second image (the core would hand over a pre-blurred copy); the stages cross-fade it. */
+  .hblur { opacity: 0; filter: blur(28px) saturate(1.25) brightness(.62); transform: scale(1.15); transition: opacity var(--d-smooth) var(--e-smooth); }
+  .hblur::after { content: ""; position: absolute; inset: 0; background: rgba(10,14,26,.3); }
+  .lyrics:not(.st-cover) .heroart { height: 100%; }
+  .lyrics:not(.st-cover) .heroart::after { opacity: 0; }
+  .lyrics:not(.st-cover) .hblur { opacity: 1; }
+  .lyrics header { z-index: 2; }
+  .lyrics header .round-w { background: rgba(0,0,0,.24); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+
+  .lbody { display: grid; grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "song" "tabs" "pane" "progress" "transport" "tools";
+    gap: 12px; padding: 0 22px 16px; overflow: hidden; }
+  .np, .pane { display: contents; }
+  .np .big, .np .volume, .seg, .songrow .addto { display: none !important; }
+  .thumb { display: block; flex: none; border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+  .songrow { grid-area: song; align-items: center !important; }
+  .songrow h1 { font-size: 17px; }
+  .songrow .by { font-size: 13px; margin-top: 2px; }
+  .progress-w { grid-area: progress; }
+  .transport { grid-area: transport; padding: 0 6px; }
+  .tools { grid-area: tools; display: flex; justify-content: space-between; padding: 0 2px; }
+  .tools .toggle { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: transparent; color: rgba(255,255,255,.72); }
+  .tools .toggle[aria-pressed="true"] { background: rgba(255,255,255,.2); color: #fff; }
+  .panehead { grid-area: tabs; justify-content: flex-end !important; }
+  .panebody { grid-area: pane; }
+  .lines { gap: 18px; }
+  .line .jp { font-size: 22px; }
+  .line .zh { font-size: 14px; }
+  .wplay { width: 60px; height: 60px; }
+
+  /* cover stage: everything below the artwork, left-aligned on the fade */
+  .lyrics.st-cover .lbody { grid-template-rows: minmax(0, 1fr) auto auto auto auto auto;
+    grid-template-areas: "art" "song" "preview" "progress" "transport" "tools"; gap: 14px; }
+  .lyrics.st-cover .artzone { display: block; grid-area: art; }
+  .lyrics.st-cover .thumb, .lyrics.st-cover .panehead, .lyrics.st-cover .panebody { display: none !important; }
+  .lyrics.st-cover .songrow { align-items: flex-end !important; }
+  .lyrics.st-cover .songrow h1 { font-size: 30px; line-height: 1.15; letter-spacing: -.01em; white-space: normal; text-shadow: 0 2px 18px rgba(0,0,0,.35); }
+  .lyrics.st-cover .songrow .by { font-size: 15px; margin-top: 6px; color: rgba(255,255,255,.82); }
+  .lyrics.st-cover .q { display: block; margin-top: 8px; }
+  .lyrics.st-cover .preview { display: flex; grid-area: preview; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; }
+  .preview .pjp { font-size: 21px; font-weight: 800; line-height: 1.55; }
+  .preview .pzh { font-size: 14px; font-weight: 600; color: rgba(255,255,255,.82); }
+  .preview .pnext { margin-top: 4px; font-size: 15px; font-weight: 700; line-height: 1.55; color: rgba(255,255,255,.42); }
+  .preview rt { font-size: .42em; font-weight: 500; }
+  .preview .todo { color: rgba(255,255,255,.5); }
+}
+/* ---------- Motion: style! states only. Entering a state uses its spring; leaving uses settle: jelly.
+   Durations and curves come from Bern's spring tokens (computed in the script as --d-* / --e-*). ---------- */
+.nav, .iconbtn, .wctl, .round-w, .toggle, .ctl, .searchtab, .avatar-btn, .btn, .pill, .tab, .playbtn, .wplay, .quality,
+.mini, .wpill, .likebtn, .seg button, .tabbar a, .npmini, .daily, .fm, .card .art, .layout-switch button, .notice {
+  transition: transform var(--d-jelly) var(--e-jelly), background-color .15s ease, color .15s ease, box-shadow var(--d-smooth) var(--e-smooth);
+}
+/* SidebarItem { hover: scale(1.03, snappy), pressed: scale(0.94, press), settle: jelly } */
+.nav:hover { transform: scale(1.03); transition: transform var(--d-snappy) var(--e-snappy), background-color .15s ease; }
+.nav:active { transform: scale(.94); transition: transform var(--d-press) var(--e-press); }
+/* IconButton { hover: background(fill.subtle) + scale(1.08, snappy), pressed: scale(0.84, press), settle: jelly } */
+:is(.iconbtn, .wctl, .round-w, .toggle, .ctl, .searchtab, .avatar-btn):not(:disabled):hover { transform: scale(1.08); transition: transform var(--d-snappy) var(--e-snappy), background-color .15s ease; }
+:is(.iconbtn, .wctl, .round-w, .toggle, .ctl, .searchtab, .avatar-btn):not(:disabled):active { transform: scale(.84); transition: transform var(--d-press) var(--e-press); }
+/* Button.hero { hover: scale(1.06, snappy), pressed: scale(x: 0.97, y: 0.90, press), settle: jelly } */
+:is(.playbtn, .wplay, .btn.primary):hover { transform: scale(1.06); transition: transform var(--d-snappy) var(--e-snappy), background-color .15s ease; }
+:is(.playbtn, .wplay, .btn, .quality, .mini, .npmini):active { transform: scale(.97, .9); transition: transform var(--d-press) var(--e-press); }
+/* pills, tabs, segments: pressed: scale(0.94, press) */
+:is(.pill, .tab, .wpill, .seg button, .likebtn, .tabbar a, .layout-switch button):active { transform: scale(.94); transition: transform var(--d-press) var(--e-press); }
+/* Button.card { hover: scale(1.03, snappy) + shadow(14, y: 6, opacity: 0.18), pressed: scale(0.97, press), settle: jelly } */
+.card:hover .art { transform: scale(1.03); box-shadow: 0 6px 28px rgba(0,0,0,.18); transition: transform var(--d-snappy) var(--e-snappy), box-shadow var(--d-snappy) var(--e-snappy); }
+.card:active .art { transform: scale(.97); transition: transform var(--d-press) var(--e-press); }
+/* Button.feature { hover: scale(1.015, snappy) + shadow(16, y: 8), pressed: scale(0.985, press), settle: jelly } */
+:is(.daily, .fm):hover { transform: scale(1.015); box-shadow: 0 10px 32px rgba(0,0,0,.16); transition: transform var(--d-snappy) var(--e-snappy), box-shadow var(--d-snappy) var(--e-snappy); }
+.daily:active { transform: scale(.985); transition: transform var(--d-press) var(--e-press); }
+.notice:hover { transform: scale(1.01); transition: transform var(--d-snappy) var(--e-snappy); }
+/* spin: app.playing, spin_period: 12 (stops where it is when paused) */
+.spinwrap { display: block; border-radius: 50%; overflow: hidden; animation: enji-spin 12s linear infinite; animation-play-state: paused; }
+.spinwrap.on { animation-play-state: running; }
+@keyframes enji-spin { to { transform: rotate(1turn); } }
+/* hero: the copy that travels between the two places */
+.heroghost { position: fixed; z-index: 100; pointer-events: none; transform-origin: 0 0; }
+.heroghost > * { width: 100% !important; height: 100% !important; margin: 0 !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; }
+  .spinwrap { animation: none; }
+}
+.gone { display: none !important; }
+</style>
+</head>
+<body>
+<div class="layout-switch" role="group" aria-label="布局">
+  <button type="button" data-layout="desktop" aria-pressed="true"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>电脑</button>
+  <button type="button" data-layout="phone" aria-pressed="false"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>手机</button>
+</div>
+<div class="device" id="device">
+  <div class="island" aria-hidden="true"></div>
+  <div class="app" id="app">
+    <nav class="side" aria-label="主导航" id="side"></nav>
+    <main class="main" id="main"></main>
+    <footer class="player" aria-label="正在播放" id="player"></footer>
+  </div>
+  <button class="avatar-btn glass phone-only" id="avatarBtn" aria-label="账号"><span class="avatar" aria-hidden="true">S</span></button>
+  <div class="npmini glass phone-only" id="mini" role="region" aria-label="正在播放"></div>
+  <nav class="tabbar glass phone-only" id="tabbar" aria-label="标签栏"></nav>
+  <a class="searchtab glass phone-only" id="searchtab" href="#search" aria-label="搜索"></a>
+  <div class="lyrics" id="lyrics" role="dialog" aria-modal="true" aria-label="歌词"><div class="heroart" id="heroart" aria-hidden="true" data-glow="1.05" data-glow-alpha=".22"></div><div id="lyricsBody" style="display:contents"></div></div>
+</div>
+
+<script>
+// ---------- state ----------
+const S = {
+  route: 'home', prev: 'home',
+  playing: true, liked: true,
+  fTab: 'square', cat: '全部', region: '华语', kind: '全部',
+  sTab: 'all', q: '夏',
+  likes: { 1: true, 2: true, 4: true, 8: true },
+  lTab: 'lyrics', trans: true, ruby: true, sort: 'hot',
+  npStage: 'cover', // phone now-playing: 'cover', or 'lyrics' / 'comments' / 'info' in the middle pane
+  cur: 2, // current lyric line
+  spinAcc: 0, spinFrom: performance.now() // mini player disc: seconds turned so far
+};
+
+// ---------- icons ----------
+const ico = (body, size = 18, sw = 1.8) =>
+  `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const solid = (body, size = 18) =>
+  `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
+const HEART = '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>';
+const I = {
+  search: (s = 15) => ico('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>', s, 2),
+  spark: () => ico('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>'),
+  grid: () => ico('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+  heart: (on, s = 18) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">${HEART}</svg>`,
+  clock: () => ico('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>'),
+  plus: (s = 16) => ico('<path d="M12 5v14M5 12h14"/>', s, 2),
+  play: (s = 18) => solid('<path d="M8 5.5v13l11-6.5z"/>', s),
+  pause: (s = 18) => solid('<rect x="6.5" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2"/>', s),
+  prev: (s = 20) => solid('<path d="M18 6v12l-9-6z"/><rect x="5.8" y="6" width="2.2" height="12" rx="1.1"/>', s),
+  next: (s = 20) => solid('<path d="M6 6v12l9-6z"/><rect x="16" y="6" width="2.2" height="12" rx="1.1"/>', s),
+  shuffle: (s = 18) => ico('<path d="M4 7h3.5c2 0 3.2 1 4.2 2.6l2.6 4.8c1 1.6 2.2 2.6 4.2 2.6H20M17 14l3 3-3 3M4 17h3.5c1.3 0 2.3-.4 3-1.2M14.5 8.2c.7-.8 1.7-1.2 3-1.2H20M17 4l3 3-3 3"/>', s),
+  repeat: (s = 18) => ico('<path d="M5 11V9a3 3 0 0 1 3-3h11M16 3l3 3-3 3M19 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3"/>', s),
+  queue: () => ico('<path d="M4 6h16M4 12h16M4 18h10"/>'),
+  vol: (s = 18) => ico('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>', s),
+  volLow: (s = 16) => ico('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/>', s),
+  back: () => ico('<path d="M15 5l-7 7 7 7"/>', 18, 2),
+  fwd: () => ico('<path d="M9 5l7 7-7 7"/>', 18, 2),
+  down: () => ico('<path d="M6 9l6 6 6-6"/>', 18, 2),
+  more: () => solid('<circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/>'),
+  info: () => ico('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.5v.01"/>', 16),
+  trash: () => ico('<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>'),
+  thumb: () => ico('<path d="M7 11v8H4v-8zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.8 10H18a2 2 0 0 1 2 2.3l-1.1 5A2 2 0 0 1 17 19H7"/>', 15),
+  close: () => ico('<path d="M6 6l12 12M18 6L6 18"/>', 16, 2),
+  eq: () => `<svg role="img" aria-label="正在播放" width="16" height="16" viewBox="0 0 24 24" fill="#B94047"><rect x="4" y="10" width="3.5" height="10" rx="1"/><rect x="10.25" y="4" width="3.5" height="16" rx="1"/><rect x="16.5" y="12" width="3.5" height="8" rx="1"/></svg>`,
+  tiny: () => solid('<path d="M7 4v16l13-8z"/>', 10),
+  lib: (s = 22) => ico('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>', s),
+  quote: () => ico('<path d="M5 5h14v10H10l-5 4z"/><path d="M9.5 10.5v-1.5h1.5M13.5 10.5v-1.5h1.5"/>', 20),
+  chat: () => ico('<path d="M4 5h11v8H8.5L4 16.5z"/><path d="M15 9h5v8.5L16.5 15H10v-2"/>', 20),
+  about: () => ico('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.5v.01"/>', 20)
+};
+
+// ---------- data (fictional) ----------
+const C = { indigo: '#3D5A80', teal: '#2F4858', violet: '#5B4B8A', clay: '#C46A4A', green: '#4F7C5A', rose: '#8C5E58', slate: '#4A6670', mustard: '#9A7128', ink: '#2B2B33', taupe: '#7A6A53', berry: '#9B4D5C', grey: '#6E7F80' };
+const NOW = { title: '夏の終わりの海', artist: '水無月 灯', album: '潮騒', glyph: '海', color: C.indigo, glow: 'rgba(92,134,196,.8)' };
+const created = [
+  { name: '深夜循环', glyph: '夜', color: C.violet, active: true },
+  { name: '通勤路上', glyph: '晨', color: C.taupe },
+  { name: '写代码专用', glyph: '静', color: C.indigo },
+  { name: '游戏原声', glyph: '旅', color: C.green },
+  { name: '日语慢歌', glyph: '雨', color: C.teal }
+];
+const saved = [
+  { name: '昭和喫茶店的午后', glyph: '茶', color: C.rose },
+  { name: '动画歌曲十年精选', glyph: '光', color: C.mustard }
+];
+const daily = [
+  { title: '雨上がりのバス停', artist: '小夜', glyph: '雨', color: C.teal },
+  { title: '深夜二時のコンビニ', artist: 'Lumen Loop', glyph: '夜', color: C.violet },
+  { title: '旧城以南', artist: '周末乐队', glyph: '南', color: C.clay }
+];
+const recLists = [
+  ['雨夜里的城市流行', '雨', C.teal, '38.2万'], ['夏日海边的公路歌', '夏', C.clay, '12.6万'], ['适合写代码的后摇', '静', C.indigo, '51.7万'],
+  ['游戏原声：冒险与离别', '旅', C.green, '9.3万'], ['昭和喫茶店的午后', '茶', C.rose, '22.1万'], ['深夜电台的日语慢歌', '夜', C.violet, '64万'],
+  ['钢琴与白噪音', '白', C.grey, '7.8万'], ['动画歌曲十年精选', '光', C.mustard, '103万'], ['独立乐队的现场录音', '声', C.ink, '4.1万'],
+  ['通勤路上的城市氛围', '晨', C.taupe, '18.9万'], ['冬日的室内乐', '冬', C.slate, '6.5万'], ['华语经典重新编曲', '歌', C.berry, '27.3万']
+].map(([name, glyph, color, plays]) => ({ name, glyph, color, plays }));
+const squareLists = [
+  ['城市夜晚的 Lo-fi', '灯', C.teal, '88.4万'], ['日语独立流行新声', '新', C.berry, '15.2万'], ['一个人的公路电影', '路', C.taupe, '33.7万'],
+  ['游戏原声：雨中的城', '城', C.green, '6.9万'], ['睡前的钢琴小品', '眠', C.violet, '120万'], ['八十年代的城市流行', '昭', C.clay, '41万'],
+  ['后摇与长途旅行', '远', C.indigo, '19.8万'], ['动画片尾曲合集', '终', C.mustard, '57.3万'], ['咖啡馆里的爵士', '啡', C.rose, '24.6万'],
+  ['电子与合成器浪潮', '波', C.ink, '11.4万']
+].map(([name, glyph, color, plays]) => ({ name, glyph, color, plays }));
+const charts = [
+  ['飙升榜', C.indigo, [['雨上がりのバス停', '小夜'], ['旧城以南', '周末乐队'], ['Paper Moon', 'Lumen Loop'], ['白い灯台', '水無月 灯'], ['回声', '林间']]],
+  ['新歌榜', C.green, [['星屑メモリー', 'ハルカナ'], ['低空飞行', '北方信号'], ['青い自転車', '小夜'], ['潮汐', '雾岛'], ['Harbor Lights', 'Neon Harbor']]],
+  ['热歌榜', '#B94047', [['夏の終わりの海', '水無月 灯'], ['风吹过的站台', '林间'], ['深夜二時のコンビニ', 'Lumen Loop'], ['海鸟', '周末乐队'], ['午後のレコード', 'ハルカナ']]],
+  ['原创榜', C.violet, [['七月的信', '七月与安'], ['白鲸', '白鲸计划'], ['透明な朝', '青山 透'], ['回到岸边', '雾岛'], ['北方', '北方信号']]]
+];
+const artists = [
+  ['水無月 灯', '灯', C.indigo], ['小夜', '夜', C.teal], ['Lumen Loop', 'L', C.violet], ['周末乐队', '周', C.clay],
+  ['林间', '林', C.green], ['ハルカナ', 'ハ', C.berry], ['白鲸计划', '鲸', C.slate], ['七月与安', '七', C.taupe],
+  ['Neon Harbor', 'N', C.ink], ['青山 透', '透', C.grey], ['雾岛', '雾', C.rose], ['北方信号', '北', C.mustard]
+];
+const tracks = [
+  ['夏の終わりの海', '水無月 灯', '潮騒', '4:05', '海', C.indigo, 'playing'],
+  ['雨上がりのバス停', '小夜', '雨と街', '3:42', '雨', C.teal],
+  ['深夜二時のコンビニ', 'Lumen Loop', 'Night Shift', '3:18', '夜', C.violet],
+  ['白い灯台', '水無月 灯', '潮騒', '4:51', '灯', C.indigo],
+  ['风吹过的站台', '林间', '远行', '4:12', '风', C.slate],
+  ['星屑メモリー', 'ハルカナ', 'Stardust', '3:56', '星', C.berry, 'lib'],
+  ['旧城以南', '周末乐队', '南方', '5:03', '南', C.clay],
+  ['青い自転車', '小夜', '雨と街', '3:27', '青', C.teal],
+  ['回声', '林间', '远行', '4:40', '声', C.slate, 'unbound'],
+  ['Paper Moon', 'Lumen Loop', 'Night Shift', '3:33', '月', C.violet],
+  ['海鸟', '周末乐队', '南方', '4:08', '鸟', C.clay, 'removed'],
+  ['午後のレコード', 'ハルカナ', 'Stardust', '3:49', '盘', C.berry, 'removed']
+];
+const sSongs = [
+  ['夏の終わりの海', '水無月 灯', '潮騒', '4:05', '海', C.indigo], ['夏至', '林间', '远行', '3:58', '至', C.slate],
+  ['盛夏回信', '七月与安', '七月的信', '4:21', '信', C.taupe], ['夏の坂道', '小夜', '雨と街', '3:36', '坂', C.teal],
+  ['夏夜电台', '北方信号', '低空飞行', '4:02', '电', C.mustard], ['初夏的风', '雾岛', '回到岸边', '3:47', '风', C.rose]
+];
+const sLists = [
+  ['夏日海边的公路歌', '夏', C.clay, 64, '海边散步'], ['夏夜的城市流行', '夜', C.violet, 88, '城市漫游者'],
+  ['一个人的夏天', '一', C.green, 42, '晚风'], ['夏日 Lo-fi', '暑', C.teal, 120, '低保真研究所'], ['盛夏的独立摇滚', '响', C.ink, 57, '周末现场']
+];
+const sArtists = [['夏野', '野', C.green], ['初夏乐团', '初', C.clay], ['夏树', '树', C.indigo], ['晚夏', '晚', C.berry]];
+const sAlbums = [['夏至', '林间', 2024, '至', C.slate], ['盛夏', '七月与安', 2023, '盛', C.taupe], ['夏の終わりに', '水無月 灯', 2022, '終', C.indigo], ['夏夜电台', '北方信号', 2025, '电', C.mustard]];
+const comments = [
+  ['不吃香菜', '不', C.berry, '第一次听是在一个夏末的傍晚，十年过去还是最喜欢这首。', '2022-09-30', 3051],
+  ['晚风', '晚', C.green, '前奏一响，就想起那年夏天骑车去海边的下午。', '2023-08-14', 1204],
+  ['潮汐观测员', '潮', C.indigo, '副歌那句「君の名前を」每次都听得鼻子一酸。', '2024-06-02', 836],
+  ['Kaito', 'K', C.taupe, '坂道和海的画面感太强了，适合傍晚循环。', '3 天前', 212],
+  ['远行的人', '远', C.violet, '希望有一天能去歌里那条坡道看看。', '昨天', 47]
+];
+
+// ---------- pieces ----------
+const cv = (color, glyph, size, font, radius = 6, center = false, glow = "", attrs = "") =>
+  `<span class="cv${center ? ' c' : ''}" aria-hidden="true"${attrs ? ' ' + attrs : ''}${glow ? ` data-glow="${glow}"` : ''} style="width:${size}px;height:${size}px;border-radius:${radius}px;background:${color};font-size:${font}px">${glyph}${glow ? '<i class="glowfx"></i>' : ''}</span>`;
+
+// Stand-in artwork for the song that is playing: dusk sea, setting sun, one 海猫 in the sky.
+// It fills any box (slice), so the same picture works as a thumbnail, a full-bleed hero and a blurred backdrop.
+let artSeq = 0;
+function artSvg() {
+  const id = `enji-sky-${++artSeq}`;
+  return `<svg class="artsvg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B3160"/><stop offset=".42" stop-color="#585887"/><stop offset=".58" stop-color="#D9907C"/><stop offset=".65" stop-color="#F5C69B"/>
+    </linearGradient></defs>
+    <rect width="100" height="65" fill="url(#${id})"/>
+    <circle cx="66" cy="59" r="10" fill="#FCE3C1"/>
+    <rect y="63.5" width="100" height="36.5" fill="#1C3157"/>
+    <g fill="#F5C69B"><rect x="56" y="66.5" width="20" height="1.3" rx=".65" opacity=".9"/><rect x="59.5" y="70.5" width="13" height="1.1" rx=".55" opacity=".75"/><rect x="62" y="74.5" width="8" height="1" rx=".5" opacity=".6"/><rect x="64" y="78.5" width="4" height=".9" rx=".45" opacity=".45"/></g>
+    <g stroke="#3D5C8E" stroke-width=".7" stroke-linecap="round"><path d="M6 71h13M27 75h9M9 83h17M33 88h11M76 85h15M82 92h11"/></g>
+    <g fill="#fff" opacity=".7"><circle cx="18" cy="16" r=".5"/><circle cx="35" cy="9" r=".4"/><circle cx="84" cy="13" r=".45"/><circle cx="91" cy="27" r=".35"/></g>
+    <path d="M22 33q2.2-1.8 4.4 0q2.2-1.8 4.4 0" stroke="#F4D9C6" stroke-width=".8" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+const art = (size, radius = 6, attrs = '') =>
+  `<span class="artthumb" aria-hidden="true"${attrs ? ' ' + attrs : ''} style="width:${size}px;height:${size}px;border-radius:${radius}px">${artSvg()}</span>`;
+const cover = (title, color, glyph, size, font, radius = 6) =>
+  title === NOW.title ? art(size, radius) : cv(color, glyph, size, font, radius);
+const mark = (text) => {
+  const q = S.q.trim();
+  const i = q ? text.indexOf(q) : -1;
+  return i < 0 ? text : `${text.slice(0, i)}<span class="hit">${q}</span>${text.slice(i + q.length)}`;
+};
+const card = (p, { href = '#playlist', sub = '', hl = false } = {}) => `
+  <a href="${href}" class="card" data-key="${p.name}">
+    <span class="art" data-glow="1" data-hero="poster" style="background:${p.color}">
+      <span class="glyph" aria-hidden="true">${p.glyph}</span><i class="glowfx"></i>
+      ${p.plays ? `<span class="plays">${I.tiny()}${p.plays}</span>` : ''}
+      <span class="cardplay" aria-hidden="true">${I.play()}</span>
+    </span>
+    <span class="cardtitle clamp2">${hl ? mark(p.name) : p.name}</span>
+    ${sub ? `<span class="cardsub">${sub}</span>` : ''}
+  </a>`;
+const person = ([name, glyph, color], hl = false) => `
+  <a href="#search" class="person" data-key="${name}"><span class="face" aria-hidden="true" style="background:${color}">${glyph}</span><span>${hl ? mark(name) : name}</span></a>`;
+const topbar = (keep = false) => `
+  <div class="topbar${keep ? ' keep' : ''}">
+    <button class="iconbtn nav-arrow" aria-label="后退" data-act="back">${I.back()}</button>
+    <button class="iconbtn nav-arrow" aria-label="前进" disabled>${I.fwd()}</button>
+  </div>`;
+
+// ---------- sidebar ----------
+function side() {
+  const r = S.route;
+  const nav = (id, label, icon) =>
+    `<a href="#${id}" class="nav${r === id ? ' on' : ''}"${r === id ? ' aria-current="page"' : ''}>${icon}<span>${label}</span></a>`;
+  const pl = (p, own) => {
+    const on = own && p.active && r === 'playlist';
+    return `<a href="#playlist" class="nav pl${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''}>${cv(p.color, p.glyph, 28, 13, 6, true, '', 'data-hero="poster"')}<span class="ell">${p.name}</span></a>`;
+  };
+  return `
+    <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+    <a href="#search" class="field${r === 'search' ? ' on' : ''}"${r === 'search' ? ' aria-current="page"' : ''}>${I.search()}<span>搜索</span></a>
+    ${nav('home', '推荐', I.spark())}
+    ${nav('featured', '精选', I.grid())}
+    <div class="sec">我的</div>
+    <a href="#playlist" class="nav">${I.heart(false)}<span>我喜欢的音乐</span></a>
+    <a href="#playlist" class="nav">${I.clock()}<span>最近播放</span></a>
+    <div class="sec"><span>创建的歌单</span><button class="iconbtn sm ci" aria-label="新建歌单">${I.plus()}</button></div>
+    ${created.map((p) => pl(p, true)).join('')}
+    <div class="sec">收藏的歌单</div>
+    ${saved.map((p) => pl(p, false)).join('')}
+    <div class="grow"></div>
+    <button class="nav pl" aria-label="账号"><span class="avatar" aria-hidden="true">S</span><span style="font-weight:500">Steve</span></button>`;
+}
+
+// ---------- views ----------
+function home() {
+  return `${topbar()}
+    <h1 class="title">推荐</h1>
+    <div class="hero">
+      <a href="#playlist" class="daily">
+        <div class="date">
+          <div><div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.88)">10月 · 星期六</div><div class="day">31</div></div>
+          <div style="font-size:22px;font-weight:700">每日推荐</div>
+        </div>
+        <ol>${daily.map((d) => `
+          <li>${cv(d.color, d.glyph, 44, 20, 8)}
+            <span style="min-width:0"><span class="ell" style="display:block;font-weight:600">${d.title}</span><span class="ell" style="display:block;font-size:12px;color:rgba(255,255,255,.88)">${d.artist}</span></span>
+          </li>`).join('')}
+        </ol>
+        <span class="go" aria-hidden="true">${I.play(22)}</span>
+      </a>
+      <div class="fm">
+        <div style="font-size:22px;font-weight:700">私人 FM</div>
+        <div style="display:flex;align-items:center;gap:14px;min-width:0">
+          ${cv(C.slate, '风', 64, 30, 10)}
+          <div style="min-width:0"><div class="ell" style="font-size:15px;font-weight:600">风吹过的站台</div><div style="font-size:13px;color:rgba(255,255,255,.74);margin-top:2px">林间</div></div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="ctl" aria-label="不喜欢">${I.trash()}</button>
+          <button class="ctl lead" aria-label="播放私人 FM">${I.play()}</button>
+          <button class="ctl" aria-label="下一首">${I.next(18)}</button>
+        </div>
+      </div>
+    </div>
+    <h2 class="h2">推荐歌单</h2>
+    <div class="cards">${recLists.map((p) => card(p)).join('')}</div>`;
+}
+
+function featured() {
+  const tabs = [['square', '歌单广场'], ['chart', '排行榜'], ['artist', '歌手']];
+  const pills = (list, key) => `<div class="pills">${list.map((c) =>
+    `<button class="pill" aria-pressed="${S[key] === c}" data-act="set" data-key="${key}" data-val="${c}">${c}</button>`).join('')}</div>`;
+  let body = '';
+  if (S.fTab === 'square') {
+    body = `${pills(['全部', '华语', '日语', '欧美', 'ACG', '轻音乐', '古典', '电子', '民谣'], 'cat')}
+      <div class="cards lg" style="margin-top:24px">${squareLists.map((p) => card(p)).join('')}</div>`;
+  } else if (S.fTab === 'chart') {
+    body = `<div class="chartgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px">${charts.map(([name, color, songs]) => `
+      <section class="chart">
+        <header style="background:${color}"><h3 style="margin:0;flex:1;font-size:20px">${name}</h3><span class="round-w" aria-hidden="true" style="background:rgba(255,255,255,.22);width:40px;height:40px">${I.play(16)}</span></header>
+        <ol>${songs.map(([t, a], i) => `
+          <li><span class="rank${i < 3 ? ' top' : ''}">${i + 1}</span>
+            <span style="flex:1;min-width:0"><span class="ell" style="display:block;font-weight:500">${t}</span><span class="ell sub" style="display:block">${a}</span></span></li>`).join('')}
+        </ol>
+        <a href="#playlist" style="display:block;padding:10px 16px 14px;font-size:13px;font-weight:500;color:var(--accent)">查看全部</a>
+      </section>`).join('')}</div>`;
+  } else {
+    body = `${pills(['华语', '欧美', '日本', '韩国', '其他'], 'region')}
+      <div style="height:10px"></div>${pills(['全部', '男歌手', '女歌手', '乐队'], 'kind')}
+      <div class="people" style="margin-top:28px">${artists.map((a) => person(a)).join('')}</div>`;
+  }
+  return `${topbar()}
+    <h1 class="title" style="margin-bottom:16px">精选</h1>
+    <div class="tabs" role="tablist" aria-label="精选分类">${tabs.map(([id, label]) =>
+      `<button class="tab" role="tab" aria-selected="${S.fTab === id}" data-act="set" data-key="fTab" data-val="${id}">${label}</button>`).join('')}</div>
+    ${body}`;
+}
+
+function playlist() {
+  let first = true;
+  const rows = tracks.map(([title, artist, album, time, glyph, color, st = ''], i) => {
+    const n = i + 1;
+    const dim = st === 'unbound' || st === 'removed';
+    const liked = !!S.likes[n];
+    const id = st === 'removed' && first ? ' id="removed"' : '';
+    if (id) first = false;
+    let end = `<span>${time}</span>`;
+    if (st === 'removed') end = `<button class="mini">找回</button>`;
+    if (st === 'unbound') end = `<button class="mini plain">绑定文件</button>`;
+    return `
+      <li${id} class="trow${st === 'playing' ? ' playing' : ''}${dim ? ' dim' : ''}">
+        <span class="num">${st === 'playing' ? I.eq() : n}</span>
+        <div class="song">
+          ${cover(title, color, glyph, 40, 18, 6)}
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <span class="t ell" style="font-weight:500${st === 'playing' ? ';color:var(--accent-ink)' : ''}">${title}</span>
+              ${st === 'lib' ? '<span class="tag">曲库</span>' : ''}
+              ${st === 'removed' ? '<span class="tag warn">已移除</span>' : ''}
+            </div>
+            <div class="sub ell">${artist}</div>
+          </div>
+        </div>
+        <span class="alb ell wide" style="font-size:13px;color:var(--ink-2)">${album}</span>
+        <span>${dim ? '' : `<button class="iconbtn ${liked ? 'liked' : 'ci'}" aria-label="${liked ? '取消喜欢' : '喜欢'}" aria-pressed="${liked}" data-act="like" data-val="${n}">${I.heart(liked)}</button>`}</span>
+        <span class="dur">${end}</span>
+      </li>`;
+  }).join('');
+  return `${topbar(true)}
+    <header class="plhead">
+      ${cv(C.violet, '夜', 216, 140, 16, false, '1.05', 'data-hero-dst="poster"')}
+      <div style="flex:1 1 320px;min-width:0">
+        <h1>深夜循环</h1>
+        <div class="meta"><span class="avatar" aria-hidden="true" style="width:22px;height:22px;font-size:11px">S</span><span style="color:var(--ink);font-weight:500">Steve</span><span>· 10 首 · 41 分钟</span></div>
+        <div class="actions" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:22px">
+          <button class="btn primary">${I.play(16)}<span>播放全部</span></button>
+          <button class="btn ghost">${I.shuffle(16)}<span>随机播放</span></button>
+          <button class="btn ghost round" aria-label="更多操作">${I.more()}</button>
+        </div>
+      </div>
+    </header>
+    <button class="notice" data-act="toRemoved">${I.info()}<span style="flex:1">网易云移除了这个歌单里的 2 首歌</span><span style="font-weight:600">查看</span></button>
+    <div class="trow thead" aria-hidden="true"><span class="num">#</span><span>标题</span><span class="wide">专辑</span><span></span><span style="text-align:right">时长</span></div>
+    <ol class="tracks" aria-label="歌曲">${rows}</ol>`;
+}
+
+function searchView() {
+  return `<div style="height:52px"></div>
+    <div class="search">
+      <label class="sr" for="q">搜索歌曲、歌手、专辑或歌单</label>
+      ${I.search(20)}
+      <input id="q" type="search" value="${S.q}" placeholder="歌曲、歌手、专辑、歌单" autocomplete="off">
+      <button class="clear" aria-label="清除" data-act="clearQ">${I.close()}</button>
+    </div>
+    <div class="pills" role="tablist" aria-label="搜索结果类型" style="margin-bottom:28px">${[['all', '综合'], ['songs', '单曲'], ['artists', '歌手'], ['albums', '专辑'], ['lists', '歌单']].map(([id, label]) =>
+      `<button class="pill dark" role="tab" aria-selected="${S.sTab === id}" data-act="set" data-key="sTab" data-val="${id}">${label}</button>`).join('')}</div>
+    <div id="results">${results()}</div>`;
+}
+
+function results() {
+  const q = S.q.trim();
+  const has = (t) => !q || t.includes(q);
+  const songs = sSongs.filter((s) => has(s[0]));
+  const lists = sLists.filter((l) => has(l[0]));
+  const arts = sArtists.filter((a) => has(a[0]));
+  const albums = sAlbums.filter((a) => has(a[0]));
+  if (!songs.length && !lists.length && !arts.length && !albums.length) return `<div class="empty">没有找到「${q}」</div>`;
+  const songRow = ([t, a, al, time, g, c], big) => `
+    <li class="srow" data-key="s-${t}">${cover(t, c, g, big ? 44 : 40, big ? 20 : 18, 6)}
+      <span style="flex:1;min-width:0"><span class="ell" style="display:block;font-weight:500">${mark(t)}</span><span class="ell sub" style="display:block">${big ? a : `${a} · ${al}`}</span></span>
+      ${big ? `<span class="ell wide sub" style="flex:0 1 220px;min-width:0;margin:0">${al}</span>` : ''}
+      <span class="sub" style="width:44px;text-align:right;margin:0;font-variant-numeric:tabular-nums">${time}</span>
+      <button class="iconbtn ci" aria-label="加入歌单">${I.plus(18)}</button>
+    </li>`;
+  const listCards = (sub) => lists.map(([n, g, c, cnt, owner]) => card({ name: n, glyph: g, color: c }, { hl: true, sub: sub ? `${cnt} 首 · ${owner}` : '' })).join('');
+  if (S.sTab === 'songs') return `<ol class="tracks" aria-label="单曲" style="max-width:960px">${songs.map((s) => songRow(s, true)).join('')}</ol>`;
+  if (S.sTab === 'artists') return `<div class="people">${arts.map((a) => person(a, true)).join('')}</div>`;
+  if (S.sTab === 'albums') return `<div class="cards lg">${albums.map(([n, a, y, g, c]) => card({ name: n, glyph: g, color: c }, { hl: true, sub: `${a} · ${y}` })).join('')}</div>`;
+  if (S.sTab === 'lists') return `<div class="cards lg">${listCards(true)}</div>`;
+  const best = songs[0];
+  return `
+    <div class="split">
+      ${best ? `<section style="flex:1 1 300px;min-width:0">
+        <h2 class="h2" style="margin-bottom:14px">最佳结果</h2>
+        <a href="#lyrics" class="best">
+          ${cover(best[0], best[5], best[4], 104, 64, 12)}
+          <span><span style="display:block;font-size:26px;font-weight:700">${mark(best[0])}</span>
+            <span style="display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--ink-2)"><span class="tag" style="background:var(--chip);color:var(--ink)">单曲</span><span>${best[1]}</span></span></span>
+          <span class="cardplay" aria-hidden="true">${I.play(20)}</span>
+        </a>
+      </section>` : ''}
+      ${songs.length ? `<section style="flex:2 1 420px;min-width:0"><h2 class="h2" style="margin-bottom:14px">单曲</h2>
+        <ol class="tracks" aria-label="单曲" style="margin:0">${songs.slice(0, 4).map((s) => songRow(s, false)).join('')}</ol></section>` : ''}
+    </div>
+    ${lists.length ? `<h2 class="h2">歌单</h2><div class="cards" style="margin-bottom:40px">${listCards(false)}</div>` : ''}
+    ${arts.length ? `<h2 class="h2">歌手</h2><div class="people">${arts.map((a) => person(a, true)).join('')}</div>` : ''}`;
+}
+
+// 我的: on phone this replaces the sidebar's playlist section.
+function library() {
+  const row = (href, icon, label, sub = '') => `
+    <li><a href="${href}">${icon}<span style="min-width:0"><span class="ell" style="display:block;font-size:16px;font-weight:500">${label}</span>${sub ? `<span class="ell sub" style="display:block">${sub}</span>` : ''}</span><span class="chev">${I.fwd()}</span></a></li>`;
+  const lists = (items) => items.map((p) => row('#playlist', cv(p.color, p.glyph, 52, 24, 8, false, '', 'data-hero="poster"'), p.name)).join('');
+  return `${topbar()}
+    <h1 class="title">我的</h1>
+    <ul class="liblist">
+      ${row('#playlist', `<span class="libicon" aria-hidden="true">${I.heart(true, 22)}</span>`, '我喜欢的音乐', '286 首')}
+      ${row('#playlist', `<span class="libicon" aria-hidden="true">${I.clock()}</span>`, '最近播放')}
+    </ul>
+    <div class="sec" style="padding:0 0 8px;font-size:15px;color:var(--ink)"><span>创建的歌单</span><button class="iconbtn sm ci" aria-label="新建歌单">${I.plus()}</button></div>
+    <ul class="liblist">${lists(created)}</ul>
+    <div class="sec" style="padding:0 0 8px;font-size:15px;color:var(--ink)">收藏的歌单</div>
+    <ul class="liblist">${lists(saved)}</ul>`;
+}
+
+// ---------- phone chrome (iOS 26) ----------
+function mini() {
+  return `
+    <a href="#lyrics" aria-label="打开歌词" class="spinwrap${S.playing ? ' on' : ''}" style="animation-delay:${-spinAngle()}s">${art(40, 20)}</a>
+    <a href="#lyrics" class="info"><span class="t ell" style="display:block">${NOW.title}</span><span class="a ell" style="display:block">${NOW.artist}</span></a>
+    <button class="iconbtn" style="border-radius:50%" aria-label="${S.playing ? '暂停' : '播放'}" data-act="toggle">${S.playing ? I.pause(20) : I.play(20)}</button>
+    <button class="iconbtn" style="border-radius:50%" aria-label="下一首">${I.next(20)}</button>`;
+}
+
+function tabbar() {
+  const at = S.route === 'lyrics' ? S.prev : S.route;
+  const cur = at === 'playlist' ? 'library' : at;
+  return '<span class="tabpill" aria-hidden="true"></span>' + [['home', '推荐', I.spark()], ['featured', '精选', I.grid()], ['library', '我的', I.lib()]].map(([id, label, icon]) =>
+    `<a href="#${id}"${cur === id ? ' aria-current="page"' : ''}>${icon.replace(/width="18" height="18"/, 'width="24" height="24"')}<span>${label}</span></a>`).join('');
+}
+
+// ---------- player bar ----------
+function player() {
+  return `
+    <div class="pl-left">
+      <a href="#lyrics" aria-label="打开歌词">${art(52, 8, 'data-hero="now" data-hero-dst="bar"')}</a>
+      <div style="min-width:0"><div class="ell" style="font-weight:600">${NOW.title}</div><div class="ell sub">${NOW.artist}</div></div>
+      <button class="iconbtn ${S.liked ? 'liked' : 'ci'}" aria-label="${S.liked ? '取消喜欢' : '喜欢'}" aria-pressed="${S.liked}" data-act="likeNow">${I.heart(S.liked, 20)}</button>
+    </div>
+    <div class="pl-mid">
+      <div class="ctrls">
+        <button class="iconbtn ci" aria-label="随机播放">${I.shuffle()}</button>
+        <button class="iconbtn" aria-label="上一首">${I.prev()}</button>
+        <button class="playbtn" aria-label="${S.playing ? '暂停' : '播放'}" data-act="toggle">${S.playing ? I.pause() : I.play()}</button>
+        <button class="iconbtn" aria-label="下一首">${I.next()}</button>
+        <button class="iconbtn ci" aria-label="列表循环">${I.repeat()}</button>
+      </div>
+      <div class="progress wide"><span>1:12</span><input type="range" aria-label="播放进度" min="0" max="245" value="72" style="--p:29.4%"><span>4:05</span></div>
+    </div>
+    <div class="pl-right">
+      <button class="quality wide" aria-label="音质：无损">无损</button>
+      <a href="#lyrics" class="iconbtn lyricbtn" aria-label="歌词">词</a>
+      <button class="iconbtn" aria-label="播放队列">${I.queue()}</button>
+      <button class="iconbtn" aria-label="静音">${I.vol()}</button>
+      <input class="wide" type="range" aria-label="音量" min="0" max="100" value="70" style="width:96px;--p:70%">
+    </div>`;
+}
+
+// ---------- lyrics ----------
+const rb = (k, r) => `<ruby>${k}<rt>${r}</rt></ruby>`;
+const LINES = [
+  [`${rb('波', 'なみ')}の${rb('音', 'おと')}が ${rb('遠', 'とお')}くなる`, '浪声渐渐远去', 'opacity:.28;filter:blur(1.4px)'],
+  [`${rb('夕暮', 'ゆうぐ')}れの ${rb('坂道', 'さかみち')}で`, '在黄昏的坡道上', 'opacity:.42;filter:blur(.6px)'],
+  [`<span>${rb('君', 'きみ')}の${rb('名前', 'なまえ')}を </span><span class="todo">${rb('呼', 'よ')}んでいた</span>`, '我一直在呼唤你的名字', '', true],
+  [`${rb('消', 'き')}えない${rb('夏', 'なつ')}の ${rb('約束', 'やくそく')}`, '那不会消失的夏日约定', 'opacity:.45'],
+  [`${rb('海猫', 'うみねこ')}が${rb('鳴', 'な')}く${rb('頃', 'ころ')}に`, '在海猫鸣叫之时', 'opacity:.34;filter:blur(.6px)'],
+  [`もう${rb('一度', 'いちど')} ${rb('会', 'あ')}えるなら`, '如果还能再见一面', 'opacity:.26;filter:blur(1.2px)'],
+  [`${rb('潮風', 'しおかぜ')}に ${rb('手', 'て')}を${rb('振', 'ふ')}って`, '就向着海风挥手', 'opacity:.2;filter:blur(1.8px)']
+];
+
+const previewInner = () => {
+  const [jp, zh] = LINES[S.cur];
+  const next = LINES[(S.cur + 1) % LINES.length][0];
+  return `<span class="pjp">${jp}</span>${S.trans ? `<span class="pzh" lang="zh-CN">${zh}</span>` : ''}<span class="pnext">${next}</span>`;
+};
+
+function lyrics() {
+  const tabs = [['lyrics', '歌词', ''], ['comments', '评论', '2318'], ['info', '介绍', '']];
+  let pane = '';
+  if (S.lTab === 'lyrics') {
+    pane = `<div class="lines${S.ruby ? '' : ' noruby'}${S.trans ? '' : ' notrans'}" lang="ja">${LINES.map(([jp, zh], i) =>
+      `<div class="line${i === S.cur ? ' cur' : ''}" data-act="seek" data-val="${i}"><div class="jp">${jp}</div><div class="zh" lang="zh-CN">${zh}</div></div>`).join('')}</div>`;
+  } else if (S.lTab === 'comments') {
+    const list = S.sort === 'hot' ? comments : [...comments].reverse();
+    pane = `<div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;gap:6px;margin-bottom:6px">${[['hot', '热门'], ['new', '最新']].map(([id, l]) =>
+        `<button class="wpill" aria-pressed="${S.sort === id}" data-act="set" data-key="sort" data-val="${id}">${l}</button>`).join('')}</div>
+      ${list.map(([name, initial, color, text, time, likes]) => `
+        <article class="comment">
+          <span class="avatar" aria-hidden="true" style="width:36px;height:36px;font-size:14px;background:${color}">${initial}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.86)">${name}</div>
+            <p>${text}</p>
+            <div class="cmeta"><span>${time}</span><button class="likebtn" aria-label="点赞，${likes}">${I.thumb()}<span>${likes}</span></button></div>
+          </div>
+        </article>`).join('')}
+    </div>`;
+  } else {
+    pane = `<div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:18px;max-width:640px">
+      <dl class="facts"><dt>发行时间</dt><dd>2022-08-26</dd><dt>专辑</dt><dd>潮騒</dd><dt>语种</dt><dd>日语</dd><dt>曲风</dt><dd>City Pop · 独立流行</dd></dl>
+      <p style="margin:0;padding:0 4px;font-size:15px;line-height:1.8;color:rgba(255,255,255,.9)">《夏の終わりの海》是水無月 灯第二张专辑《潮騒》的主打曲。歌曲以海边小镇的夏末为背景，写给一段没有说出口的告别。</p>
+      <a href="#featured" class="artistcard">
+        ${cv(C.indigo, '灯', 56, 24, 28, true)}
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:16px;font-weight:600">水無月 灯</span><span style="display:block;margin-top:4px;font-size:13px;color:rgba(255,255,255,.74)">日本创作歌手，作品多以海边与季节为题。</span></span>
+        ${I.fwd()}
+      </a>
+    </div>`;
+  }
+  return `
+    <div class="bg" aria-hidden="true"><span class="bgart">${artSvg()}</span><i class="scrim"></i></div>
+    <header>
+      <div class="lights" aria-hidden="true" style="padding:0"><i></i><i></i><i></i></div>
+      <button class="round-w" aria-label="收起" data-act="closeLyrics">${I.down()}</button>
+    </header>
+    <div class="lbody">
+      <section class="np" aria-label="正在播放">
+        <span class="big artbox" aria-hidden="true" data-hero-dst="now" data-glow="1.05" data-glow-alpha=".22">${artSvg()}<i class="glowfx"></i></span>
+        <button class="artzone" aria-label="显示歌词" data-glow-for="heroart" data-act="stage" data-val="lyrics"></button>
+        <div class="songrow" style="display:flex;align-items:flex-start;gap:10px">
+          <button class="thumb" aria-label="显示封面" data-act="stage" data-val="cover">${art(48, 8)}</button>
+          <div style="flex:1;min-width:0"><h1 class="ell">${NOW.title}</h1><div class="by ell">${NOW.artist} · ${NOW.album}</div>
+            <div class="q"><span style="display:inline-block;padding:1px 7px;border:1px solid rgba(255,255,255,.5);border-radius:5px;font-size:11px;font-weight:600">无损</span></div></div>
+          <button class="round-w" style="width:40px;height:40px" aria-label="${S.liked ? '取消喜欢' : '喜欢'}" aria-pressed="${S.liked}" data-act="likeNow">${I.heart(S.liked, 20)}</button>
+          <button class="round-w addto" style="width:40px;height:40px" aria-label="加入歌单">${I.plus(18)}</button>
+        </div>
+        <button class="preview${S.ruby ? '' : ' noruby'}" lang="ja" aria-label="显示歌词" data-act="stage" data-val="lyrics">
+          ${previewInner()}
+        </button>
+        <div class="progress-w" style="display:flex;flex-direction:column;gap:4px">
+          <input type="range" aria-label="播放进度" min="0" max="245" value="72" style="width:100%;--p:29.4%">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.74);font-variant-numeric:tabular-nums"><span>1:12</span><span>4:05</span></div>
+        </div>
+        <div class="transport" style="display:flex;align-items:center;justify-content:space-between">
+          <button class="wctl soft" style="width:44px;height:44px" aria-label="随机播放">${I.shuffle(20)}</button>
+          <button class="wctl" style="width:52px;height:52px" aria-label="上一首">${I.prev(28)}</button>
+          <button class="wplay" aria-label="${S.playing ? '暂停' : '播放'}" data-act="toggle">${S.playing ? I.pause(28) : I.play(28)}</button>
+          <button class="wctl" style="width:52px;height:52px" aria-label="下一首">${I.next(28)}</button>
+          <button class="wctl soft" style="width:44px;height:44px" aria-label="列表循环">${I.repeat(20)}</button>
+        </div>
+        <div class="volume" style="display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.78)">
+          ${I.volLow()}<input type="range" aria-label="音量" min="0" max="100" value="70" style="flex:1;--p:70%">${I.vol()}
+          <button aria-label="音质：无损" style="height:24px;padding:0 7px;margin-left:6px;border:1px solid rgba(255,255,255,.6);border-radius:5px;font-size:11px;font-weight:600;color:#fff">无损</button>
+        </div>
+        <div class="tools">
+          <button class="toggle" aria-label="歌词" aria-pressed="${S.npStage === 'lyrics'}" data-act="stage" data-val="lyrics">${I.quote()}</button>
+          <button class="toggle" aria-label="评论 2318" aria-pressed="${S.npStage === 'comments'}" data-act="stage" data-val="comments">${I.chat()}</button>
+          <button class="toggle" aria-label="介绍" aria-pressed="${S.npStage === 'info'}" data-act="stage" data-val="info">${I.about()}</button>
+          <button class="toggle" aria-label="加入歌单">${I.plus(20)}</button>
+          <button class="toggle" aria-label="播放队列">${I.queue()}</button>
+        </div>
+      </section>
+      <section class="pane">
+        <div class="panehead" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div class="seg" role="tablist" aria-label="歌曲内容">${tabs.map(([id, label, count]) =>
+            `<button role="tab" aria-selected="${S.lTab === id}" data-act="set" data-key="lTab" data-val="${id}"><span>${label}</span>${count ? `<small>${count}</small>` : ''}</button>`).join('')}</div>
+          ${S.lTab === 'lyrics' ? `<div style="display:flex;gap:6px">
+            <button class="toggle" aria-label="翻译" aria-pressed="${S.trans}" data-act="flip" data-key="trans">译</button>
+            <button class="toggle" aria-label="假名注音" aria-pressed="${S.ruby}" data-act="flip" data-key="ruby">あ</button>
+          </div>` : ''}
+        </div>
+        <div class="panebody">${pane}</div>
+      </section>
+    </div>`;
+}
+
+// ---------- motion ----------
+// Only what Bern can declare: spring tokens, style! state transforms (CSS), appear + stagger, hero shared elements,
+// animate (lengths), nudge, spin, reflow, and scroll-linked scale / opacity. Each piece names its Bern form.
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SPRINGS = { press: [0.12, 1], snappy: [0.22, 0.85], smooth: [0.45, 1], bouncy: [0.5, 0.62], jelly: [0.42, 0.42], hero: [0.48, 0.86] };
+const M = {};
+for (const [name, [T, z]] of Object.entries(SPRINGS)) {
+  // Unit-mass spring as Bern defines the tokens: stiffness (2π/T)², damping 4πζ/T. Sampled into a CSS linear() curve.
+  const w = 2 * Math.PI / T;
+  const wd = w * Math.sqrt(Math.max(1e-6, 1 - z * z));
+  const x = (t) => z >= 1 ? 1 - Math.exp(-w * t) * (1 + w * t)
+    : 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t));
+  let end = 0.05;
+  for (let t = 0; t < 3; t += 0.002) if (Math.abs(1 - x(t)) > 0.002) end = t;
+  const pts = Array.from({ length: 49 }, (_, i) => (i === 48 ? 1 : x(end * i / 48)).toFixed(4));
+  M[name] = { ms: Math.round(end * 1000), ease: `linear(${pts.join(', ')})` };
+  document.documentElement.style.setProperty(`--d-${name}`, `${M[name].ms}ms`);
+  document.documentElement.style.setProperty(`--e-${name}`, M[name].ease);
+}
+
+function play(el, frames, token = 'smooth', delay = 0) {
+  if (!el || !el.animate) return null;
+  if (REDUCE) return el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, fill: 'backwards' }); // reduced motion: 150ms fade
+  return el.animate(frames, { duration: M[token].ms, easing: M[token].ease, delay, fill: 'backwards' });
+}
+const RISE = [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }]; // transition rise: slide(bottom, 16, smooth)
+const visible = (el) => !!el && el.getClientRects().length > 0;
+const LISTS = '.cards, .people, .tracks, .liblist, .chartgrid';
+function staggerChildren(list, step) { // ForEach(stagger: step) { … appear: rise }
+  [...list.children].filter(visible).slice(0, 30).forEach((el, i) => play(el, RISE, 'smooth', 40 + i * step));
+}
+function enterPage() { // page: Column(stagger: 0.03) of blocks with appear: rise; lists stagger 0.04, rows 0.018
+  const main = $('main');
+  [...main.children].filter((el) => !el.matches('.topbar') && !el.matches(LISTS)).forEach((el, i) => play(el, RISE, 'smooth', i * 30));
+  main.querySelectorAll(LISTS).forEach((l) => staggerChildren(l, l.matches('.tracks, .liblist') ? 18 : 40));
+}
+function enterLists() { $('main').querySelectorAll(LISTS).forEach((l) => staggerChildren(l, l.matches('.tracks, .liblist') ? 18 : 35)); }
+function enterPane() {
+  document.querySelectorAll('.lyrics .panebody .comment, .lyrics .panebody .facts, .lyrics .panebody .artistcard, .lyrics .panebody .lines')
+    .forEach((el, i) => play(el, RISE, 'smooth', i * 35));
+}
+function enterStage() { // match on the phone stage: each branch's pieces appear: rise
+  ['.lyrics .songrow', '.lyrics .preview', '.lyrics .panehead'].forEach((sel, i) => {
+    const el = document.querySelector(sel);
+    if (visible(el)) play(el, RISE, 'smooth', i * 40);
+  });
+  enterPane();
+}
+function nudge(el) { // nudge: grow a little, then spring back with jelly
+  if (!el || REDUCE) return;
+  el.animate([
+    { transform: 'scale(1)', easing: 'cubic-bezier(.3,.7,.4,1)' },
+    { transform: 'scale(1.28)', offset: 90 / (90 + M.jelly.ms), easing: M.jelly.ease },
+    { transform: 'scale(1)' }
+  ], { duration: 90 + M.jelly.ms });
+}
+
+// hero: a cover travels from where it was tapped to where it lands (card → playlist header, player bar ↔ lyrics cover).
+let pendingHero = null;
+const captureHero = (el, name) => ({ name, rect: el.getBoundingClientRect(), html: el.outerHTML });
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a, button');
+  const src = e.target.closest('[data-hero]') || (link && link.querySelector('[data-hero]'));
+  pendingHero = src ? captureHero(src, src.dataset.hero) : null;
+}, true);
+function flyHero() {
+  const h = pendingHero;
+  pendingHero = null;
+  if (!h || REDUCE || !h.rect.width) return;
+  const dst = [...document.querySelectorAll(`[data-hero-dst="${h.name}"]`)].find(visible);
+  if (!dst) return;
+  const to = dst.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'heroghost';
+  ghost.innerHTML = h.html;
+  Object.assign(ghost.style, { left: `${h.rect.left}px`, top: `${h.rect.top}px`, width: `${h.rect.width}px`, height: `${h.rect.height}px` });
+  document.body.appendChild(ghost);
+  const move = `translate(${to.left - h.rect.left}px, ${to.top - h.rect.top}px) scale(${to.width / h.rect.width}, ${to.height / h.rect.height})`;
+  const fly = ghost.animate([{ transform: 'none' }, { transform: move }], { duration: M.hero.ms, easing: M.hero.ease, fill: 'forwards' });
+  ghost.animate([{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], { duration: M.hero.ms, fill: 'forwards' });
+  dst.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], { duration: M.hero.ms }); // contents cross-fade
+  fly.finished.then(() => ghost.remove());
+}
+
+const phoneLayout = () => getComputedStyle($('tabbar')).display !== 'none';
+function openLyricsMotion() {
+  const ly = $('lyrics');
+  if (phoneLayout()) { pendingHero = null; play(ly, [{ transform: 'translateY(100%)' }, { transform: 'none' }], 'hero'); } // appear: slide(bottom, …, hero)
+  else { play(ly, [{ opacity: 0 }, { opacity: 1 }], 'smooth'); flyHero(); } // appear: fade + hero: now
+}
+let closing = false;
+function closeLyricsMotion() {
+  if (closing) return;
+  if (REDUCE) { location.hash = S.prev; return; }
+  closing = true;
+  const ly = $('lyrics');
+  const phone = phoneLayout();
+  const big = ly.querySelector('.np .big');
+  pendingHero = !phone && visible(big) ? captureHero(big, 'bar') : null;
+  const a = phone
+    ? ly.animate([{ transform: 'none' }, { transform: 'translateY(100%)' }], { duration: Math.round(M.hero.ms * 0.8), easing: M.hero.ease, fill: 'forwards' }) // disappear: slide(bottom)
+    : ly.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' }); // disappear: fade
+  a.finished.then(() => { location.hash = S.prev; requestAnimationFrame(() => { a.cancel(); closing = false; }); });
+}
+
+// spin: app.playing, spin_period: 12 — the disc keeps its angle across pauses and re-renders.
+const spinAngle = () => (S.spinAcc + (S.playing ? (performance.now() - S.spinFrom) / 1000 : 0)) % 12;
+
+// The system tab bar slides its selection from tab to tab; here the bouncy spring stands in for it.
+let pillBox = null;
+function placeTabPill() {
+  const bar = $('tabbar');
+  const pill = bar.querySelector('.tabpill');
+  const cur = bar.querySelector('[aria-current="page"]');
+  if (!pill) return;
+  if (!cur || !visible(bar)) { pill.style.opacity = '0'; pillBox = null; return; }
+  const box = { x: cur.offsetLeft, w: cur.offsetWidth };
+  Object.assign(pill.style, { opacity: '1', width: `${box.w}px`, transform: `translateX(${box.x}px)` });
+  if (pillBox && pillBox.x !== box.x && !REDUCE) {
+    pill.animate([{ transform: `translateX(${pillBox.x}px) scaleX(${pillBox.w / box.w})` }, { transform: `translateX(${box.x}px)` }], { duration: M.bouncy.ms, easing: M.bouncy.ease });
+  }
+  pillBox = box;
+}
+
+// Lyrics: ScrollView(snap: center, position: draft.line); every line scroll_scale: 1.08, scroll_opacity: 0.3.
+const linesBox = () => { const b = document.querySelector('.lyrics .lines'); return visible(b) ? b : null; };
+function applyScrollLink() {
+  const box = linesBox();
+  if (!box) return;
+  const r = box.getBoundingClientRect();
+  const mid = r.top + r.height / 2, half = r.height / 2 || 1;
+  box.querySelectorAll('.line').forEach((l) => {
+    const lr = l.getBoundingClientRect();
+    const d = Math.min(1, Math.abs(lr.top + lr.height / 2 - mid) / half);
+    l.style.opacity = (0.3 + 0.7 * (1 - d)).toFixed(3);
+    l.style.transform = REDUCE ? '' : `scale(${(1 + 0.08 * (1 - d)).toFixed(4)})`;
+  });
+}
+function centerLine(smooth) {
+  const box = linesBox();
+  if (!box) return;
+  const l = box.querySelectorAll('.line')[S.cur];
+  if (!l) return;
+  box.scrollTo({ top: l.offsetTop + l.offsetHeight / 2 - box.clientHeight / 2, behavior: smooth && !REDUCE ? 'smooth' : 'auto' });
+  applyScrollLink();
+}
+function syncLyrics(smooth) {
+  document.querySelectorAll('.lyrics .line').forEach((l, i) => l.classList.toggle('cur', i === S.cur));
+  centerLine(smooth);
+  const p = document.querySelector('.lyrics .preview');
+  if (visible(p)) { // the preview's lines are keyed by line: disappear fade, appear slide(bottom, 10, smooth)
+    p.innerHTML = previewInner();
+    [...p.children].forEach((c, i) => play(c, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], 'smooth', i * 40));
+  }
+}
+document.addEventListener('scroll', (e) => { if (e.target.classList && e.target.classList.contains('lines')) applyScrollLink(); }, true);
+window.addEventListener('resize', () => centerLine(false));
+setInterval(() => { // stand-in for playback time: the current line advances while playing
+  if (!S.playing) return;
+  S.cur = (S.cur + 1) % LINES.length;
+  if (S.route === 'lyrics') syncLyrics(true);
+}, 3600);
+
+function reflow(container, html) { // reflow: smooth — items that stay glide to their new place; new ones appear: pop(0.94, snappy)
+  const before = new Map([...container.querySelectorAll('[data-key]')].map((el) => [el.dataset.key, el.getBoundingClientRect()]));
+  container.innerHTML = html;
+  if (REDUCE) return;
+  container.querySelectorAll('[data-key]').forEach((el) => {
+    const o = before.get(el.dataset.key), n = el.getBoundingClientRect();
+    if (!o) play(el, [{ opacity: 0, transform: 'scale(.94)' }, { opacity: 1, transform: 'none' }], 'snappy');
+    else if (Math.abs(o.left - n.left) + Math.abs(o.top - n.top) > 1)
+      el.animate([{ transform: `translate(${o.left - n.left}px, ${o.top - n.top}px)` }, { transform: 'none' }], { duration: M.smooth.ms, easing: M.smooth.ease });
+  });
+}
+
+function afterAct(el) {
+  const { act, key, val } = el.dataset;
+  if (act === 'likeNow' && S.liked) document.querySelectorAll('[data-act="likeNow"]').forEach(nudge);
+  if (act === 'like' && S.likes[val]) document.querySelectorAll(`[data-act="like"][data-val="${val}"]`).forEach(nudge);
+  if (act === 'toggle') { // match on playing: the icon appears with pop(0.5, bouncy)
+    document.querySelectorAll('[data-act="toggle"] svg').forEach((s) => play(s, [{ opacity: 0, transform: 'scale(.5)' }, { opacity: 1, transform: 'none' }], 'bouncy'));
+  }
+  if (act === 'set' && ['fTab', 'sTab', 'cat', 'region', 'kind'].includes(key)) enterLists();
+  if (act === 'set' && (key === 'lTab' || key === 'sort')) enterPane();
+  if (act === 'stage' || act === 'seek') enterStage();
+  if (act === 'flip') {
+    document.querySelectorAll(key === 'trans' ? '.lyrics .zh, .lyrics .pzh' : '.lyrics rt').forEach((z) => play(z, [{ opacity: 0 }, { opacity: 1 }], 'smooth'));
+  }
+}
+
+// ---------- render & events ----------
+const $ = (id) => document.getElementById(id);
+const VIEWS = { home, featured, playlist, search: searchView, library };
+
+function render({ keepScroll = true } = {}) {
+  const main = $('main');
+  const top = main.scrollTop;
+  const at = S.route === 'lyrics' ? S.prev : S.route;
+  $('side').innerHTML = side();
+  main.innerHTML = (VIEWS[at] || home)();
+  $('player').innerHTML = player();
+  $('mini').innerHTML = mini();
+  $('tabbar').innerHTML = tabbar();
+  $('searchtab').innerHTML = I.search(22);
+  if (at === 'search') $('searchtab').setAttribute('aria-current', 'page'); else $('searchtab').removeAttribute('aria-current');
+  $('avatarBtn').classList.toggle('gone', !['home', 'featured', 'library'].includes(at));
+  const open = S.route === 'lyrics';
+  const ly = $('lyrics');
+  ly.classList.toggle('open', open);
+  ly.classList.toggle('st-cover', S.npStage === 'cover');
+  if (!$('heroart').firstChild) $('heroart').innerHTML = `<div class="hsharp">${artSvg()}</div><div class="hblur">${artSvg()}</div><i class="glowfx"></i>`; // kept across renders so the stage change animates
+  $('heroart').toggleAttribute('data-glow-area', S.npStage === 'cover'); // the sharp cover glows; the blurred backdrop behind the lyrics does not
+  $('lyricsBody').innerHTML = open ? lyrics() : '';
+  for (const id of ['app', 'avatarBtn', 'mini', 'tabbar', 'searchtab']) $(id).inert = open;
+  main.scrollTop = keepScroll ? top : 0;
+  if (open) requestAnimationFrame(() => centerLine(false));
+  requestAnimationFrame(placeTabPill);
+}
+
+// Desktop window or iPhone frame; remembered per browser.
+function setLayout(mode) {
+  document.body.classList.toggle('phone', mode === 'phone');
+  document.querySelectorAll('[data-layout]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.layout === mode)));
+  try { localStorage.setItem('enji-layout', mode); } catch (e) { /* storage unavailable */ }
+}
+let savedLayout = 'desktop';
+try { savedLayout = localStorage.getItem('enji-layout') || 'desktop'; } catch (e) { /* storage unavailable */ }
+setLayout(savedLayout);
+document.querySelector('.layout-switch').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-layout]');
+  if (b) setLayout(b.dataset.layout);
+});
+
+function route() {
+  const r = location.hash.slice(1) || 'home';
+  const from = S.route;
+  if (r !== 'lyrics') S.prev = r;
+  S.route = r;
+  render({ keepScroll: false });
+  if (r === 'lyrics') {
+    $('lyrics').querySelector('[data-act="closeLyrics"]').focus();
+    if (from !== 'lyrics') openLyricsMotion();
+  } else if (from === 'lyrics') {
+    flyHero();
+  } else if (from !== r) {
+    enterPage();
+    flyHero();
+  }
+}
+
+const ACT = {
+  set: (el) => { S[el.dataset.key] = el.dataset.val; },
+  flip: (el) => { S[el.dataset.key] = !S[el.dataset.key]; },
+  toggle: () => {
+    const now = performance.now();
+    if (S.playing) S.spinAcc += (now - S.spinFrom) / 1000; else S.spinFrom = now;
+    S.playing = !S.playing;
+  },
+  likeNow: () => { S.liked = !S.liked; },
+  like: (el) => { S.likes[el.dataset.val] = !S.likes[el.dataset.val]; },
+  back: () => { history.back(); return 'skip'; },
+  closeLyrics: () => { closeLyricsMotion(); return 'skip'; },
+  seek: (el) => {
+    const i = +el.dataset.val;
+    if (i === S.cur && phoneLayout()) { S.npStage = 'cover'; return; }
+    S.cur = i;
+    syncLyrics(true);
+    return 'skip';
+  },
+  toRemoved: () => { $('removed')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 'skip'; },
+  clearQ: () => { S.q = ''; },
+  stage: (el) => {
+    const v = el.dataset.val;
+    if (v === 'cover' || S.npStage === v) { S.npStage = 'cover'; return; }
+    S.npStage = v;
+    S.lTab = v;
+  }
+};
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || !ACT[el.dataset.act]) return;
+  if (ACT[el.dataset.act](el) === 'skip') return;
+  render();
+  if (el.dataset.act === 'clearQ') $('q').focus();
+  afterAct(el);
+});
+
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.type === 'range') t.style.setProperty('--p', `${(t.value - t.min) / (t.max - t.min) * 100}%`);
+  if (t.id !== 'q') return;
+  S.q = e.target.value;
+  reflow($('results'), results());
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && S.route === 'lyrics') closeLyricsMotion();
+});
+
+// Cover glow: lights up under the mouse (hover) or a finger (while pressed), like Misuzu.
+let glowEl = null;
+const glowTarget = (el) => {
+  const g = el && el.closest ? el.closest('[data-glow], [data-glow-for]') : null;
+  return g && g.dataset.glowFor ? $(g.dataset.glowFor) : g;
+};
+function setGlow(target) {
+  if (target === glowEl) return;
+  if (glowEl) glowEl.classList.remove('glowing');
+  glowEl = target;
+  if (glowEl) glowEl.classList.add('glowing');
+}
+// A cover with other content on top of it (phone cover stage: header, title and lyric preview sit on its fade)
+// lights up wherever the pointer is inside it, not only where the cover is the topmost element.
+const glowArea = (x, y) => [...document.querySelectorAll('[data-glow-area]')].find((g) => {
+  const r = g.getBoundingClientRect();
+  return r.width > 0 && x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+}) || null;
+function moveGlow(e) {
+  const t = glowTarget(e.target) || glowArea(e.clientX, e.clientY);
+  if (e.pointerType !== 'mouse' && e.type === 'pointermove' && !e.buttons) return; // finger lifted
+  setGlow(t);
+  if (!t) return;
+  const r = t.getBoundingClientRect();
+  t.style.setProperty('--gx', `${e.clientX - r.left}px`);
+  t.style.setProperty('--gy', `${e.clientY - r.top}px`);
+  t.style.setProperty('--gr', `${Math.min(r.width, r.height) * (parseFloat(t.dataset.glow) || 1)}px`);
+  if (t.dataset.glowAlpha) t.style.setProperty('--ga', t.dataset.glowAlpha);
+}
+document.addEventListener('pointermove', moveGlow);
+document.addEventListener('pointerdown', moveGlow);
+const endTouchGlow = (e) => { if (e.pointerType !== 'mouse') setGlow(null); };
+document.addEventListener('pointerup', endTouchGlow);
+document.addEventListener('pointercancel', endTouchGlow);
+document.documentElement.addEventListener('pointerleave', () => setGlow(null));
+
+window.addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>

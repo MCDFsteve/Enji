@@ -1,0 +1,24 @@
+# The core of Enji Music, always running: the player and its queue, the
+# NetEase account and its playlists, albums and singers, the local music,
+# the history and the settings.
+
+[module]
+id = "enji"
+name = { "zh-Hans" = "Enji Music", "en" = "Enji Music" }
+
+[module.protocol]
+package = "enji-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "enji-core"
+type = "enji_core::EnjiEngine"
+path = "core"
+
+[module.ui]
+package = "enji-ui"
+sources = "ui/src"
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"

@@ -1,0 +1,86 @@
+# Enji Music: a personal NetEase Cloud Music client.
+
+[app]
+id = "enji"
+bundle_id = "com.mcdfsteve.enji"
+version = "0.1.0"
+name = { "zh-Hans" = "Enji Music", "en" = "Enji Music" }
+# On iPhone the app's folder shows in the Files app: music put there is the
+# local library.
+files_folder = true
+
+# The equalizer (Fluent's device eq, MIT) in the accent: on macOS and iOS a
+# Liquid Glass icon, white and black in the dark appearance; on Windows and
+# Linux the glyph alone; elsewhere on a white plate. Drawn by
+# design/icon/build.py and exported by design/icon/export.sh.
+[app.icon]
+default = "assets/icon/enji.png"
+macos = "assets/icon/Enji.icon"
+ios = "assets/icon/Enji.icon"
+windows = "assets/icon/enji.ico"
+linux = "assets/icon/hicolor"
+
+[resources]
+paths = ["assets/mark.png", "assets/cover-place.png"]
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"
+
+# The shell assembles the modules: the window, its navigation and the
+# choice of modules.
+[protocol]
+package = "enji-shell-protocol"
+source = "shell/protocol/src/lib.rs"
+
+[engine]
+package = "enji-shell"
+type = "enji_shell::ShellEngine"
+path = "shell/core"
+
+[ui]
+package = "enji-shell-ui"
+sources = "shell/ui/src"
+root = "app"
+
+# The core runs always; For You, Charts and Search can be switched off.
+[[modules]]
+path = "modules/enji"
+
+[[modules]]
+path = "modules/recommend"
+
+[[modules]]
+path = "modules/charts"
+
+[[modules]]
+path = "modules/search"
+
+# The switches of the optional modules join the settings' features.
+[contributes]
+feature_switches = ["module_switches"]
+
+[layouts]
+compact_below = 700
+medium_below = 1024
+expanded_below = 1440
+
+[targets.macos]
+platform = "macos"
+channels = ["ipc"]
+
+[targets.ios]
+platform = "ios"
+channels = ["ipc"]
+
+[targets.android]
+platform = "android"
+channels = ["ipc"]
+
+[targets.windows]
+platform = "windows"
+channels = ["ipc"]
+
+[targets.linux]
+platform = "linux"
+channels = ["ipc"]

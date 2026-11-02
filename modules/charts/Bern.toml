@@ -1,0 +1,33 @@
+# The Charts page: NetEase's charts, each opening as a playlist.
+
+[module]
+id = "charts"
+name = { "zh-Hans" = "排行榜", "en" = "Charts" }
+depends = ["enji"]
+optional = true
+
+[module.protocol]
+package = "charts-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "charts-core"
+type = "charts_core::ChartsEngine"
+path = "core"
+
+[module.ui]
+package = "charts-ui"
+sources = "ui/src"
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"
+
+# Listed while NetEase is on.
+[[pages]]
+slot = "main"
+id = "charts"
+label = { "zh-Hans" = "排行榜", "en" = "Charts" }
+icon = "chart.bar"
+component = "charts_page"
+when = "available"

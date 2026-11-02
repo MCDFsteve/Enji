@@ -1,0 +1,27 @@
+[package]
+name = "enji-core"
+description = "Enji Music: the engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-protocol.workspace = true
+ncm-api-rs.workspace = true
+tokio.workspace = true
+enji-kit.workspace = true
+serde_json.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+symphonia = { version = "0.5.5", default-features = false, features = ["aac", "isomp4", "mp3", "flac", "vorbis", "ogg", "wav", "pcm", "alac", "aiff"] }
+rodio = { version = "0.20", default-features = false, features = ["symphonia-mp3", "symphonia-flac", "symphonia-aac", "symphonia-isomp4", "symphonia-vorbis", "symphonia-wav", "symphonia-alac", "symphonia-aiff"] }
+qrcode = { version = "0.14", default-features = false }
+png = "0.17"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+dirs = "6"
+lofty = "0.25.5"
+sha1 = "0.11.0"
+rand = "0.8"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }

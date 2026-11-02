@@ -1,0 +1,39 @@
+# Search: the local music, and NetEase's songs, albums, singers and
+# playlists; what was searched before and what NetEase searches most.
+
+[module]
+id = "search"
+name = { "zh-Hans" = "搜索", "en" = "Search" }
+depends = ["enji"]
+optional = true
+
+[module.protocol]
+package = "search-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "search-core"
+type = "search_core::SearchEngine"
+path = "core"
+
+[module.ui]
+package = "search-ui"
+sources = "ui/src"
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"
+
+# A page of the sidebar. A phone has no tab for it: a round button over
+# the tabs opens it over everything.
+[[pages]]
+slot = "main"
+id = "search"
+label = { "zh-Hans" = "搜索", "en" = "Search" }
+icon = "magnifyingglass"
+component = "search_page"
+tab = false
+
+[contributes]
+phone_actions = ["search_button"]
+overlays = ["phone_search"]

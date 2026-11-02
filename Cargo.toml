@@ -1,0 +1,48 @@
+[workspace]
+resolver = "3"
+# Bern's own workspace: the framework the application builds with.
+exclude = ["vendor/bern"]
+members = [
+    "crates/enji-probe",
+    "shell/protocol",
+    "shell/core",
+    "shell/ui",
+    "modules/enji/protocol",
+    "modules/enji/core",
+    "modules/enji/ui",
+    "modules/enji/kit",
+    "modules/recommend/protocol",
+    "modules/recommend/core",
+    "modules/recommend/ui",
+    "modules/charts/protocol",
+    "modules/charts/core",
+    "modules/charts/ui",
+    "modules/search/protocol",
+    "modules/search/core",
+    "modules/search/ui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/MCDFsteve/Enji"
+publish = false
+
+# The libraries that read tags, pictures and audio optimized in debug
+# builds too: unoptimized, reading a large folder takes many times longer.
+[profile.dev.package."*"]
+opt-level = 3
+
+[workspace.dependencies]
+# Bern with `glow` and `blur` (branch glow-blur), a snapshot kept in the
+# repository until that branch is merged: see vendor/bern/UPSTREAM.md.
+bern = { path = "vendor/bern/crates/bern" }
+enji-protocol = { path = "modules/enji/protocol" }
+enji-kit = { path = "modules/enji/kit" }
+enji-ui = { path = "modules/enji/ui" }
+ncm-api-rs = "0.1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+serde_json = "1"
+anyhow = "1"

@@ -1,0 +1,16 @@
+[package]
+name = "enji-kit"
+description = "Enji Music: what the core engine shares with the modules' engines"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-protocol.workspace = true
+ncm-api-rs.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+dirs = "6"

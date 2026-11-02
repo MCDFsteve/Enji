@@ -1,0 +1,16 @@
+[package]
+name = "search-core"
+description = "Enji Music: the engine of search"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-protocol.workspace = true
+enji-kit.workspace = true
+search-protocol = { path = "../protocol" }
+ncm-api-rs.workspace = true
+serde_json.workspace = true

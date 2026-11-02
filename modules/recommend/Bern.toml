@@ -1,0 +1,39 @@
+# The For You page: a greeting, today's songs for the account and the
+# playlists NetEase recommends.
+
+[module]
+id = "recommend"
+name = { "zh-Hans" = "推荐", "en" = "For You" }
+depends = ["enji"]
+optional = true
+
+[module.protocol]
+package = "recommend-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "recommend-core"
+type = "recommend_core::RecommendEngine"
+path = "core"
+
+[module.ui]
+package = "recommend-ui"
+sources = "ui/src"
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"
+
+# Listed while NetEase is on; the window opens on it.
+[[pages]]
+slot = "main"
+id = "home"
+label = { "zh-Hans" = "推荐", "en" = "For You" }
+icon = "sparkles"
+component = "recommend_page"
+when = "available"
+start = true
+
+# The empty history leads here.
+[contributes]
+history_empty = ["see_for_you"]

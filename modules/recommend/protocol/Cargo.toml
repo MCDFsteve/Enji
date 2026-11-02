@@ -1,0 +1,12 @@
+[package]
+name = "recommend-protocol"
+description = "Enji Music: the protocol of the For You page"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-protocol.workspace = true

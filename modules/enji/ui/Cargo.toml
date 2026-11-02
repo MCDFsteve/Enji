@@ -1,0 +1,12 @@
+[package]
+name = "enji-ui"
+description = "Enji Music: the interface"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-protocol.workspace = true

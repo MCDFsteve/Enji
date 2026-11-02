@@ -1,0 +1,30 @@
+//! The Charts page: NetEase's charts as cards.
+
+use bern::prelude::*;
+use charts_protocol::charts;
+use enji_protocol::enji::{self, Detail};
+use enji_ui::{detail_view, detail_view_props, playlist_card, playlist_card_props};
+
+/// The charts, or the one opened over them.
+#[component]
+pub fn charts_page(app: enji::Client, charts: charts::Client) -> impl View {
+    ui! {
+        if app.detail != Detail::Page {
+            detail_view(app: app)
+        } else {
+            ScrollView {
+                Column(gap: 20, padding: if window.compact { 18 } else { 32 }) {
+                    Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, style: large_title)
+                    if charts.loading {
+                        Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
+                    }
+                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                        ForEach(items: charts.charts, key: id, stagger: 0.03) |list| {
+                            playlist_card(app: app, list: list)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
