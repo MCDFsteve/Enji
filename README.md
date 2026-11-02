@@ -82,10 +82,49 @@
 每次构建都会在 `target/bern/<平台>/bin/` 生成 `enji` 命令行和 `enji-mcp`，`skills/enji/SKILL.md` 里是全部命令的说明。
 
 ```sh
-enji search search --text "Yesterday Once More"
-enji enji play --source Search --index 1
+enji search search --text "GO GHOST"
+enji enji play --source Search --index 0
 enji state
 ```
+
+## Enji 是怎么做到的
+
+Enji 用 [Bern](https://github.com/AimesSoft/Bern) 写成。上面的特色，大多是 Bern 直接带来的。
+
+**界面写一次，编译成各平台自己的代码。** Enji 的界面用 Bern 的 `ui!` 声明写在 Rust 里。构建时，Bern 把它生成 SwiftUI、WinUI 3（C++）、Jetpack Compose（Kotlin）和 GTK 4（Rust）的源码，再交给 Xcode、MSVC、Gradle、Cargo 各自编译。运行时没有自绘引擎，也没有内嵌网页，所以 macOS 版只有 14 MB。
+
+**布局按屏幕宽度声明。** 窄屏用手机布局，宽屏用侧边栏，整个切换就是这三行：
+
+```rust
+// shell/ui/src/lib.rs
+Adaptive(id: shell) {
+    Layout(size: compact) { phone_shell(app: app) }
+    Layout(size: expanded) { desktop_shell(app: app) }
+}
+```
+
+iPhone Duo 一展开就换成宽屏布局，没有一行专门给折叠屏的代码。
+
+**界面和逻辑之间隔着一份协议。** 每个模块的 `protocol` 用 `#[bern::protocol]` 声明界面能读的状态和能调用的命令，`core` 是实现这些命令的 Rust 引擎，五个平台跑的是同一份。界面里按钮写 `=> app.toggle()`，调用的就是协议里的 `fn toggle`：
+
+```rust
+// modules/enji/protocol/src/lib.rs
+#[commands]
+pub trait Commands {
+    // …
+    /// Play the song at `index` of a list, then the rest of the list.
+    fn play(&mut self, source: Source, index: i64) -> Result<(), CommandError>;
+    /// Pause, or play on.
+    fn toggle(&mut self) -> Result<(), CommandError>;
+    // …
+}
+```
+
+界面引用了不存在的命令，或者某句文案缺了英文翻译，`bern check` 在构建前就会报错。
+
+**AI 接口来自同一份协议。** 协议里的每条命令、界面上的每个控件都有名字，Bern 据此生成 `enji` 命令行、`enji-mcp` 服务器和 `SKILL.md`。AI 执行 `enji enji play` 和你点播放按钮走的是同一条命令。
+
+想用同样的方式写自己的应用，可以看看 [Bern](https://github.com/AimesSoft/Bern)。
 
 ## 从源码构建
 
@@ -112,7 +151,14 @@ open target/bern/macos/Enji.app
 
 macOS 和 Windows 实机、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。Linux 版只通过了 `bern check`。
 
-Enji 是第三方客户端，不是网易云音乐官方出品，与网易公司无关。歌曲和歌词的版权归各自的权利人所有。
+## 免责声明
+
+- Enji 是第三方客户端，不是网易云音乐官方出品，与网易公司无关。
+- 本项目仅供学习和技术交流。
+- Enji 只通过网易云音乐的接口播放你本来就能听的内容，不提供任何音乐资源，也不绕过会员和版权限制。
+- 歌曲、歌词、封面等内容的版权归网易云音乐及各自的权利人所有。
+- 使用时请遵守网易云音乐的用户协议和当地法律法规，因使用本项目产生的一切后果由使用者自行承担。
+- 如果你是权利人，认为本项目侵犯了你的权益，请提交 Issue，我们会尽快处理。
 
 ## 开源协议与致谢
 

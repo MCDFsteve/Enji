@@ -15,10 +15,10 @@
 
 Linux 版能构建，但还没在真机上实际运行过。
 
-Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关。
+Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
 
 ## Download
 
 macOS (Apple silicon): `.dmg`, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. Windows (x64): `-setup.exe` or the portable `.zip`, unsigned. Android 8.0+: `.apk`. Linux (Ubuntu 24.04 or newer): `.deb` or `.tar.gz`, not yet tried on a real machine.
 
-Enji is an unofficial, third-party NetEase Cloud Music client, not affiliated with NetEase.
+Enji is an unofficial, third-party NetEase Cloud Music client, not affiliated with NetEase, for learning and technical exchange only.

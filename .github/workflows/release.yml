@@ -78,6 +78,7 @@ jobs:
           if [ -n "$KEYSTORE" ]; then
             echo "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/enji-release.jks"
             echo "BERN_ANDROID_KEYSTORE=$RUNNER_TEMP/enji-release.jks" >> "$GITHUB_ENV"
+            echo "BERN_ANDROID_KEY_ALIAS=enji" >> "$GITHUB_ENV"
           fi
 
       - name: Bern
@@ -87,7 +88,6 @@ jobs:
         if: runner.os != 'Windows'
         env:
           BERN_ANDROID_KEYSTORE_PASSWORD: ${{ matrix.target == 'android' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
-          BERN_ANDROID_KEY_ALIAS: ${{ matrix.target == 'android' && secrets.ANDROID_KEY_ALIAS || '' }}
         run: vendor/bern/target/release/bern package --target ${{ matrix.target }}
 
       # From cmd, so the build fetches the Windows App SDK with Windows' own

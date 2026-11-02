@@ -82,10 +82,49 @@ Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg
 Every build puts an `enji` command line and `enji-mcp` in `target/bern/<platform>/bin/`, with every command described in `skills/enji/SKILL.md`.
 
 ```sh
-enji search search --text "Yesterday Once More"
-enji enji play --source Search --index 1
+enji search search --text "GO GHOST"
+enji enji play --source Search --index 0
 enji state
 ```
+
+## How Enji does it
+
+Enji is built with [Bern](https://github.com/AimesSoft/Bern), and most of the highlights above come straight from it.
+
+**The interface is written once and compiled into each platform's own code.** Enji's screens are declared in Rust with Bern's `ui!`. At build time Bern turns them into SwiftUI, WinUI 3 (C++), Jetpack Compose (Kotlin) and GTK 4 (Rust) source, which Xcode, MSVC, Gradle and Cargo then compile. There is no custom renderer and no embedded web page at run time, which is why the macOS app is 14 MB.
+
+**Layout is declared by screen width.** A phone layout on narrow screens and a sidebar on wide ones is this, in full:
+
+```rust
+// shell/ui/src/lib.rs
+Adaptive(id: shell) {
+    Layout(size: compact) { phone_shell(app: app) }
+    Layout(size: expanded) { desktop_shell(app: app) }
+}
+```
+
+The iPhone Duo switches to the wide layout the moment it unfolds, with not one line written for foldables.
+
+**A protocol sits between the interface and the logic.** Each module's `protocol` declares, with `#[bern::protocol]`, the state the interface reads and the commands it calls; `core` is the Rust engine that carries them out, the same code on all five platforms. A button's `=> app.toggle()` calls the protocol's `fn toggle`:
+
+```rust
+// modules/enji/protocol/src/lib.rs
+#[commands]
+pub trait Commands {
+    // …
+    /// Play the song at `index` of a list, then the rest of the list.
+    fn play(&mut self, source: Source, index: i64) -> Result<(), CommandError>;
+    /// Pause, or play on.
+    fn toggle(&mut self) -> Result<(), CommandError>;
+    // …
+}
+```
+
+If the interface names a command that doesn't exist, or a label is missing its English translation, `bern check` stops the build.
+
+**The AI interface comes from the same protocol.** Every command and every control has a name, so Bern generates the `enji` command line, the `enji-mcp` server and `SKILL.md` from them. An AI running `enji enji play` goes through the same command as your tap on Play.
+
+To build your own app the same way, have a look at [Bern](https://github.com/AimesSoft/Bern).
 
 ## Build from source
 
@@ -112,7 +151,14 @@ open target/bern/macos/Enji.app
 
 Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, the iPhone Duo simulator and the Android emulator. Linux has only passed `bern check`.
 
-Enji is a third-party client, not an official NetEase Cloud Music app, and has no affiliation with NetEase. Songs and lyrics belong to their respective rights holders.
+## Disclaimer
+
+- Enji is a third-party client, not an official NetEase Cloud Music app, and has no affiliation with NetEase.
+- This project is for learning and technical exchange only.
+- Enji only plays, through NetEase Cloud Music's own interfaces, what you could already listen to. It provides no music and does not get around VIP or copyright restrictions.
+- Songs, lyrics and covers belong to NetEase Cloud Music and their respective rights holders.
+- Follow NetEase Cloud Music's terms of service and the laws where you live; you are responsible for how you use this project.
+- If you hold rights and believe this project infringes them, open an issue and it will be handled promptly.
 
 ## License and thanks
 
