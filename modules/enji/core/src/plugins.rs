@@ -446,6 +446,7 @@ pub fn overlay(spec: &Value) -> bern::overlay::Overlay {
         lines,
         place: if spec["place"].as_str() == Some("taskbar") { bern::overlay::Place::Taskbar } else { bern::overlay::Place::Free },
         locked: spec["locked"].as_bool().unwrap_or(true),
+        buttons: Vec::new(),
     }
 }
 

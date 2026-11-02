@@ -1091,7 +1091,7 @@ pub fn song_line(app: enji::Client, song: enji::Song, full: bool, marked: bool) 
                 }
                 Row(gap: 4, align: center) {
                     if song.downloaded {
-                        Stack(variant: tint) {
+                        Stack(variant: quiet) {
                             Label(title: tr! { "zh-Hans" => "已下载", "en" => "Downloaded" }, icon: "arrow.down.circle", display: icon, font_size: 11)
                         }
                     } else if marked && song.file != "" {
@@ -2025,10 +2025,7 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                     } else {
                         Row(gap: 14, padding: 16, align: center) {
                             Image(source: "assets/mark.png", width: 44, height: 44, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
-                            Column(gap: 2, align: leading) {
-                                Text(content: tr! { "zh-Hans" => "未登录", "en" => "Not Signed In" }, style: headline)
-                                Text(content: tr! { "zh-Hans" => "登录后同步歌单、每日推荐和红心", "en" => "Sign in for your playlists, daily mix and likes" }, style: caption, emphasis: secondary)
-                            }
+                            Text(content: tr! { "zh-Hans" => "未登录", "en" => "Not Signed In" }, style: headline)
                             Spacer
                             Button(id: settings_sign_in, label: tr! { "zh-Hans" => "扫码登录", "en" => "Sign In" }, icon: "qrcode", prominence: prominent, shape: capsule) => app.sign_in()
                         }
@@ -2059,9 +2056,9 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                         Label(title: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" }, icon: "quote.bubble", display: icon, font_size: 15)
                                     }
                                 }
-                                Text(content: tr! { "zh-Hans" => "为本地音乐找歌词与封面", "en" => "Lyrics and Covers for Local Music" })
+                                Text(content: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" })
                                 Spacer
-                                Switch(id: online_info, label: tr! { "zh-Hans" => "为本地音乐找歌词与封面", "en" => "Lyrics and Covers for Local Music" }, label_hidden: true, checked: app.online_info, style: switch) => app.set_online_info(app.online_info)
+                                Switch(id: online_info, label: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" }, label_hidden: true, checked: app.online_info, style: switch) => app.set_online_info(app.online_info)
                             }
                         }
                         // The switches of the modules that can be turned off.
@@ -2148,23 +2145,25 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
                             Column(width: 22, align: center) {
                                 Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "音质信息", "en" => "Audio Format" }, icon: "info.circle", display: icon, font_size: 15)
+                                    Label(title: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" }, icon: "info.circle", display: icon, font_size: 15)
                                 }
                             }
-                            Text(content: tr! { "zh-Hans" => "播放页显示编码与比特率", "en" => "Codec and Bitrate on the Playing Page" })
+                            Text(content: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" })
                             Spacer
-                            Switch(id: show_format, label: tr! { "zh-Hans" => "播放页显示编码与比特率", "en" => "Codec and Bitrate on the Playing Page" }, label_hidden: true, checked: app.show_format, style: switch) => app.set_show_format(app.show_format)
+                            Switch(id: show_format, label: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" }, label_hidden: true, checked: app.show_format, style: switch) => app.set_show_format(app.show_format)
                         }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, icon: "quote.bubble", display: icon, font_size: 15)
+                        if app.phone {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, icon: "quote.bubble", display: icon, font_size: 15)
+                                    }
                                 }
+                                Text(content: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" })
+                                Spacer
+                                Switch(id: cover_lyrics, label: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, label_hidden: true, checked: app.cover_lyrics, style: switch) => app.set_cover_lyrics(app.cover_lyrics)
                             }
-                            Text(content: tr! { "zh-Hans" => "手机竖屏时封面下显示歌词", "en" => "Lyrics Under the Cover on a Phone" })
-                            Spacer
-                            Switch(id: cover_lyrics, label: tr! { "zh-Hans" => "手机竖屏时封面下显示歌词", "en" => "Lyrics Under the Cover on a Phone" }, label_hidden: true, checked: app.cover_lyrics, style: switch) => app.set_cover_lyrics(app.cover_lyrics)
                         }
                         if app.desktop_lyrics_supported {
                             Column(padding_x: 16) { Divider }
@@ -2178,7 +2177,8 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                 Spacer
                                 Switch(id: desktop_lyrics, label: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, label_hidden: true, checked: app.desktop_lyrics, style: switch) => app.set_desktop_lyrics(app.desktop_lyrics)
                             }
-                            if app.desktop_lyrics {
+                            // Elsewhere the lyrics unlock where they are.
+                            if app.desktop_lyrics && app.phone {
                                 Column(padding_x: 16) { Divider }
                                 Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
                                     Column(width: 22, align: center) {
@@ -2186,7 +2186,7 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                             Label(title: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, icon: "checkmark.circle", display: icon, font_size: 15)
                                         }
                                     }
-                                    Text(content: tr! { "zh-Hans" => "锁定桌面歌词（点击穿透）", "en" => "Lock Desktop Lyrics (Clicks Pass Through)" })
+                                    Text(content: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" })
                                     Spacer
                                     Switch(id: desktop_lyrics_locked, label: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, label_hidden: true, checked: app.desktop_lyrics_locked, style: switch) => app.set_desktop_lyrics_locked(app.desktop_lyrics_locked)
                                 }
@@ -2199,9 +2199,9 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                     Label(title: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" }, icon: "chart.bar", display: icon, font_size: 15)
                                 }
                             }
-                            Text(content: tr! { "zh-Hans" => "列表中显示播放次数", "en" => "Play Counts in Lists" })
+                            Text(content: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" })
                             Spacer
-                            Switch(id: play_counts, label: tr! { "zh-Hans" => "列表中显示播放次数", "en" => "Play Counts in Lists" }, label_hidden: true, checked: app.show_plays, style: switch) => app.set_show_plays(app.show_plays)
+                            Switch(id: play_counts, label: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" }, label_hidden: true, checked: app.show_plays, style: switch) => app.set_show_plays(app.show_plays)
                         }
                     }
                 }
@@ -2283,9 +2283,9 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                     Label(title: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" }, icon: "photo", display: icon, font_size: 15)
                                 }
                             }
-                            Text(content: tr! { "zh-Hans" => "播放时以封面作背景", "en" => "Cover Behind the Window" })
+                            Text(content: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" })
                             Spacer
-                            Switch(id: backdrop, label: tr! { "zh-Hans" => "播放时以封面作背景", "en" => "Cover Behind the Window" }, label_hidden: true, checked: app.backdrop, style: switch) => app.set_backdrop(app.backdrop)
+                            Switch(id: backdrop, label: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" }, label_hidden: true, checked: app.backdrop, style: switch) => app.set_backdrop(app.backdrop)
                         }
                         Column(padding_x: 16) { Divider }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {

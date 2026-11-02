@@ -276,6 +276,7 @@ pub fn initial_state() -> State {
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
+        phone: cfg!(any(target_os = "ios", target_os = "android")),
         appearance: match pick("appearance").as_str() {
             "Light" => Appearance::Light,
             "Dark" => Appearance::Dark,
@@ -1476,11 +1477,17 @@ impl Worker {
     /// screen while desktop lyrics are on; the song's name before its lyrics
     /// come; nothing when they are off or no song is on.
     fn desktop_lyrics(&mut self) {
-        use bern::overlay::{Line, Overlay};
         let line = self.shared.read(|s| {
             json!({ "text": s.lyric_now, "translation": s.lyric_now_translation, "next": s.lyric_next, "index": s.line })
         });
         self.send_plugins("lyric", line);
+        self.show_desktop_lyrics();
+    }
+
+    /// The desktop lyrics as they are now, with their bar: playback, the
+    /// lock and closing; locked, only the lock.
+    fn show_desktop_lyrics(&self) {
+        use bern::overlay::{Button, Line, Overlay};
         let shown = self.shared.read(|s| {
             let song = s.current.as_ref().filter(|_| s.desktop_lyrics)?;
             let (first, second) = if s.lyric_now.is_empty() {
@@ -1490,13 +1497,14 @@ impl Worker {
             } else {
                 (s.lyric_now.clone(), s.lyric_next.clone())
             };
-            Some((first, second, s.desktop_lyrics_locked))
+            Some((first, second, s.desktop_lyrics_locked, s.playing))
         });
-        let Some((first, second, locked)) = shown else {
+        let Some((first, second, locked, playing)) = shown else {
             return bern::overlay::hide("lyrics");
         };
         // Phones show it smaller, over another app.
         let (large, small) = if cfg!(target_os = "android") { (20.0, 14.0) } else { (30.0, 18.0) };
+        let button = |id: &str, symbol: &str| Button { id: id.into(), symbol: symbol.into(), while_locked: false };
         bern::overlay::show(
             "lyrics",
             &Overlay {
@@ -1506,6 +1514,13 @@ impl Worker {
                 ],
                 place: bern::overlay::Place::Free,
                 locked,
+                buttons: vec![
+                    button("previous", "backward.fill"),
+                    button("toggle", if playing { "pause.fill" } else { "play.fill" }),
+                    button("next", "forward.fill"),
+                    Button { id: "lock".into(), symbol: if locked { "lock.open.fill" } else { "lock.fill" }.into(), while_locked: true },
+                    button("close", "xmark"),
+                ],
             },
         );
     }
@@ -2884,6 +2899,7 @@ impl Worker {
         let playing = !self.paused;
         self.shared.update(|s| s.playing = playing);
         self.show_now_playing(None);
+        self.show_desktop_lyrics();
         let position = self.position;
         self.send_plugins("playback", json!({ "playing": playing, "position": position }));
         // Playing on ends browsing the lyrics.
@@ -2926,6 +2942,23 @@ impl Worker {
                         self.handle(Job::Seek(seconds / length));
                     }
                 }
+            }
+        }
+        // The desktop lyrics' bar; plugins' overlays have none.
+        for (overlay, button) in bern::overlay::take_presses() {
+            if overlay != "lyrics" {
+                continue;
+            }
+            match button.as_str() {
+                "previous" => self.handle(Job::Previous),
+                "toggle" => self.toggle(),
+                "next" => self.handle(Job::Next),
+                "lock" => {
+                    let locked = self.shared.read(|s| s.desktop_lyrics_locked);
+                    self.handle(Job::SetDesktopLyricsLocked(!locked));
+                }
+                "close" => self.handle(Job::SetDesktopLyrics(false)),
+                _ => {}
             }
         }
         // Three seconds after the last scrolling by hand, while playing,

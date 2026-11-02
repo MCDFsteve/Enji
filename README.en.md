@@ -76,7 +76,7 @@
 - **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
 - **Downloads**: keep songs on your device with their lyrics and covers; on a computer they go to Enji in your Music folder. Downloaded songs and your own files are marked in every list.
 - **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification all show what's playing and control it. The music keeps playing when you switch apps or lock the screen.
-- **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them; locked, clicks go through them.
+- **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them. Hover over them (tap on Android) to skip, pause or lock them; locked, clicks go through them.
 - **Plugins**: install plugins from the plugin market in Settings, such as lyrics on the Windows taskbar or a cover that pulses with the beat. Plugins are written in JavaScript; see [enji-plugins](https://github.com/MCDFsteve/enji-plugins).
 - **History**: what you played recently, and how many times you played each song.
 - **Looks**: light, dark or follow the system; Chinese or English. The format line, the lyrics under the cover and the desktop lyrics can each be turned off in Settings.

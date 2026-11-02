@@ -541,6 +541,10 @@ pub mod enji {
         pub desktop_lyrics_locked: bool,
         /// This system shows desktop lyrics.
         pub desktop_lyrics_supported: bool,
+        /// A phone: its playing page can show the sung line under the
+        /// cover, and its desktop lyrics, with no pointer over them, unlock
+        /// in Settings.
+        pub phone: bool,
         pub appearance: Appearance,
 
         /// A short word that something went well, such as a welcome.
