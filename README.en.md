@@ -4,12 +4,14 @@
 
 <h1>Enji Music</h1>
 
-<p><b>A NetEase Cloud Music client written in Rust, native on every platform.</b></p>
+<p><b>An unofficial, third-party NetEase Cloud Music client written in Rust, native on every platform.</b></p>
+
+<p><sub>Not made by or affiliated with NetEase.</sub></p>
 
 <p>
 <img alt="Rust" src="https://img.shields.io/badge/Rust-1.99-CE422B?style=for-the-badge&logo=rust&logoColor=white">
 <a href="https://github.com/AimesSoft/Bern"><img alt="Built with Bern" src="https://img.shields.io/badge/Built%20with-Bern-222222?style=for-the-badge"></a>
-<img alt="NetEase Cloud Music, online and local" src="https://img.shields.io/badge/NetEase%20Cloud%20Music-online%20%2B%20local-E60026?style=for-the-badge">
+<img alt="NetEase Cloud Music, third-party client" src="https://img.shields.io/badge/NetEase%20Cloud%20Music-third--party%20client-E60026?style=for-the-badge">
 </p>
 
 <p>
@@ -110,7 +112,7 @@ open target/bern/macos/Enji.app
 
 Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, the iPhone Duo simulator and the Android emulator. Linux has only passed `bern check`.
 
-Enji is not an official NetEase Cloud Music client and has no affiliation with NetEase.
+Enji is a third-party client, not an official NetEase Cloud Music app, and has no affiliation with NetEase. Songs and lyrics belong to their respective rights holders.
 
 ## License and thanks
 

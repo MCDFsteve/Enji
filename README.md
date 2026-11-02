@@ -4,12 +4,14 @@
 
 <h1>Enji Music</h1>
 
-<p><b>用 Rust 写成的网易云音乐客户端，每个平台都是原生应用。</b></p>
+<p><b>用 Rust 写成的第三方网易云音乐客户端，每个平台都是原生应用。</b></p>
+
+<p><sub>非网易云音乐官方出品，与网易公司无关。</sub></p>
 
 <p>
 <img alt="Rust" src="https://img.shields.io/badge/Rust-1.99-CE422B?style=for-the-badge&logo=rust&logoColor=white">
 <a href="https://github.com/AimesSoft/Bern"><img alt="Built with Bern" src="https://img.shields.io/badge/Built%20with-Bern-222222?style=for-the-badge"></a>
-<img alt="NetEase Cloud Music" src="https://img.shields.io/badge/%E7%BD%91%E6%98%93%E4%BA%91%E9%9F%B3%E4%B9%90-%E5%9C%A8%E7%BA%BF%20%2B%20%E6%9C%AC%E5%9C%B0-E60026?style=for-the-badge">
+<img alt="网易云音乐 第三方客户端" src="https://img.shields.io/badge/%E7%BD%91%E6%98%93%E4%BA%91%E9%9F%B3%E4%B9%90-%E7%AC%AC%E4%B8%89%E6%96%B9%E5%AE%A2%E6%88%B7%E7%AB%AF-E60026?style=for-the-badge">
 </p>
 
 <p>
@@ -110,7 +112,7 @@ open target/bern/macos/Enji.app
 
 macOS 和 Windows 实机、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。Linux 版只通过了 `bern check`。
 
-Enji 不是网易云音乐的官方客户端，与网易公司无关。
+Enji 是第三方客户端，不是网易云音乐官方出品，与网易公司无关。歌曲和歌词的版权归各自的权利人所有。
 
 ## 开源协议与致谢
 
