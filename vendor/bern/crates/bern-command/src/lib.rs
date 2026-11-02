@@ -19,6 +19,7 @@
 
 mod composite;
 pub mod files;
+pub mod now_playing;
 pub mod outbox;
 pub mod platform;
 pub mod resources;

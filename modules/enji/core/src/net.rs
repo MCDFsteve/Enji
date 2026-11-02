@@ -66,6 +66,8 @@ pub enum Job {
     DownloadCurrent,
     DownloadProgress { id: i64, progress: f64 },
     Downloaded { song: Song, path: PathBuf },
+    /// The playing song's cover, read for the system's now playing.
+    NowArtwork { token: u64, bytes: Arc<Vec<u8>> },
     DownloadFailed { id: i64, message: String },
     SetAppearance(Appearance),
     ToggleLike,
@@ -383,6 +385,9 @@ struct Worker {
     library: local::Library,
     /// The NetEase songs of the downloaded files.
     downloaded: downloads::Index,
+    /// The playing song's cover for the system's now playing, by the token
+    /// of the song it is for.
+    now_artwork: Option<(u64, Arc<Vec<u8>>)>,
     /// What was played, the latest first.
     history: Vec<Entry>,
     /// A playlist to play once its songs arrive.
@@ -490,6 +495,7 @@ pub async fn run(
         unmuted: 0.8,
         library: local::Library::load(),
         downloaded: downloads::Index::load(),
+        now_artwork: None,
         history: Vec::new(),
         play_opened: None,
         daily: Vec::new(),
@@ -670,6 +676,7 @@ impl Worker {
             Job::Previous => {
                 if self.position > 3.0 || self.queue.len() < 2 {
                     self.audio.seek(0.0);
+                    self.show_now_playing(Some(0.0));
                 } else {
                     self.advance(false, false);
                 }
@@ -787,10 +794,12 @@ impl Worker {
             Job::Seek(progress) => {
                 let length = self.shared.read(|s| s.current.as_ref().map_or(0.0, |song| song.seconds));
                 self.audio.seek(progress.clamp(0.0, 1.0) * length);
+                self.show_now_playing(Some(progress.clamp(0.0, 1.0) * length));
             }
             Job::SeekLine(key) => {
                 if let Some(line) = self.lines.get(key as usize) {
                     self.audio.seek(line.time);
+                    self.show_now_playing(Some(line.time));
                     self.scrolling = false;
                     self.settle(Some(key));
                     if self.paused {
@@ -898,6 +907,16 @@ impl Worker {
                             current.artwork = artwork;
                         }
                     });
+                    if let Ok(bytes) = std::fs::read(&path) {
+                        self.now_artwork = Some((token, Arc::new(bytes)));
+                        self.show_now_playing(None);
+                    }
+                }
+            }
+            Job::NowArtwork { token, bytes } => {
+                if token == self.token {
+                    self.now_artwork = Some((token, bytes));
+                    self.show_now_playing(None);
                 }
             }
             Job::BeginMatching(source, index) => self.begin_matching(source, index),
@@ -1129,6 +1148,7 @@ impl Worker {
                     s.scroll_to = 0;
                     s.scroll_tick += 1;
                 });
+                self.show_now_playing(Some(0.0));
             }
             Job::Format { token, format } => {
                 if token == self.token {
@@ -1143,6 +1163,7 @@ impl Worker {
                     s.buffering = false;
                     s.playing = false;
                 });
+                self.show_now_playing(None);
                 self.shared.fail(message);
                 self.failures += 1;
                 if self.failures < 5 && self.queue.len() > 1 {
@@ -1271,6 +1292,48 @@ impl Worker {
             let library = library.scan(now_ms(), report);
             let _ = jobs.send(Job::Scanned(library));
         });
+    }
+
+    /// The playing song as the system shows it, at `position` seconds or
+    /// where it plays now; nothing when no song is on.
+    fn show_now_playing(&self, position: Option<f64>) {
+        let current = self.shared.read(|s| s.current.clone().map(|song| (song, s.playing)));
+        let Some((song, playing)) = current else {
+            return bern::now_playing::update(None);
+        };
+        let artwork = self.now_artwork.as_ref().filter(|(token, _)| *token == self.token).map(|(_, bytes)| bytes.clone());
+        bern::now_playing::update(Some(&bern::now_playing::NowPlaying {
+            title: song.name,
+            artist: song.artists,
+            album: song.album,
+            artwork,
+            duration: song.seconds,
+            position: position.unwrap_or(self.position),
+            playing,
+        }));
+    }
+
+    /// Read or download `song`'s cover for the system's now playing.
+    fn fetch_now_artwork(&mut self, song: &Song) {
+        self.now_artwork = None;
+        let (url, http, jobs, token) = (song.artwork.url.clone(), self.http.clone(), self.jobs.clone(), self.token);
+        if url.starts_with("file:") {
+            if let Some(path) = bern::files::file_path(&url) {
+                tokio::task::spawn_blocking(move || {
+                    if let Ok(bytes) = std::fs::read(path) {
+                        let _ = jobs.send(Job::NowArtwork { token, bytes: Arc::new(bytes) });
+                    }
+                });
+            }
+        } else if url.starts_with("http") {
+            tokio::spawn(async move {
+                if let Ok(response) = http.get(&url).send().await.and_then(|r| r.error_for_status()) {
+                    if let Ok(bytes) = response.bytes().await {
+                        let _ = jobs.send(Job::NowArtwork { token, bytes: Arc::new(bytes.to_vec()) });
+                    }
+                }
+            });
+        }
     }
 
     /// The downloaded files of `tracks` known as their NetEase songs, without
@@ -2152,6 +2215,8 @@ impl Worker {
             s.format.clear();
             sung(s);
         });
+        self.show_now_playing(Some(0.0));
+        self.fetch_now_artwork(&song);
         self.load_panel();
         let (client, http, jobs, token) = (enji_kit::client(), self.http.clone(), self.jobs.clone(), self.token);
         if !song.file.is_empty() {
@@ -2489,6 +2554,7 @@ impl Worker {
         }
         let playing = !self.paused;
         self.shared.update(|s| s.playing = playing);
+        self.show_now_playing(None);
         // Playing on ends browsing the lyrics.
         if playing && !self.scrolling {
             self.settle(None);
@@ -2512,6 +2578,24 @@ impl Worker {
 
     /// Where the song is, its lyric line, and the next song when it ends.
     fn tick(&mut self) {
+        // Media keys, headphones, Control Center and the like.
+        for command in bern::now_playing::take_commands() {
+            use bern::now_playing::Command;
+            match command {
+                Command::Play if self.paused => self.toggle(),
+                Command::Pause if !self.paused => self.toggle(),
+                Command::Play | Command::Pause => {}
+                Command::Toggle => self.toggle(),
+                Command::Next => self.handle(Job::Next),
+                Command::Previous => self.handle(Job::Previous),
+                Command::Seek(seconds) => {
+                    let length = self.shared.read(|s| s.current.as_ref().map_or(0.0, |song| song.seconds));
+                    if length > 0.0 {
+                        self.handle(Job::Seek(seconds / length));
+                    }
+                }
+            }
+        }
         // Three seconds after the last scrolling by hand, while playing,
         // the lyrics go back to the sung line.
         let browsing = self.shared.read(|s| s.browsing);

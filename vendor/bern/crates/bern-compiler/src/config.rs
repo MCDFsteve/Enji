@@ -224,6 +224,10 @@ struct RawApp {
     /// iOS shows the application's Documents folder in Files.
     #[serde(default)]
     files_folder: bool,
+    /// The application plays audio on behind the lock screen and in the
+    /// background.
+    #[serde(default)]
+    background_audio: bool,
 }
 
 /// `[app].icon`: one square PNG for every platform, or `[app.icon]` with
@@ -342,6 +346,8 @@ pub struct Config {
     pub publisher: Option<String>,
     /// `[app].files_folder`.
     pub files_folder: bool,
+    /// `[app].background_audio`.
+    pub background_audio: bool,
     pub languages: Vec<String>,
     pub default_language: String,
     pub strict: bool,
@@ -1492,6 +1498,7 @@ pub fn load_excluding(path: &Path, excluded: &[String]) -> Result<Config, Vec<Di
             .map(|publisher| publisher.trim().to_string())
             .filter(|publisher| !publisher.is_empty()),
         files_folder: raw.app.files_folder,
+        background_audio: raw.app.background_audio,
         languages: raw.languages.supported,
         default_language: raw.languages.default,
         strict: raw.languages.strict,

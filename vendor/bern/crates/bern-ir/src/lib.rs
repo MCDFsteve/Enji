@@ -376,6 +376,11 @@ pub struct AppInfo {
     /// in the Files app, for files the user puts there for it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub files_folder: bool,
+    /// `[app].background_audio`: the application's own audio plays on
+    /// behind the lock screen and in the background (iOS's audio background
+    /// mode).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub background_audio: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

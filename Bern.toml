@@ -8,6 +8,9 @@ name = { "zh-Hans" = "Enji Music", "en" = "Enji Music" }
 # On iPhone the app's folder shows in the Files app: music put there is the
 # local library.
 files_folder = true
+# Music plays on behind the lock screen and in the background, where
+# the system's now playing shows it.
+background_audio = true
 
 # The equalizer (Fluent's device eq, MIT) in the accent: on macOS and iOS a
 # Liquid Glass icon, white and black in the dark appearance; on Windows and
