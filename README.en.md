@@ -136,24 +136,21 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 
 ## Build from source
 
+Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version Enji depends on:
+
+```sh
+cargo install --locked --git https://github.com/AimesSoft/Bern --rev 1e2a01f04b669375b8a790da5abb1ab218e86061 bern-cli
+```
+
+Then get Enji and run it:
+
 ```sh
 git clone https://github.com/MCDFsteve/Enji.git
 cd Enji
-cargo build --manifest-path vendor/bern/Cargo.toml -p bern-cli --release
-vendor/bern/target/release/bern build --target macos --release
-open target/bern/macos/Enji.app
+bern run
 ```
 
-`--target` also takes `windows`, `linux`, `android` or `ios`; build on a host for that platform.
-
-| Target | Needs |
-| --- | --- |
-| macOS / iOS | Xcode 26 or later; for iOS also `rustup target add aarch64-apple-ios aarch64-apple-ios-sim` |
-| Windows | Visual Studio C++ build tools and the Windows SDK |
-| Android | JDK 21, the Android SDK and NDK, `rustup target add aarch64-linux-android` |
-| Linux | GTK 4 and libadwaita development packages |
-
-`vendor/bern/` is a copy of Bern at commit [`14a5b26`](https://github.com/AimesSoft/Bern/commit/14a5b2631af1f88077b474c6ff5d566980d1de0e), so there's nothing else to download; see [UPSTREAM.md](vendor/bern/UPSTREAM.md).
+`bern run` builds and opens the version for this computer; `bern build --target <platform> --release` builds one platform (`macos`, `ios`, `windows`, `linux`, `android`), and `bern package` makes the installers. `bern doctor` lists what this computer still needs for each platform; see [Bern's guide](https://github.com/AimesSoft/Bern#quick-start) for the tools each one takes.
 
 ## Status
 

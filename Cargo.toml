@@ -1,7 +1,6 @@
 [workspace]
 resolver = "3"
 # Bern's own workspace: the framework the application builds with.
-exclude = ["vendor/bern"]
 members = [
     "crates/enji-probe",
     "shell/protocol",
@@ -36,9 +35,9 @@ publish = false
 opt-level = 3
 
 [workspace.dependencies]
-# Bern with `glow` and `blur` (branch glow-blur), a snapshot kept in the
-# repository until that branch is merged: see vendor/bern/UPSTREAM.md.
-bern = { path = "vendor/bern/crates/bern" }
+# Bern, at the commit the build tool is installed from (README).
+bern = { git = "https://github.com/AimesSoft/Bern", rev = "1e2a01f04b669375b8a790da5abb1ab218e86061" }
+bern-script = { git = "https://github.com/AimesSoft/Bern", rev = "1e2a01f04b669375b8a790da5abb1ab218e86061" }
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
 enji-ui = { path = "modules/enji/ui" }

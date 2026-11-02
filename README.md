@@ -136,24 +136,21 @@ pub trait Commands {
 
 ## 从源码构建
 
+Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，用 Enji 依赖的那一版：
+
+```sh
+cargo install --locked --git https://github.com/AimesSoft/Bern --rev 1e2a01f04b669375b8a790da5abb1ab218e86061 bern-cli
+```
+
+然后取得 Enji 并运行：
+
 ```sh
 git clone https://github.com/MCDFsteve/Enji.git
 cd Enji
-cargo build --manifest-path vendor/bern/Cargo.toml -p bern-cli --release
-vendor/bern/target/release/bern build --target macos --release
-open target/bern/macos/Enji.app
+bern run
 ```
 
-`--target` 可以换成 `windows`、`linux`、`android` 或 `ios`，需要在对应平台的主机上构建。
-
-| 目标 | 需要 |
-| --- | --- |
-| macOS / iOS | Xcode 26 或更新版本；iOS 另需 `rustup target add aarch64-apple-ios aarch64-apple-ios-sim` |
-| Windows | Visual Studio C++ 生成工具与 Windows SDK |
-| Android | JDK 21、Android SDK 与 NDK，`rustup target add aarch64-linux-android` |
-| Linux | GTK 4 与 libadwaita 开发包 |
-
-`vendor/bern/` 是 Bern 仓库 [`14a5b26`](https://github.com/AimesSoft/Bern/commit/14a5b2631af1f88077b474c6ff5d566980d1de0e) 提交的副本，不用另外下载，详见 [UPSTREAM.md](vendor/bern/UPSTREAM.md)。
+`bern run` 构建并打开这台电脑上的版本；`bern build --target <平台> --release` 构建某个平台（`macos`、`ios`、`windows`、`linux`、`android`），`bern package` 生成安装包。`bern doctor` 会列出这台电脑构建各平台还缺什么，各平台需要的工具见 [Bern 的说明](https://github.com/AimesSoft/Bern#quick-start)。
 
 ## 现状
 

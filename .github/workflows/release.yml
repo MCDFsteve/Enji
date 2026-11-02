@@ -34,9 +34,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-          workspaces: |
-            . -> target
-            vendor/bern -> target
+          workspaces: . -> target
 
       # The Bern CLI keeps credentials in the Secret Service over D-Bus;
       # the Linux app also needs GTK, libadwaita and ALSA.
@@ -87,14 +85,15 @@ jobs:
             echo "BERN_ANDROID_KEY_ALIAS=enji" >> "$GITHUB_ENV"
           fi
 
+      # The build tool of the Bern Enji depends on (Cargo.toml).
       - name: Bern
-        run: cargo build --manifest-path vendor/bern/Cargo.toml -p bern-cli --release
+        run: cargo install --locked --git https://github.com/AimesSoft/Bern --rev 1e2a01f04b669375b8a790da5abb1ab218e86061 bern-cli
 
       - name: Package
         if: runner.os != 'Windows'
         env:
           BERN_ANDROID_KEYSTORE_PASSWORD: ${{ matrix.target == 'android' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
-        run: vendor/bern/target/release/bern package --target ${{ matrix.target }}
+        run: bern package --target ${{ matrix.target }}
 
       # From cmd, so the build fetches the Windows App SDK with Windows' own
       # tar: Git's, first on the bash path, reads "D:" as a host name. The
@@ -105,7 +104,7 @@ jobs:
         shell: cmd
         run: |
           if exist target\bern-winrt rmdir /s /q target\bern-winrt
-          vendor\bern\target\release\bern.exe package --target windows
+          bern package --target windows
 
       - uses: actions/upload-artifact@v4
         with:
