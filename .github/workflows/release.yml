@@ -85,9 +85,11 @@ jobs:
             echo "BERN_ANDROID_KEY_ALIAS=enji" >> "$GITHUB_ENV"
           fi
 
-      # The build tool of the Bern Enji depends on (Cargo.toml).
+      # The build tool of the Bern Enji depends on (Cargo.toml), downloaded
+      # ready-built from Bern's release.
+      - uses: cargo-bins/cargo-binstall@v1.26.0
       - name: Bern
-        run: cargo install --locked --git https://github.com/AimesSoft/Bern --rev 1e2a01f04b669375b8a790da5abb1ab218e86061 bern-cli
+        run: cargo binstall --no-confirm bern-cli@0.1.0
 
       - name: Package
         if: runner.os != 'Windows'

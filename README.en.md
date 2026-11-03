@@ -136,11 +136,13 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 
 ## Build from source
 
-Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version Enji depends on:
+Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```sh
-cargo install --locked --git https://github.com/AimesSoft/Bern --rev 1e2a01f04b669375b8a790da5abb1ab218e86061 bern-cli
+cargo binstall bern-cli@0.1.0
 ```
+
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) downloads `bern` ready-built; `cargo install --locked bern-cli@0.1.0` compiles it instead.
 
 Then get Enji and run it:
 

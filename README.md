@@ -136,11 +136,13 @@ pub trait Commands {
 
 ## 从源码构建
 
-Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，用 Enji 依赖的那一版：
+Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```sh
-cargo install --locked --git https://github.com/AimesSoft/Bern --rev 1e2a01f04b669375b8a790da5abb1ab218e86061 bern-cli
+cargo binstall bern-cli@0.1.0
 ```
+
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 会下载编译好的 `bern`；也可以用 `cargo install --locked bern-cli@0.1.0` 自己编译。
 
 然后取得 Enji 并运行：
 

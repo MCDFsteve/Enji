@@ -35,9 +35,9 @@ publish = false
 opt-level = 3
 
 [workspace.dependencies]
-# Bern, at the commit the build tool is installed from (README).
-bern = { git = "https://github.com/AimesSoft/Bern", rev = "1e2a01f04b669375b8a790da5abb1ab218e86061" }
-bern-script = { git = "https://github.com/AimesSoft/Bern", rev = "1e2a01f04b669375b8a790da5abb1ab218e86061" }
+# Bern from crates.io, at the version of the build tool the README installs.
+bern = "=0.1.0"
+bern-script = "=0.1.0"
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
 enji-ui = { path = "modules/enji/ui" }

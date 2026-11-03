@@ -259,7 +259,8 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bern"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67efd1f11f5a83bc480788a2e90957fb5cc5f4d15b3fadf1ab8e9a50b3b949b4"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -273,7 +274,8 @@ dependencies = [
 [[package]]
 name = "bern-command"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95166f5d444f2ed1eb280bc03d8339e78f5e16009e08fe240fa60e583cf6bb67"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -294,7 +296,8 @@ dependencies = [
 [[package]]
 name = "bern-ir"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbc585c474639e18a35c47dfd04780749695a86fbd6b6b465ae4ce10a53d4f4b"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -304,7 +307,8 @@ dependencies = [
 [[package]]
 name = "bern-macros"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0a56700807d761b9014f04031f0d910628fa54cf2ed1b0ca4aa3ace505d5e9a"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -318,7 +322,8 @@ dependencies = [
 [[package]]
 name = "bern-media"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2996cc4ec6d28e9aafc7f90fb02c21dc18aea6e33f1ac695fc909c420c19b2a3"
 dependencies = [
  "bern-protocol",
 ]
@@ -326,7 +331,8 @@ dependencies = [
 [[package]]
 name = "bern-protocol"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebd4672961c724f0f2a2c57128847e9fffcdeca95be712702c8c5df2646a3e57"
 dependencies = [
  "serde",
  "serde_json",
@@ -335,7 +341,8 @@ dependencies = [
 [[package]]
 name = "bern-runtime"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce8aaf9b00923f30f0d5fcc4847cb7843cdc4e32dee3ab24ee097bcc6542d6d2"
 dependencies = [
  "bern-protocol",
 ]
@@ -343,7 +350,8 @@ dependencies = [
 [[package]]
 name = "bern-script"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85323690def683911e3e51d530582972853a334a6f37598850df19c8ba75f8a7"
 dependencies = [
  "boa_engine",
  "serde",
@@ -353,7 +361,8 @@ dependencies = [
 [[package]]
 name = "bern-syntax"
 version = "0.1.0"
-source = "git+https://github.com/AimesSoft/Bern?rev=1e2a01f04b669375b8a790da5abb1ab218e86061#1e2a01f04b669375b8a790da5abb1ab218e86061"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea2be448e64eb62ffa9f4cc6f627f00047e2677551b07daee9e4b6cb5a4bb17c"
 dependencies = [
  "bern-media",
  "bern-protocol",
