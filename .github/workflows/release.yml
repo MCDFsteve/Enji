@@ -86,10 +86,16 @@ jobs:
           fi
 
       # The build tool of the Bern Enji depends on (Cargo.toml), downloaded
-      # ready-built from Bern's release.
+      # ready-built from Bern's release. Only the build for this runner's
+      # own Rust: an Intel bern under Rosetta takes the Mac for an Intel
+      # one and builds for it. The token keeps GitHub from slowing the
+      # lookups down until binstall gives up on them.
       - uses: cargo-bins/cargo-binstall@v1.26.0
       - name: Bern
-        run: cargo binstall --no-confirm bern-cli@0.1.0
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: cargo binstall --no-confirm --targets "$(rustc -vV | sed -n 's/^host: //p')" bern-cli@0.1.0
 
       - name: Package
         if: runner.os != 'Windows'
