@@ -1,3 +1,11 @@
+## 0.2.0 新增
+
+- **下载**：把歌连同歌词和封面存到本机，下载过的歌在列表里都有标记。
+- **系统的播放控件**：键盘上的媒体键、macOS 菜单栏、iPhone 的锁屏和控制中心、Windows 的媒体浮窗、Linux 桌面的媒体控件、Android 的通知栏，都能看到正在放的歌并控制播放。
+- **桌面歌词**：电脑和 Android 上，歌词可以浮在所有窗口上面。鼠标移上去（Android 上点一下）就能切歌、暂停和锁定。
+- **插件**：在设置里的插件商店安装插件，比如 Windows 任务栏歌词、跟着鼓点跳动的封面。
+- **播放页**：写出歌曲的格式和码率；手机竖着拿时，封面下方显示正在唱的那一行。
+
 ## 下载
 
 | 系统 | 文件 |
@@ -19,6 +27,14 @@
 Linux 版在 Ubuntu 24.04 虚拟机（ARM64）里实际用过；这里发布的是 x64 版。
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
+
+## What's new in 0.2.0
+
+- **Downloads**: keep songs on your device with their lyrics and covers; downloaded songs are marked in every list.
+- **The system's media controls**: the media keys, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification show what's playing and control it.
+- **Desktop lyrics** on computers and Android, floating above every window. Hover over them (tap on Android) to skip, pause or lock them.
+- **Plugins** from the plugin market in Settings, such as lyrics on the Windows taskbar or a cover that pulses with the beat.
+- **The playing page** shows the format and bitrate, and on a phone held upright, the line being sung under the cover.
 
 ## Download
 
