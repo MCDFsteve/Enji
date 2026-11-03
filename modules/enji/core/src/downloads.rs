@@ -220,7 +220,8 @@ pub async fn fetch(
         .await
         .and_then(|r| r.error_for_status())
         .map_err(|e| format!("下载《{}》失败：{e}", song.name))?;
-    let length = response.content_length().unwrap_or(0);
+    // NetEase says the size too, for a response that does not.
+    let length = response.content_length().filter(|&n| n > 0).or(data["size"].as_u64()).unwrap_or(0);
     let mut file = fs::File::create(&partial).map_err(|e| format!("写不了 {}：{e}", partial.display()))?;
     let mut written = 0u64;
     loop {

@@ -5,7 +5,7 @@
 //! own pages.
 
 use bern::prelude::*;
-use enji_protocol::enji::{self, Detail, Login, Panel, PlayMode, SignInWay, Source};
+use enji_protocol::enji::{self, Detail, Login, Panel, PlayMode, Source};
 
 /// What a phone's own tab shows: its overview, or one of the lists it
 /// leads to.
@@ -37,13 +37,6 @@ pub struct MainDraft {
     pub new_name: String,
     /// Other words to find the NetEase song a local song is.
     pub match_words: String,
-    /// The account being signed in: a phone number and the code texted to
-    /// it, or the password instead; an email address.
-    pub phone: String,
-    pub sms_code: String,
-    pub by_password: bool,
-    pub password: String,
-    pub email: String,
 }
 
 
@@ -80,12 +73,7 @@ pub fn sign_in(app: enji::Client) -> impl View {
                 Column(gap: 20, padding_x: 32, padding_y: 32, align: center) {
                     Image(source: "assets/mark.png", width: 44, height: 44, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
                     Text(content: tr! { "zh-Hans" => "登录网易云音乐", "en" => "Sign In to NetEase Cloud Music" }, style: title2, bold: true)
-                    Picker(id: sign_in_way, label: tr! { "zh-Hans" => "登录方式", "en" => "Sign In With" }, label_hidden: true, selected: app.sign_in_way, style: segmented) => app.set_sign_in_way(app.sign_in_way)
-                    match app.sign_in_way {
-                        SignInWay::Code => { sign_in_code(app: app) }
-                        SignInWay::Phone => { sign_in_phone(app: app) }
-                        SignInWay::Email => { sign_in_email(app: app) }
-                    }
+                    sign_in_code(app: app)
                 }
                 Column(padding: 14) {
                     IconButton(id: close_sign_in, icon: "xmark", prominence: plain, label: tr! { "zh-Hans" => "关闭", "en" => "Close" }) => app.cancel_sign_in()
@@ -95,7 +83,9 @@ pub fn sign_in(app: enji::Client) -> impl View {
     }
 }
 
-/// The QR code to scan with the NetEase app, and the steps to it.
+/// The QR code to scan with the NetEase app, and the steps to it: on a
+/// phone, which cannot scan what it shows, saved to its photos for the app
+/// to scan from the album.
 #[component]
 pub fn sign_in_code(app: enji::Client) -> impl View {
     ui! {
@@ -120,7 +110,7 @@ pub fn sign_in_code(app: enji::Client) -> impl View {
                                 Image(source: app.qr, width: 200, height: 200, blur: 10)
                                 Column(gap: 12, align: center) {
                                     Text(content: tr! { "zh-Hans" => "二维码已失效", "en" => "The code has expired" }, style: headline)
-                                    Button(id: refresh_code, label: tr! { "zh-Hans" => "刷新", "en" => "Refresh" }, icon: "arrow.clockwise", prominence: prominent) => app.set_sign_in_way(SignInWay::Code)
+                                    Button(id: refresh_code, label: tr! { "zh-Hans" => "刷新", "en" => "Refresh" }, icon: "arrow.clockwise", prominence: prominent) => app.sign_in()
                                 }
                             }
                         }
@@ -134,80 +124,28 @@ pub fn sign_in_code(app: enji::Client) -> impl View {
                     }
                 }
             }
-            // Across the sheet, so the way to close it stays in its corner.
-            Row(gap: 18, align: center) {
-                Spacer
-                Label(title: tr! { "zh-Hans" => "打开 App", "en" => "Open the app" }, icon: "iphone", style: caption)
-                Label(title: tr! { "zh-Hans" => "扫一扫", "en" => "Scan" }, icon: "qrcode.viewfinder", style: caption)
-                Label(title: tr! { "zh-Hans" => "确认登录", "en" => "Confirm" }, icon: "checkmark.circle", style: caption)
-                Spacer
-            }
-        }
-    }
-}
-
-/// A phone number, and the code texted to it or the account's password.
-#[component]
-pub fn sign_in_phone(app: enji::Client, #[session] draft: MainDraft) -> impl View {
-    ui! {
-        Column(gap: 12) {
-            TextInput(id: phone, label: tr! { "zh-Hans" => "手机号", "en" => "Phone Number" }, label_hidden: true, value: draft.phone, prompt: tr! { "zh-Hans" => "手机号", "en" => "Phone number" })
-            if draft.by_password {
-                TextInput(id: phone_password, label: tr! { "zh-Hans" => "密码", "en" => "Password" }, label_hidden: true, kind: secure, value: draft.password, prompt: tr! { "zh-Hans" => "密码", "en" => "Password" }) => app.sign_in_by_password(draft.phone, draft.password)
-            } else {
-                Row(gap: 8, align: center) {
-                    TextInput(id: sms_code, label: tr! { "zh-Hans" => "验证码", "en" => "Code" }, label_hidden: true, value: draft.sms_code, prompt: tr! { "zh-Hans" => "验证码", "en" => "Code" }) => app.sign_in_by_sms(draft.phone, draft.sms_code)
-                    if app.sms_wait > 0 {
-                        Button(id: sms_waiting, label: tr! { "zh-Hans" => "{n} 秒后重发", "en" => "Resend in {n}s"; n: app.sms_wait }, enabled: false) => app.send_sms_code(draft.phone)
+            if app.saves_code {
+                Column(gap: 10, align: center) {
+                    if app.code_saved {
+                        Button(id: code_saved, label: tr! { "zh-Hans" => "已存到相册", "en" => "Saved to Photos" }, icon: "checkmark.circle", shape: capsule, height: 40, enabled: false) => app.save_sign_in_code()
                     } else {
-                        Button(id: send_sms, label: tr! { "zh-Hans" => "获取验证码", "en" => "Get Code" }, enabled: draft.phone != "" && !app.signing) => app.send_sms_code(draft.phone)
+                        Button(id: save_code, label: tr! { "zh-Hans" => "存到相册", "en" => "Save to Photos" }, icon: "arrow.down.circle", prominence: prominent, shape: capsule, height: 40, enabled: app.login == Login::Waiting) => app.save_sign_in_code()
                     }
+                    if app.save_error != "" {
+                        Text(content: app.save_error, style: footnote, color: status.error, lines: 2)
+                    }
+                    Text(content: tr! { "zh-Hans" => "在网易云音乐 App 里扫一扫，从相册选这张图", "en" => "In the NetEase Cloud Music app, tap Scan and pick this picture from your photos" }, style: footnote, emphasis: secondary, lines: 2)
+                }
+            } else {
+                // Across the sheet, so the way to close it stays in its corner.
+                Row(gap: 18, align: center) {
+                    Spacer
+                    Label(title: tr! { "zh-Hans" => "打开 App", "en" => "Open the app" }, icon: "iphone", style: caption)
+                    Label(title: tr! { "zh-Hans" => "扫一扫", "en" => "Scan" }, icon: "qrcode.viewfinder", style: caption)
+                    Label(title: tr! { "zh-Hans" => "确认登录", "en" => "Confirm" }, icon: "checkmark.circle", style: caption)
+                    Spacer
                 }
             }
-            sign_in_error(app: app)
-            if app.signing {
-                Button(id: phone_signing, label: tr! { "zh-Hans" => "正在登录…", "en" => "Signing In…" }, prominence: prominent, width: fill, height: 36, enabled: false) => app.cancel_sign_in()
-            } else if draft.by_password {
-                Button(id: phone_password_sign_in, label: tr! { "zh-Hans" => "登录", "en" => "Sign In" }, prominence: prominent, width: fill, height: 36, enabled: draft.phone != "" && draft.password != "", clears: draft.password) => app.sign_in_by_password(draft.phone, draft.password)
-            } else {
-                Button(id: phone_sign_in, label: tr! { "zh-Hans" => "登录", "en" => "Sign In" }, prominence: prominent, width: fill, height: 36, enabled: draft.phone != "" && draft.sms_code != "") => app.sign_in_by_sms(draft.phone, draft.sms_code)
-            }
-            Row {
-                Spacer
-                if draft.by_password {
-                    Button(id: use_sms, label: tr! { "zh-Hans" => "用验证码登录", "en" => "Use a Code Instead" }, prominence: plain) => draft.by_password.toggle()
-                } else {
-                    Button(id: use_password, label: tr! { "zh-Hans" => "用密码登录", "en" => "Use the Password Instead" }, prominence: plain) => draft.by_password.toggle()
-                }
-                Spacer
-            }
-        }
-    }
-}
-
-/// A NetEase email address and its password.
-#[component]
-pub fn sign_in_email(app: enji::Client, #[session] draft: MainDraft) -> impl View {
-    ui! {
-        Column(gap: 12) {
-            TextInput(id: email, label: tr! { "zh-Hans" => "邮箱", "en" => "Email" }, label_hidden: true, value: draft.email, prompt: tr! { "zh-Hans" => "网易邮箱", "en" => "NetEase email" })
-            TextInput(id: email_password, label: tr! { "zh-Hans" => "密码", "en" => "Password" }, label_hidden: true, kind: secure, value: draft.password, prompt: tr! { "zh-Hans" => "密码", "en" => "Password" }) => app.sign_in_by_email(draft.email, draft.password)
-            sign_in_error(app: app)
-            if app.signing {
-                Button(id: email_signing, label: tr! { "zh-Hans" => "正在登录…", "en" => "Signing In…" }, prominence: prominent, width: fill, height: 36, enabled: false) => app.cancel_sign_in()
-            } else {
-                Button(id: email_sign_in, label: tr! { "zh-Hans" => "登录", "en" => "Sign In" }, prominence: prominent, width: fill, height: 36, enabled: draft.email != "" && draft.password != "", clears: draft.password) => app.sign_in_by_email(draft.email, draft.password)
-            }
-        }
-    }
-}
-
-/// What NetEase refused, while it stands.
-#[component]
-pub fn sign_in_error(app: enji::Client) -> impl View {
-    ui! {
-        if app.sign_in_error != "" {
-            Text(content: app.sign_in_error, style: footnote, color: status.error)
         }
     }
 }
@@ -905,9 +843,11 @@ pub fn playlist_page(app: enji::Client, list: enji::Playlist) -> impl View {
                                 playlist_owner(app: app)
                                 Text(content: app.opened_meta, style: caption, emphasis: secondary)
                             }
-                            playlist_actions(app: app, list: list)
                         }
                         Spacer
+                    }
+                    Column(padding_x: 12, padding_y: 6) {
+                        phone_playlist_actions(app: app, list: list)
                     }
                 } else {
                     Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
@@ -970,6 +910,33 @@ pub fn playlist_actions(app: enji::Client, list: enji::Playlist) -> impl View {
             } else if app.login == Login::In {
                 Menu(id: playlist_more, label: tr! { "zh-Hans" => "更多", "en" => "More" }, icon: "ellipsis", style: icon, shape: capsule, height: 36) {
                     MenuItem(id: make_default, label: tr! { "zh-Hans" => "在「我的歌单」直接打开", "en" => "Open First in My Playlists" }, icon: "house") => app.set_default_playlist(list.id)
+                }
+            }
+        }
+    }
+}
+
+/// The open playlist's actions on a phone, too narrow for them in one row:
+/// play and shuffle share the width, the order and the rest go under them.
+#[component]
+pub fn phone_playlist_actions(app: enji::Client, list: enji::Playlist) -> impl View {
+    ui! {
+        Column(gap: 12) {
+            Row(gap: 12, align: center) {
+                Button(id: play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 44, width: fill, enabled: !app.opened_loading) => app.play(Source::Playlist, 0)
+                Button(id: shuffle_all, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", shape: capsule, height: 44, width: fill, enabled: !app.opened_loading) => app.shuffle(Source::Playlist)
+            }
+            Row(gap: 10, align: center) {
+                Picker(id: playlist_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
+                Spacer
+                if app.login == Login::In && app.opened_is_default {
+                    Menu(id: playlist_more_default, label: tr! { "zh-Hans" => "更多", "en" => "More" }, icon: "ellipsis", style: icon, height: 36) {
+                        MenuItem(id: undo_default, label: tr! { "zh-Hans" => "不再直接打开这个歌单", "en" => "Stop Opening This Playlist First" }, icon: "house") => app.set_default_playlist(0)
+                    }
+                } else if app.login == Login::In {
+                    Menu(id: playlist_more, label: tr! { "zh-Hans" => "更多", "en" => "More" }, icon: "ellipsis", style: icon, height: 36) {
+                        MenuItem(id: make_default, label: tr! { "zh-Hans" => "在「我的歌单」直接打开", "en" => "Open First in My Playlists" }, icon: "house") => app.set_default_playlist(list.id)
+                    }
                 }
             }
         }
@@ -1473,7 +1440,13 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                                 }
                                 if song.file == "" {
                                     Spacer
-                                    IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                                    // How far it is, over the symbol's own circle.
+                                    Stack {
+                                        IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                                        if app.current_downloading {
+                                            Progress(value: app.current_download, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" }, style: ring, width: 19.3, stroke_width: 3)
+                                        }
+                                    }
                                 }
                             }
                             Spacer
@@ -1580,7 +1553,12 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                     IconButton(id: details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.show_panel(Panel::Details)
                                 }
                                 if song.file == "" {
-                                    IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                                    Stack {
+                                        IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                                        if app.current_downloading {
+                                            Progress(value: app.current_download, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" }, style: ring, width: 19.3, stroke_width: 3)
+                                        }
+                                    }
                                 }
                             }
                             if app.desktop_lyrics_supported {
@@ -1760,6 +1738,10 @@ pub fn queue_list(app: enji::Client) -> impl View {
                     ForEach(items: app.queue, key: index) |song| {
                         Button(id: queued, label: song.name, variant: row) {
                             Row(gap: 10, padding_x: 8, padding_y: 6, align: center) {
+                                Stack(width: 40, height: 40) {
+                                    cover_placeholder(side: 40.0)
+                                    Image(source: song.cover, width: 40, height: 40, fit: cover, corner: 6)
+                                }
                                 Column(gap: 2, align: leading) {
                                     Text(content: song.name, lines: 1, bold: song.index == app.queue_at)
                                     Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)

@@ -68,7 +68,7 @@
 ## Features
 
 - **NetEase Cloud Music**: daily picks, recommended playlists and 60+ charts, with pages for every playlist, album and artist. Without signing in you can still browse charts, search and play free songs.
-- **Sign in** with a QR code, an SMS code or a password. Your sign-in stays on your own device.
+- **Sign in** by scanning a QR code with the NetEase Cloud Music app; on a phone, save the code to your photos and pick it from the album in that app. Your sign-in stays on your own device.
 - **Your playlists**: liked songs, playlists you made or saved; create playlists, add songs to them, like a song.
 - **Search** NetEase and your own music at once, with trending searches and your search history.
 - **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. Holding a phone upright, the line being sung also shows under the cover.

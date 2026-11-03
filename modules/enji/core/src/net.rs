@@ -12,10 +12,10 @@ use crate::{
 use bern::{media::MediaSource, wake::Waker};
 use enji_kit::{list, renumbered};
 use enji_protocol::enji::{
-    Appearance, Detail, Download, Folder, Login, Offer, Plugin, LyricLine, Panel, PlayMode, Played, Playlist, Quality, SignInWay, Song,
+    Appearance, Detail, Download, Folder, Login, Offer, Plugin, LyricLine, Panel, PlayMode, Played, Playlist, Quality, Song,
     SongOrder, Source, State,
 };
-use ncm_api_rs::{ApiClient, NcmError, Query};
+use ncm_api_rs::{ApiClient, CryptoType, NcmError, Query, RequestOption};
 use rand::Rng;
 use serde_json::{json, Value};
 use std::{
@@ -31,9 +31,8 @@ pub enum Job {
     Refresh,
     SignIn,
     CancelSignIn,
-    SetSignInWay(SignInWay),
-    SendSmsCode(String),
-    SignInWith(Credentials),
+    /// Save the sign-in code to the phone's photos.
+    SaveCode,
     SignOut,
     Open(i64),
     /// Open a playlist shown as a card, its name and cover known.
@@ -153,11 +152,11 @@ pub fn initial_state() -> State {
         qr: MediaSource::new(""),
         scanner: String::new(),
         scanner_avatar: MediaSource::new(""),
-        // A phone cannot scan a code it shows.
-        sign_in_way: if cfg!(any(target_os = "ios", target_os = "android")) { SignInWay::Phone } else { SignInWay::Code },
-        signing: false,
-        sign_in_error: String::new(),
-        sms_wait: 0,
+        // A phone cannot scan a code it shows: the NetEase app on it scans
+        // it from the album.
+        saves_code: cfg!(any(target_os = "ios", target_os = "android")),
+        code_saved: false,
+        save_error: String::new(),
         mine: Vec::new(),
         liked_list: None,
         created: Vec::new(),
@@ -238,6 +237,8 @@ pub fn initial_state() -> State {
         cover_pulse: 0,
         downloads: Vec::new(),
         has_downloads: false,
+        current_downloading: false,
+        current_download: 0.0,
         format: String::new(),
         lyric_now: String::new(),
         lyric_now_translation: String::new(),
@@ -348,10 +349,12 @@ impl Shared {
 
     fn tell(&self, message: impl Into<String>) {
         let message = message.into();
+        // One at a time: the newest says what just happened.
         self.update(|s| {
             s.notice = message;
             s.notice_key += 1;
             s.has_notice = true;
+            s.has_error = false;
         });
     }
 
@@ -361,6 +364,7 @@ impl Shared {
             s.error = message;
             s.error_key += 1;
             s.has_error = true;
+            s.has_notice = false;
         });
     }
 }
@@ -437,13 +441,8 @@ struct Worker {
     scan_again: bool,
     /// When the library was last shown while a scan reads.
     shown_at: Instant,
-}
-
-/// An account to sign in with, as typed.
-pub enum Credentials {
-    Sms { phone: String, code: String },
-    Password { phone: String, password: String },
-    Email { email: String, password: String },
+    /// The playlists opened before, by the account and the list.
+    kept: Arc<Mutex<HashMap<(i64, i64), Kept>>>,
 }
 
 /// The NetEase song a local file is.
@@ -464,6 +463,16 @@ struct Entry {
 
 /// How many songs the play history keeps.
 const HISTORY: usize = 200;
+
+/// A playlist as it was when last opened, shown at once when it opens
+/// again.
+#[derive(Clone)]
+struct Kept {
+    /// When NetEase says its songs last changed.
+    changed: i64,
+    info: Value,
+    songs: Vec<Song>,
+}
 
 fn now_ms() -> i64 {
     chrono::Local::now().timestamp_millis()
@@ -544,6 +553,7 @@ pub async fn run(
         scanning: false,
         scan_again: false,
         shown_at: Instant::now(),
+        kept: Default::default(),
     };
     worker.load_history();
     if let Some(folder) = store::phone_music_dir() {
@@ -582,29 +592,17 @@ impl Worker {
         match job {
             Job::Refresh => self.refresh(),
             Job::SignIn => {
-                let (login, way) = self.shared.read(|s| (s.login.clone(), s.sign_in_way.clone()));
-                if login != Login::In {
-                    self.sign_in_by(way);
+                if self.shared.read(|s| s.login != Login::In) {
+                    self.show_code();
                 }
             }
             Job::CancelSignIn => {
                 if let Some(task) = self.signing_in.take() {
                     task.abort();
                 }
-                self.shared.update(|s| {
-                    s.login = Login::Out;
-                    s.signing = false;
-                });
+                self.shared.update(|s| s.login = Login::Out);
             }
-            Job::SetSignInWay(way) => {
-                if matches!(self.shared.read(|s| s.login.clone()), Login::Out | Login::In) {
-                    self.shared.update(|s| s.sign_in_way = way);
-                } else {
-                    self.sign_in_by(way);
-                }
-            }
-            Job::SendSmsCode(phone) => self.send_sms_code(&phone),
-            Job::SignInWith(credentials) => self.sign_in_with(credentials),
+            Job::SaveCode => self.save_code(),
             Job::SignOut => {
                 store::forget_cookie();
                 enji_kit::set_cookie(None);
@@ -624,7 +622,6 @@ impl Worker {
                     self.shared.fail(format!("无法保存登录状态：{e}"));
                 }
                 self.signing_in = None;
-                self.shared.update(|s| s.signing = false);
                 enji_kit::set_cookie(Some(cookie));
                 self.fetch_account(true);
             }
@@ -819,13 +816,14 @@ impl Worker {
                 if let Some(download) = s.downloads.iter_mut().find(|download| download.id == id) {
                     download.progress = progress;
                 }
+                downloads_changed(s);
             }),
             Job::Downloaded { song, path } => {
                 let url = local::file_url(&path);
                 self.downloaded.insert(url.clone(), downloads::Origin { id: song.id, album: song.album_id, artist: song.artist_id });
                 self.shared.update(|s| {
                     s.downloads.retain(|download| download.id != song.id);
-                    s.has_downloads = !s.downloads.is_empty();
+                    downloads_changed(s);
                 });
                 self.shared.tell(format!("《{}》已下载", song.name));
                 // The library reads the downloads folder.
@@ -843,7 +841,7 @@ impl Worker {
             Job::DownloadFailed { id, message } => {
                 self.shared.update(|s| {
                     s.downloads.retain(|download| download.id != id);
-                    s.has_downloads = !s.downloads.is_empty();
+                    downloads_changed(s);
                 });
                 self.shared.fail(message);
             }
@@ -1706,12 +1704,13 @@ impl Worker {
             return self.shared.fail("网易云音乐已在设置中关闭");
         }
         if busy {
-            return;
+            return self.shared.tell(format!("《{}》正在下载", song.name));
         }
         self.shared.update(|s| {
             s.downloads.push(Download { id: song.id, name: song.name.clone(), artists: song.artists.clone(), progress: 0.0 });
-            s.has_downloads = true;
+            downloads_changed(s);
         });
+        self.shared.tell(format!("开始下载《{}》", song.name));
         let (client, http, jobs) = (enji_kit::client(), self.http.clone(), self.jobs.clone());
         tokio::spawn(async move {
             let id = song.id;
@@ -1770,6 +1769,11 @@ impl Worker {
         self.shared.update(|s| {
             for list in [&mut s.opened_songs, &mut s.album_songs, &mut s.artist_songs, &mut s.queue] {
                 enji_kit::dress_all(list);
+            }
+            // The playing song too: once it is downloaded, there is no more
+            // to download.
+            if let Some(current) = &mut s.current {
+                enji_kit::copies::dress(current);
             }
         });
     }
@@ -2094,7 +2098,8 @@ impl Worker {
     /// Add the song being chosen for to the playlist `id`.
     fn add_to_playlist(&self, id: i64) {
         let Some(song) = self.shared.read(|s| s.adding.clone()) else { return };
-        let name = self.shared.read(|s| s.mine.iter().find(|list| list.id == id).map(|list| list.name.clone()).unwrap_or_default());
+        self.forget(id);
+        let name =self.shared.read(|s| s.mine.iter().find(|list| list.id == id).map(|list| list.name.clone()).unwrap_or_default());
         self.shared.update(|s| s.adding = None);
         let (client, shared, jobs) = (enji_kit::client(), self.shared.clone(), self.jobs.clone());
         tokio::spawn(async move {
@@ -2117,6 +2122,7 @@ impl Worker {
             Some((list.id, s.opened_songs.get(index)?.clone()))
         });
         let Some((id, song)) = found else { return };
+        self.forget(id);
         let (client, shared) = (enji_kit::client(), self.shared.clone());
         tokio::spawn(async move {
             let query = Query::new().param("op", "del").param("pid", &param(id)).param("tracks", &param(song.id));
@@ -2208,12 +2214,13 @@ impl Worker {
         });
     }
 
-    /// Open the playlist `id`, showing what is `known` of it until it
-    /// arrives.
+    /// Open the playlist `id`, as it was when last opened or with what is
+    /// `known` of it, until it arrives.
     fn open(&self, id: i64, known: Option<Playlist>) {
         let client = enji_kit::client();
-        let shared = self.shared.clone();
+        let (shared, kept) = (self.shared.clone(), self.kept.clone());
         let (jobs, uid) = (self.jobs.clone(), self.uid);
+        let before = kept.lock().unwrap_or_else(|e| e.into_inner()).get(&(uid, id)).cloned();
         shared.update(|s| {
             let known = known.or_else(|| s.mine.iter().find(|p| p.id == id).cloned());
             s.opened = Some(known.unwrap_or(Playlist {
@@ -2231,78 +2238,39 @@ impl Worker {
             s.opened_owner_avatar = MediaSource::new("");
             s.opened_meta.clear();
             s.opened_loading = true;
+            if let Some(before) = &before {
+                show_opened(s, id, &before.info, before.songs.clone(), uid);
+            }
         });
+        if before.is_some() {
+            let _ = jobs.send(Job::Opened(id));
+        }
         tokio::spawn(async move {
-            let id_text = param(id);
-            let detail = client.playlist_detail(&Query::new().param("id", &id_text)).await;
-            // When each song went into the list.
-            let added: std::collections::HashMap<i64, i64> = detail
-                .as_ref()
-                .ok()
-                .and_then(|d| d.body["playlist"]["trackIds"].as_array().cloned())
-                .map(|ids| ids.iter().filter_map(|one| Some((one["id"].as_i64()?, one["at"].as_i64().unwrap_or(0)))).collect())
-                .unwrap_or_default();
-            // All of its songs, a thousand at a time: NetEase gives no more
-            // in one answer.
-            const PAGE: usize = 1000;
-            let mut songs = Vec::new();
-            let mut privileges = Vec::new();
-            let mut failure = None;
-            loop {
-                let page = client
-                    .playlist_track_all(
-                        &Query::new()
-                            .param("id", &id_text)
-                            .param("limit", &PAGE.to_string())
-                            .param("offset", &songs.len().to_string()),
-                    )
-                    .await;
-                match page {
-                    Ok(r) => {
-                        let got = r.body["songs"].as_array().cloned().unwrap_or_default();
-                        let count = got.len();
-                        songs.extend(got);
-                        privileges.extend(r.body["privileges"].as_array().cloned().unwrap_or_default());
-                        if count < PAGE {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        failure = Some(e);
-                        break;
+            let still_open = |s: &State| s.opened.as_ref().is_some_and(|p| p.id == id);
+            let fresh = match outline(&client, id).await {
+                Ok(info) => {
+                    let changed = info["trackUpdateTime"].as_i64().unwrap_or(0);
+                    match before.as_ref().filter(|before| changed != 0 && before.changed == changed) {
+                        Some(before) => Ok(Kept { changed, info, songs: before.songs.clone() }),
+                        None => songs_in(&client, &info).await.map(|songs| Kept { changed, info, songs }),
                     }
                 }
-            }
-            let tracks = match failure {
-                Some(e) if songs.is_empty() => Err(e),
-                _ => Ok(serde_json::json!({ "songs": songs, "privileges": privileges })),
+                Err(e) => Err(e),
             };
-            let still_open = |s: &State| s.opened.as_ref().is_some_and(|p| p.id == id);
-            match tracks {
-                Ok(body) => shared.update(|s| {
-                    if !still_open(s) {
-                        return;
+            match fresh {
+                Ok(fresh) => {
+                    shared.update(|s| {
+                        if still_open(s) {
+                            show_opened(s, id, &fresh.info, fresh.songs.clone(), uid);
+                        }
+                    });
+                    kept.lock().unwrap_or_else(|e| e.into_inner()).insert((uid, id), fresh);
+                    if before.is_none() {
+                        let _ = jobs.send(Job::Opened(id));
                     }
-                    if let Ok(d) = &detail {
-                        let info = &d.body["playlist"];
-                        s.opened = Some(convert::playlist(info));
-                        s.opened_description = info["description"].as_str().unwrap_or("").trim().to_string();
-                        s.opened_owner = info["creator"]["nickname"].as_str().unwrap_or("").to_string();
-                        s.opened_owner_avatar = convert::cover(info["creator"]["avatarUrl"].as_str().unwrap_or(""), 64);
-                        s.opened_meta = convert::playlist_meta(info);
-                        s.opened_owned = uid != 0 && info["creator"]["userId"].as_i64() == Some(uid);
-                    }
-                    let mut songs = convert::songs(&body["songs"], &body["privileges"]);
-                    for song in &mut songs {
-                        song.added = added.get(&song.id).copied().unwrap_or(0);
-                    }
-                    enji_kit::dress_all(&mut songs);
-                    arrange(&mut songs, &s.order);
-                    s.opened_songs = songs;
-                    s.opened_is_default = s.default_playlist == id;
-                    s.opened_loading = false;
-                    let _ = jobs.send(Job::Opened(id));
-                }),
+                }
+                // What it was last time stays.
+                Err(_) if before.is_some() => {}
                 Err(e) => {
                     shared.update(|s| s.opened_loading = false);
                     shared.fail(format!("歌单加载失败：{e}"));
@@ -2311,112 +2279,26 @@ impl Worker {
         });
     }
 
+    /// Open the playlist `id` afresh the next time, after its songs changed.
+    fn forget(&self, id: i64) {
+        self.kept.lock().unwrap_or_else(|e| e.into_inner()).remove(&(self.uid, id));
+    }
+
     // MARK: Account
 
-    /// Open the sign-in sheet `way`: the QR code starts at once, a phone
-    /// number or an email address waits for the account.
-    fn sign_in_by(&mut self, way: SignInWay) {
+    /// A new QR code to sign in with, scanned in the NetEase app, and the
+    /// wait for it to be.
+    fn show_code(&mut self) {
         if let Some(task) = self.signing_in.take() {
             task.abort();
         }
-        self.shared.update(|s| {
-            s.sign_in_way = way.clone();
-            s.sign_in_error.clear();
-            s.signing = false;
-        });
-        match way {
-            SignInWay::Code => self.show_code(),
-            SignInWay::Phone | SignInWay::Email => self.shared.update(|s| s.login = Login::Form),
-        }
-    }
-
-    /// Text a sign-in code to the phone, then count down to when another
-    /// may go.
-    fn send_sms_code(&mut self, typed: &str) {
-        if self.shared.read(|s| s.sms_wait > 0 || s.signing) {
-            return;
-        }
-        let Some((country, phone)) = phone_number(typed) else {
-            return self.shared.update(|s| s.sign_in_error = "手机号不对".into());
-        };
-        let shared = self.shared.clone();
-        let client = enji_kit::client();
-        shared.update(|s| {
-            s.sign_in_error.clear();
-            s.sms_wait = 60;
-        });
-        tokio::spawn(async move {
-            let sent = client.captcha_sent(&Query::new().param("phone", &phone).param("ctcode", &country)).await;
-            let refused = match sent {
-                Ok(r) if r.body["code"].as_i64() == Some(200) => None,
-                Ok(r) => Some(refusal(&r.body, "验证码没发出去")),
-                Err(e) => Some(failure(&e, "验证码没发出去")),
-            };
-            if let Some(message) = refused {
-                return shared.update(|s| {
-                    s.sms_wait = 0;
-                    s.sign_in_error = message;
-                });
-            }
-            for left in (0..60).rev() {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                shared.update(|s| s.sms_wait = left);
-            }
-        });
-    }
-
-    /// Sign in with a phone number and a texted code or the password, or
-    /// with an email address and the password.
-    fn sign_in_with(&mut self, credentials: Credentials) {
-        if self.shared.read(|s| s.signing) {
-            return;
-        }
-        let query = match &credentials {
-            Credentials::Sms { phone, code } | Credentials::Password { phone, password: code } => {
-                let Some((country, phone)) = phone_number(phone) else {
-                    return self.shared.update(|s| s.sign_in_error = "手机号不对".into());
-                };
-                let query = Query::new().param("phone", &phone).param("countrycode", &country);
-                match credentials {
-                    Credentials::Sms { .. } => query.param("captcha", code.trim()),
-                    _ => query.param("password", code),
-                }
-            }
-            Credentials::Email { email, password } => Query::new().param("email", email.trim()).param("password", password),
-        };
-        let email = matches!(credentials, Credentials::Email { .. });
-        let (client, shared, jobs) = (enji_kit::client(), self.shared.clone(), self.jobs.clone());
-        shared.update(|s| {
-            s.signing = true;
-            s.sign_in_error.clear();
-        });
-        self.signing_in = Some(tokio::spawn(async move {
-            let answer = if email { client.login(&query).await } else { client.login_cellphone(&query).await };
-            let refused = match answer {
-                Ok(r) if r.body["code"].as_i64() == Some(200) => {
-                    let cookie = cookie_of(&r.cookie);
-                    if cookie.contains("MUSIC_U=") {
-                        let _ = jobs.send(Job::SignedIn(cookie));
-                        return;
-                    }
-                    "没拿到登录凭据，再试一次".to_string()
-                }
-                Ok(r) => refusal(&r.body, "登录失败"),
-                Err(e) => failure(&e, "登录失败"),
-            };
-            shared.update(|s| {
-                s.signing = false;
-                s.sign_in_error = refused;
-            });
-        }));
-    }
-
-    fn show_code(&mut self) {
         let client = enji_kit::client();
         let shared = self.shared.clone();
         let jobs = self.jobs.clone();
         shared.update(|s| {
             s.login = Login::Loading;
+            s.code_saved = false;
+            s.save_error.clear();
             s.scanner.clear();
             s.scanner_avatar = MediaSource::new("");
         });
@@ -2471,6 +2353,25 @@ impl Worker {
             }
             shared.update(|s| s.login = Login::Expired);
         }));
+    }
+
+    /// Save the sign-in code to the phone's photos, for the NetEase app on
+    /// it to scan from the album.
+    fn save_code(&self) {
+        let Some(code) = store::qr_file() else { return };
+        let shared = self.shared.clone();
+        // Said in the sheet: a notice would show under it.
+        tokio::task::spawn_blocking(move || {
+            let saved = bern::platform::save_image(&code);
+            shared.update(|s| match saved {
+                Ok(()) => {
+                    s.code_saved = true;
+                    s.save_error.clear();
+                }
+                Err(e) if e.code == "refused" => s.save_error = "没有相册权限：在系统设置里允许 Enji 添加照片".into(),
+                Err(e) => s.save_error = format!("没能存到相册：{}", e.message),
+            });
+        });
     }
 
     /// The signed-in account; `welcome` it when it has just signed in.
@@ -2538,6 +2439,7 @@ impl Worker {
             }
             s.current = Some(song.clone());
             s.current_id = song.id;
+            downloads_changed(s);
             s.current_liked = liked;
             s.queue_at = index as i64;
             s.comments.clear();
@@ -3108,36 +3010,6 @@ fn cookie_of(cookies: &[String]) -> String {
         .join("; ")
 }
 
-/// A phone number as typed, as its country code and digits: "13800000000"
-/// is in mainland China, "+852 61234567" in Hong Kong.
-fn phone_number(typed: &str) -> Option<(String, String)> {
-    let typed = typed.trim();
-    let (country, rest) = match typed.strip_prefix('+') {
-        Some(rest) => {
-            let split = rest.find(|c: char| !c.is_ascii_digit())?;
-            (rest[..split].to_string(), &rest[split..])
-        }
-        None => ("86".to_string(), typed),
-    };
-    let digits: String = rest.chars().filter(char::is_ascii_digit).collect();
-    let usable = !country.is_empty() && digits.len() >= 5 && rest.chars().all(|c| c.is_ascii_digit() || " -".contains(c));
-    usable.then_some((country, digits))
-}
-
-/// Why a request failed, after `fallback`; for a sign-in NetEase wants
-/// verified first, the ways that need none.
-fn failure(error: &NcmError, fallback: &str) -> String {
-    let said = match error {
-        NcmError::Api { msg, .. } | NcmError::InvalidParam(msg) | NcmError::RateLimited(msg) | NcmError::AuthRequired(msg) => msg.clone(),
-        NcmError::Http(_) | NcmError::Timeout(_) => "连不上网易云".to_string(),
-        other => other.to_string(),
-    };
-    if said.contains("验证") && !said.contains("验证码错误") {
-        return format!("{fallback}：网易云要先验证身份，改用短信验证码或扫码登录");
-    }
-    format!("{fallback}：{said}")
-}
-
 /// What NetEase said when it refused, or `fallback`.
 fn refusal(body: &Value, fallback: &str) -> String {
     body["message"]
@@ -3196,6 +3068,88 @@ fn shown_lines(lines: &[lyrics::Line]) -> Vec<LyricLine> {
 /// `songs` numbered as a list of their own.
 /// The account's playlists apart: the songs it likes, the lists it made and
 /// those it saved from others.
+/// The playlist `id` and the ids of its songs. `playlist_detail` sends the
+/// first thousand songs too, which take most of its time.
+async fn outline(client: &ApiClient, id: i64) -> Result<Value, NcmError> {
+    let option = RequestOption { crypto: CryptoType::Eapi, ..Default::default() };
+    let r = client.request("/api/v6/playlist/detail", json!({ "id": param(id), "n": 0, "s": 8 }), option).await?;
+    Ok(r.body["playlist"].clone())
+}
+
+/// The songs of the playlist `info`, in its order, with when each went in.
+async fn songs_in(client: &ApiClient, info: &Value) -> Result<Vec<Song>, NcmError> {
+    // A page of 250 comes back in half the time of a thousand, and a few
+    // go at once.
+    const PAGE: usize = 250;
+    const AT_ONCE: usize = 6;
+    let listed: Vec<(i64, i64)> = info["trackIds"]
+        .as_array()
+        .map(|ids| ids.iter().filter_map(|one| Some((one["id"].as_i64()?, one["at"].as_i64().unwrap_or(0)))).collect())
+        .unwrap_or_default();
+    let ids: Vec<i64> = listed.iter().map(|(id, _)| *id).collect();
+    let mut found = HashMap::new();
+    let mut privileges = HashMap::new();
+    let mut failure = None;
+    for pages in ids.chunks(PAGE * AT_ONCE) {
+        let asked: Vec<_> = pages
+            .chunks(PAGE)
+            .map(|page| {
+                let ids = page.iter().map(i64::to_string).collect::<Vec<_>>().join(",");
+                let client = client.clone();
+                tokio::spawn(async move { client.song_detail(&Query::new().param("ids", &ids)).await })
+            })
+            .collect();
+        for answer in asked {
+            match answer.await {
+                Ok(Ok(r)) => {
+                    for (into, key) in [(&mut found, "songs"), (&mut privileges, "privileges")] {
+                        for one in r.body[key].as_array().into_iter().flatten() {
+                            if let Some(id) = one["id"].as_i64() {
+                                into.insert(id, one.clone());
+                            }
+                        }
+                    }
+                }
+                Ok(Err(e)) => failure = Some(e),
+                Err(_) => {}
+            }
+        }
+    }
+    if let Some(e) = failure.filter(|_| found.is_empty()) {
+        return Err(e);
+    }
+    let songs = listed
+        .iter()
+        .filter_map(|(id, at)| Some((found.get(id)?, privileges.get(id), *at)))
+        .enumerate()
+        .map(|(i, (one, privilege, at))| Song { added: at, ..convert::song(one, i, privilege) })
+        .collect();
+    Ok(songs)
+}
+
+/// The open playlist `id` showing `info` and its `songs`.
+fn show_opened(s: &mut State, id: i64, info: &Value, mut songs: Vec<Song>, uid: i64) {
+    s.opened = Some(convert::playlist(info));
+    s.opened_description = info["description"].as_str().unwrap_or("").trim().to_string();
+    s.opened_owner = info["creator"]["nickname"].as_str().unwrap_or("").to_string();
+    s.opened_owner_avatar = convert::cover(info["creator"]["avatarUrl"].as_str().unwrap_or(""), 64);
+    s.opened_meta = convert::playlist_meta(info);
+    s.opened_owned = uid != 0 && info["creator"]["userId"].as_i64() == Some(uid);
+    enji_kit::dress_all(&mut songs);
+    arrange(&mut songs, &s.order);
+    s.opened_songs = songs;
+    s.opened_is_default = s.default_playlist == id;
+    s.opened_loading = false;
+}
+
+/// What is downloading as the lists show it, and how far the playing song is.
+fn downloads_changed(s: &mut State) {
+    s.has_downloads = !s.downloads.is_empty();
+    let current = s.downloads.iter().find(|download| download.id == s.current_id);
+    s.current_downloading = current.is_some();
+    s.current_download = current.map_or(0.0, |download| download.progress);
+}
+
 fn sort_playlists(s: &mut State) {
     s.liked_list = s.mine.iter().find(|list| list.liked && list.owned).cloned();
     s.created = s.mine.iter().filter(|list| list.owned && !list.liked).cloned().collect();
@@ -3229,7 +3183,7 @@ fn arrange(songs: &mut [Song], order: &SongOrder) {
 
 #[cfg(test)]
 mod tests {
-    use super::{SongOrder, arrange, phone_number};
+    use super::{SongOrder, arrange};
     use bern::media::MediaSource;
     use enji_protocol::enji::Song;
 
@@ -3276,17 +3230,5 @@ mod tests {
         arrange(&mut songs, &SongOrder::Default);
         assert_eq!(names(&songs), ["b", "A", "c"]);
         assert_eq!(songs[2].rank, 3);
-    }
-
-    #[test]
-    fn phone_numbers_carry_their_country() {
-        let pair = |a: &str, b: &str| Some((a.to_string(), b.to_string()));
-        assert_eq!(phone_number("13800000000"), pair("86", "13800000000"));
-        assert_eq!(phone_number(" 138 0000-0000 "), pair("86", "13800000000"));
-        assert_eq!(phone_number("+852 6123 4567"), pair("852", "61234567"));
-        assert_eq!(phone_number("+1-4155550100"), pair("1", "4155550100"));
-        assert_eq!(phone_number("+8613800000000"), None);
-        assert_eq!(phone_number("abc"), None);
-        assert_eq!(phone_number("1234"), None);
     }
 }

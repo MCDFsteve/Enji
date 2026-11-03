@@ -228,13 +228,14 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
             if let Some(song) = app.matching {
                 match_dialog(app: app, song: song)
             }
+            // On a phone, over the small player and the tabs.
             if app.has_notice {
-                Column(padding: 24) {
+                Column(padding_x: 24, padding_y: if window.compact { 124 } else { 24 }) {
                     Toast(content: app.notice, icon: "checkmark.circle.fill", key: app.notice_key)
                 }
             }
             if app.has_error {
-                Column(padding: 24) {
+                Column(padding_x: 24, padding_y: if window.compact { 124 } else { 24 }) {
                     Toast(content: app.error, key: app.error_key)
                 }
             }

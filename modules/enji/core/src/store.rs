@@ -107,3 +107,12 @@ pub fn qr_png(text: &str, serial: u64) -> Result<PathBuf, String> {
     writer.write_image_data(&pixels).map_err(|e| e.to_string())?;
     Ok(path)
 }
+
+/// The sign-in QR code made last, while there is one.
+pub fn qr_file() -> Option<PathBuf> {
+    fs::read_dir(dir())
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| path.file_name().is_some_and(|name| name.to_string_lossy().starts_with("qr-")))
+}

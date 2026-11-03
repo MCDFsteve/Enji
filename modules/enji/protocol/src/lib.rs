@@ -323,20 +323,8 @@ pub mod enji {
         Scanned,
         #[label(tr! { "zh-Hans" => "二维码已失效", "en" => "Code expired" })]
         Expired,
-        #[label(tr! { "zh-Hans" => "输入账号", "en" => "Entering the account" })]
-        Form,
         #[label(tr! { "zh-Hans" => "已登录", "en" => "Signed in" })]
         In,
-    }
-
-    #[value]
-    pub enum SignInWay {
-        #[label(tr! { "zh-Hans" => "扫码", "en" => "QR Code" })]
-        Code,
-        #[label(tr! { "zh-Hans" => "手机号", "en" => "Phone" })]
-        Phone,
-        #[label(tr! { "zh-Hans" => "邮箱", "en" => "Email" })]
-        Email,
     }
 
     #[state]
@@ -351,14 +339,13 @@ pub mod enji {
         #[content]
         pub scanner: String,
         pub scanner_avatar: MediaSource,
-        /// How the account signs in; while it does, whether a request is on
-        /// its way, what NetEase refused, and the seconds before another
-        /// text message can be sent.
-        pub sign_in_way: SignInWay,
-        pub signing: bool,
+        /// The code can be saved to this phone's photos, for the NetEase
+        /// app on it to scan from the album; whether this one was, and why
+        /// it was not.
+        pub saves_code: bool,
+        pub code_saved: bool,
         #[content]
-        pub sign_in_error: String,
-        pub sms_wait: i64,
+        pub save_error: String,
 
         /// The account's own and saved playlists.
         pub mine: Vec<Playlist>,
@@ -478,6 +465,9 @@ pub mod enji {
         /// The songs being downloaded, the first started first.
         pub downloads: Vec<Download>,
         pub has_downloads: bool,
+        /// The playing song is downloading, and how far it is, from 0 to 1.
+        pub current_downloading: bool,
+        pub current_download: f64,
         /// How the playing song is encoded, such as `FLAC · 921 kbps · 44.1
         /// kHz · 16 bit`; empty until it is known.
         #[content]
@@ -568,14 +558,9 @@ pub mod enji {
         /// Show a QR code to sign in with the NetEase Cloud Music app.
         fn sign_in(&mut self) -> Result<(), CommandError>;
         fn cancel_sign_in(&mut self) -> Result<(), CommandError>;
-        /// Sign in with a QR code, a phone number or an email address.
-        fn set_sign_in_way(&mut self, way: SignInWay) -> Result<(), CommandError>;
-        /// Text a sign-in code to the phone, as "13800000000" or, outside
-        /// mainland China, "+852 61234567".
-        fn send_sms_code(&mut self, phone: String) -> Result<(), CommandError>;
-        fn sign_in_by_sms(&mut self, phone: String, code: String) -> Result<(), CommandError>;
-        fn sign_in_by_password(&mut self, phone: String, password: String) -> Result<(), CommandError>;
-        fn sign_in_by_email(&mut self, email: String, password: String) -> Result<(), CommandError>;
+        /// Save the sign-in QR code to this phone's photos, for the NetEase
+        /// app on it to scan from the album.
+        fn save_sign_in_code(&mut self) -> Result<(), CommandError>;
         /// Forget the account on this computer.
         fn sign_out(&mut self) -> Result<(), CommandError>;
         /// Open a playlist in the main area and load its songs.

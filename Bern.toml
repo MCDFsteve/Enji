@@ -13,6 +13,9 @@ files_folder = true
 background_audio = true
 # Desktop lyrics float over other apps (Android asks the user to allow it).
 overlays = true
+# A phone saves the sign-in QR code to its photos, for the NetEase app on it
+# to scan from the album (iOS asks the user to allow it).
+photos = true
 
 # The equalizer (Fluent's device eq, MIT) in the accent: on macOS and iOS a
 # Liquid Glass icon, white and black in the dark appearance; on Windows and

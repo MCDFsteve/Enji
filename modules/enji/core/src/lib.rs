@@ -14,8 +14,8 @@ mod store;
 
 use bern::{media::MediaSource, CommandError};
 use enji_kit::{convert, plays};
-use enji_protocol::enji::{self, Appearance, Login, Panel, Playlist, Quality, SignInWay, Song, SongOrder, Source, State};
-use net::{Credentials, Job};
+use enji_protocol::enji::{self, Appearance, Login, Panel, Playlist, Quality, Song, SongOrder, Source, State};
+use net::Job;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -90,20 +90,8 @@ impl enji::Commands for EnjiEngine {
     fn cancel_sign_in(&mut self) -> Result<(), CommandError> {
         self.submit(Job::CancelSignIn)
     }
-    fn set_sign_in_way(&mut self, way: SignInWay) -> Result<(), CommandError> {
-        self.submit(Job::SetSignInWay(way))
-    }
-    fn send_sms_code(&mut self, phone: String) -> Result<(), CommandError> {
-        self.submit(Job::SendSmsCode(phone))
-    }
-    fn sign_in_by_sms(&mut self, phone: String, code: String) -> Result<(), CommandError> {
-        self.submit(Job::SignInWith(Credentials::Sms { phone, code }))
-    }
-    fn sign_in_by_password(&mut self, phone: String, password: String) -> Result<(), CommandError> {
-        self.submit(Job::SignInWith(Credentials::Password { phone, password }))
-    }
-    fn sign_in_by_email(&mut self, email: String, password: String) -> Result<(), CommandError> {
-        self.submit(Job::SignInWith(Credentials::Email { email, password }))
+    fn save_sign_in_code(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::SaveCode)
     }
     fn sign_out(&mut self) -> Result<(), CommandError> {
         self.submit(Job::SignOut)
