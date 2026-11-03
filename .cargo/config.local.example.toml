@@ -1,0 +1,11 @@
+# Copy to .cargo/config.toml to build Enji against the Bern checkout beside
+# it (../Bern). Cargo resolves these paths from Enji's root; config.toml is
+# ignored by git, and so are the changes it makes to Cargo.lock: commit the
+# lock file only as a checkout without config.toml leaves it.
+
+[patch.crates-io]
+# `bern build` sees Cargo take `bern` from this checkout and has the
+# generated hosts take every other Bern crate from there too. The `bern`
+# command should come from it as well: `cargo install --path crates/bern-cli`.
+bern = { path = "../Bern/crates/bern" }
+bern-script = { path = "../Bern/crates/bern-script" }

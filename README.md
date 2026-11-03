@@ -154,6 +154,8 @@ bern run
 
 `bern run` 构建并打开这台电脑上的版本；`bern build --target <平台> --release` 构建某个平台（`macos`、`ios`、`windows`、`linux`、`android`），`bern package` 生成安装包。`bern doctor` 会列出这台电脑构建各平台还缺什么，各平台需要的工具见 [Bern 的说明](https://github.com/AimesSoft/Bern#quick-start)。
 
+同时修改 Bern 时，把 Bern 放在 Enji 旁边（`../Bern`），再把 `.cargo/config.local.example.toml` 复制成 `.cargo/config.toml`，Enji 就会用这份 Bern 源码；`bern` 也从它安装：在 Bern 目录里运行 `cargo install --path crates/bern-cli`。
+
 ## 现状
 
 macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。

@@ -154,6 +154,8 @@ bern run
 
 `bern run` builds and opens the version for this computer; `bern build --target <platform> --release` builds one platform (`macos`, `ios`, `windows`, `linux`, `android`), and `bern package` makes the installers. `bern doctor` lists what this computer still needs for each platform; see [Bern's guide](https://github.com/AimesSoft/Bern#quick-start) for the tools each one takes.
 
+To work on Bern at the same time, put it beside Enji (`../Bern`) and copy `.cargo/config.local.example.toml` to `.cargo/config.toml`: Enji then builds with that Bern source. Install `bern` from it too, with `cargo install --path crates/bern-cli` in the Bern directory.
+
 ## Status
 
 Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo simulator and the Android emulator.
