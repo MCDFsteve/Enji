@@ -1,3 +1,9 @@
+## 0.2.2 修正
+
+- **Windows：歌单打开后马上显示歌曲。** 以前歌曲列表常常是空白的，要拉一下窗口或刷新几次才出来。
+- **Windows：提示不再反复弹出。** 比如装好插件后，“已安装插件”的提示在播放时每隔几秒又出现一次。
+- **Android：返回键不再直接回到桌面。** 播放页按返回会收起播放页，歌单、专辑和歌手页按返回会回到上一页。
+
 ## 0.2.1 修正与改进
 
 - **去掉播放时的低沉噪音**：歌曲的采样率和设备不同时（例如 48 kHz 的歌在 Mac 扬声器上、或大多数歌在 iPhone 上），每一小段音频的接缝处都有一下爆音，连起来是一种低沉的嗡嗡声，有时左右声道还会错位。
@@ -36,6 +42,12 @@
 Linux 版在 Ubuntu 24.04 虚拟机（ARM64）里实际用过；这里发布的是 x64 版。
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
+
+## What's fixed in 0.2.2
+
+- **Windows: a playlist shows its songs as soon as it opens.** The list was often blank until the window was resized or the playlist opened again.
+- **Windows: notices no longer keep coming back.** After installing a plugin, for one, its notice showed again every few seconds during playback.
+- **Android: Back no longer leaves the app from the playing page.** It closes the playing page, and goes back from a playlist, album or singer.
 
 ## What's new in 0.2.1
 
