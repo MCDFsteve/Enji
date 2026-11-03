@@ -95,7 +95,8 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: cargo binstall --no-confirm --targets "$(rustc -vV | sed -n 's/^host: //p')" bern-cli@0.1.0
+        run: |
+          cargo binstall --no-confirm --targets "$(rustc -vV | sed -n 's/^host: //p')" bern-cli@0.1.0
 
       - name: Package
         if: runner.os != 'Windows'
