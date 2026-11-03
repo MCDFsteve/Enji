@@ -271,8 +271,12 @@ impl Iterator for Decoded {
 }
 
 impl Source for Decoded {
+    /// One span to the end: a song keeps its rate and channels. rodio
+    /// starts its resampler afresh at each span, so a span per packet put a
+    /// click at every packet, tens a second, heard as a low buzz, and after
+    /// the one-sample span between packets swapped left and right.
     fn current_frame_len(&self) -> Option<usize> {
-        Some(self.samples.len().saturating_sub(self.at).max(1))
+        None
     }
     fn channels(&self) -> u16 {
         self.channels
@@ -434,3 +438,52 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{Decoded, Stream};
+    use rodio::source::UniformSourceIterator;
+
+    /// Two seconds of a 440 Hz tone at 44.1 kHz as a WAV, the right channel
+    /// half as loud as the left.
+    fn tone() -> Vec<u8> {
+        let frames = 88_200u32;
+        let mut wav = Vec::new();
+        let mut put = |bytes: &[u8]| wav.extend_from_slice(bytes);
+        put(b"RIFF");
+        put(&(36 + frames * 4).to_le_bytes());
+        put(b"WAVEfmt ");
+        put(&16u32.to_le_bytes());
+        put(&1u16.to_le_bytes());
+        put(&2u16.to_le_bytes());
+        put(&44_100u32.to_le_bytes());
+        put(&(44_100u32 * 4).to_le_bytes());
+        put(&4u16.to_le_bytes());
+        put(&16u16.to_le_bytes());
+        put(b"data");
+        put(&(frames * 4).to_le_bytes());
+        for i in 0..frames {
+            let left = (i as f32 / 44_100.0 * 440.0 * std::f32::consts::TAU).sin() * 16_000.0;
+            put(&(left as i16).to_le_bytes());
+            put(&((left / 2.0) as i16).to_le_bytes());
+        }
+        wav
+    }
+
+    #[test]
+    fn a_resampled_song_keeps_its_channels_and_has_no_clicks() {
+        let wav = tone();
+        let stream = Stream::new(Some(wav.len() as u64));
+        stream.push(&wav);
+        stream.finish();
+        let decoded = Decoded::open(&stream).expect("a WAV decodes");
+        let mut out = Vec::new();
+        for sample in UniformSourceIterator::<_, f32>::new(decoded, 2, 48_000) {
+            out.push(sample);
+        }
+        let left: Vec<f32> = out.chunks_exact(2).map(|frame| frame[0]).collect();
+        let swapped = out.chunks_exact(2).filter(|frame| (frame[1] - frame[0] / 2.0).abs() > 0.01).count();
+        let clicks = left.windows(3).filter(|w| (w[2] - 2.0 * w[1] + w[0]).abs() > 0.02).count();
+        assert!(left.len() > 90_000, "{} frames", left.len());
+        assert_eq!((swapped, clicks), (0, 0));
+    }
+}
