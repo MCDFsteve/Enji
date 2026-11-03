@@ -644,20 +644,30 @@ pub fn artist_card(app: enji::Client, artist: enji::Artist) -> impl View {
 #[component]
 pub fn detail_view(app: enji::Client) -> impl View {
     ui! {
+        // On a phone, Android's Back goes back from each, as its button does.
         match app.detail {
             Detail::Album => {
                 if let Some(album) = app.album {
                     album_page(app: app, album: album)
+                }
+                if window.compact {
+                    Shortcut(key: "escape") => app.back()
                 }
             }
             Detail::Artist => {
                 if let Some(artist) = app.artist {
                     artist_page(app: app, artist: artist)
                 }
+                if window.compact {
+                    Shortcut(key: "escape") => app.back()
+                }
             }
             Detail::Playlist => {
                 if let Some(list) = app.opened {
                     playlist_page(app: app, list: list)
+                }
+                if window.compact {
+                    Shortcut(key: "escape") => app.back()
                 }
             }
             Detail::Page => {}
@@ -1458,6 +1468,8 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                 }
                 Watch(value: app.scroll_tick) => draft.line.set(app.scroll_to)
             }
+            // Android's Back closes it, as the button at its top does.
+            Shortcut(key: "escape") => draft.now.set(false)
         }
     }
 }
