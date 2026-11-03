@@ -1,3 +1,12 @@
+## 0.2.1 修正与改进
+
+- **去掉播放时的低沉噪音**：歌曲的采样率和设备不同时（例如 48 kHz 的歌在 Mac 扬声器上、或大多数歌在 iPhone 上），每一小段音频的接缝处都有一下爆音，连起来是一种低沉的嗡嗡声，有时左右声道还会错位。
+- **歌单打开快得多**：一千多首的歌单第一次打开从约 4 秒缩短到 1 秒以内，再次打开立即显示。
+- **登录只保留扫码**：手机上可以把二维码存到相册，再在网易云音乐 App 里扫一扫、从相册选这张图。原来的手机号和邮箱登录常被网易云要求额外验证而失败。
+- **下载有反馈**：点下载会提示开始下载；播放页的下载按钮上有一圈进度，下载完成后按钮自动消失。
+- **手机上的播放页**：从底部升起时不再露出一条，收起时不再在底部停留；歌单页的按钮排成两行，不再挤在一起；播放列表显示每首歌的封面。
+- **提示**：同一时间只显示一条，手机上显示在迷你播放器上方，不再被标签栏挡住。
+
 ## 0.2.0 新增
 
 - **下载**：把歌连同歌词和封面存到本机，下载过的歌在列表里都有标记。
@@ -27,6 +36,15 @@
 Linux 版在 Ubuntu 24.04 虚拟机（ARM64）里实际用过；这里发布的是 x64 版。
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
+
+## What's new in 0.2.1
+
+- **No more low buzz** while playing: when a song's sample rate differs from the device's (a 48 kHz song on Mac speakers, or most songs on an iPhone), every short piece of audio clicked at its seam, together a low buzz, and the left and right channels could swap.
+- **Playlists open much faster**: a playlist of over a thousand songs first opens in under a second instead of about four, and at once after that.
+- **Sign in with a QR code only**: on a phone, save the code to your photos, then scan it from the album in the NetEase Cloud Music app. Signing in with a phone number or an email address often failed when NetEase asked for more verification.
+- **Downloads show what they are doing**: a notice when one starts, and a ring of progress on the playing page's download button, which goes away once the song is downloaded.
+- **The playing page on a phone** no longer leaves a strip at the bottom when it rises or lingers when it sinks; a playlist's buttons sit in two rows instead of crowding one; the queue shows each song's cover.
+- **Notices** show one at a time, above the mini player on a phone instead of under the tab bar.
 
 ## What's new in 0.2.0
 
