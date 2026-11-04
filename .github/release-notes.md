@@ -9,6 +9,7 @@
 ## 0.3.2 修正
 
 - **Android：** 在播放页点空白处不再点到下面的页面。
+- **Android 平板：** 底部的播放条和音量正常显示，能打开播放页；播放页不再压到状态栏和任务栏，收起按钮也回来了。
 - **iPad：** 播放页的收起按钮不再压在状态栏的图标上。
 - **Linux：** `.deb` 的文件名和其他安装包统一。
 
@@ -62,7 +63,7 @@
 | 系统 | 文件 |
 | --- | --- |
 | macOS（Apple 芯片） | `-macos-arm64.dmg` |
-| macOS（Intel） | `-macos-x64.dmg` |
+| macOS（Intel） | `-macos-x86_64.dmg` |
 | iPhone / iPad（iOS 17 及以上） | `-ios.ipa` |
 | Apple TV（tvOS 18 及以上） | `-tvos.ipa` |
 | Windows（x64） | `-windows-x64-setup.exe` 安装版，或 `.zip` 免安装版 |
@@ -91,6 +92,7 @@ Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公
 ## What's fixed in 0.3.2
 
 - **Android**: a press on a blank part of the playing page no longer reaches the page under it.
+- **Android tablets**: the player bar and the volume show at the bottom, so the playing page can be opened, and it no longer runs under the status bar and the taskbar. Its close button is back too.
 - **iPad**: the playing page's close button no longer sits on the status bar's icons.
 - **Linux**: the `.deb` is named like the other packages.
 
@@ -141,6 +143,6 @@ Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公
 
 ## Download
 
-macOS: `-macos-arm64.dmg` for Apple silicon, `-macos-x64.dmg` for Intel, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. iPhone / iPad (iOS 17+): `-ios.ipa`. Apple TV (tvOS 18+): `-tvos.ipa`. Neither is signed for distribution; install them with AltStore, Sideloadly or a similar tool, which signs them with your Apple ID. Windows: `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip`, unsigned. Android 8.0+: `-android-arm64-v8a.apk` for most phones, tablets and TVs, `-android-armeabi-v7a.apk` for very old 32-bit devices, `-android-x86_64.apk` for emulators and x86 devices. Linux (Ubuntu 24.04 or newer): `-linux-x64` or `-linux-arm64`, as `.deb` or `.tar.gz`.
+macOS: `-macos-arm64.dmg` for Apple silicon, `-macos-x86_64.dmg` for Intel, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. iPhone / iPad (iOS 17+): `-ios.ipa`. Apple TV (tvOS 18+): `-tvos.ipa`. Neither is signed for distribution; install them with AltStore, Sideloadly or a similar tool, which signs them with your Apple ID. Windows: `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip`, unsigned. Android 8.0+: `-android-arm64-v8a.apk` for most phones, tablets and TVs, `-android-armeabi-v7a.apk` for very old 32-bit devices, `-android-x86_64.apk` for emulators and x86 devices. Linux (Ubuntu 24.04 or newer): `-linux-x64` or `-linux-arm64`, as `.deb` or `.tar.gz`.
 
 Enji is an unofficial, third-party NetEase Cloud Music client, not affiliated with NetEase, for learning and technical exchange only.

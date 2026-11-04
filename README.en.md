@@ -126,7 +126,7 @@ Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest):
 
 | System | File |
 | --- | --- |
-| macOS | `-macos-arm64.dmg` for Apple silicon, `-macos-x64.dmg` for Intel |
+| macOS | `-macos-arm64.dmg` for Apple silicon, `-macos-x86_64.dmg` for Intel |
 | iPhone / iPad | `-ios.ipa` |
 | Apple TV | `-tvos.ipa` |
 | Windows | `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip` |
@@ -189,7 +189,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```sh
-cargo binstall bern-cli@0.1.3
+cargo binstall bern-cli@0.1.4
 ```
 
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) downloads `bern` ready-built; `cargo install --locked bern-cli@0.1.2` compiles it instead.
@@ -208,9 +208,11 @@ To work on Bern at the same time, put it beside Enji (`../Bern`) and copy `.carg
 
 ## Status
 
-Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo simulator and the Android emulator.
+Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo and iPad simulators, Android phone and tablet emulators, and the Apple TV and Android TV emulators.
 
-The system's media controls have been tried on macOS, the iPhone simulator, the Android emulator and Ubuntu, and desktop lyrics on macOS and Android. Both are still untried on Windows, as are desktop lyrics on Linux.
+The system's media controls have been tried on macOS, the iPhone simulator, the Android emulator and Ubuntu, and desktop lyrics on macOS, Windows and Android. The media controls are still untried on Windows, as are desktop lyrics on Linux.
+
+USB exclusive output has not been tried with a real USB DAC yet, and word-by-word lyrics on Linux have only been compiled.
 
 ## Disclaimer
 

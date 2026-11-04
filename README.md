@@ -126,7 +126,7 @@
 
 | 系统 | 文件 |
 | --- | --- |
-| macOS | Apple 芯片用 `-macos-arm64.dmg`，Intel 用 `-macos-x64.dmg` |
+| macOS | Apple 芯片用 `-macos-arm64.dmg`，Intel 用 `-macos-x86_64.dmg` |
 | iPhone / iPad | `-ios.ipa` |
 | Apple TV | `-tvos.ipa` |
 | Windows | `-windows-x64-setup.exe` 或 `-windows-arm64-setup.exe`，也有免安装的 `.zip` |
@@ -189,7 +189,7 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```sh
-cargo binstall bern-cli@0.1.3
+cargo binstall bern-cli@0.1.4
 ```
 
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 会下载编译好的 `bern`；也可以用 `cargo install --locked bern-cli@0.1.2` 自己编译。
@@ -208,9 +208,11 @@ bern run
 
 ## 现状
 
-macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 模拟器、Android 模拟器上实际用过浏览、搜索、播放和歌词。
+macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 和 iPad 模拟器、Android 手机和平板模拟器、Apple TV 和 Android TV 模拟器上实际用过浏览、搜索、播放和歌词。
 
-系统的播放控件在 macOS、iPhone 模拟器、Android 模拟器和 Ubuntu 上试过，桌面歌词在 macOS 和 Android 上试过；Windows 上的这两样，以及 Linux 的桌面歌词，还没有实际试过。
+系统的播放控件在 macOS、iPhone 模拟器、Android 模拟器和 Ubuntu 上试过，桌面歌词在 macOS、Windows 和 Android 上试过；Windows 上的播放控件和 Linux 的桌面歌词还没有实际试过。
+
+USB 独占输出还没有接真的 USB 解码器试过；Linux 版的逐字歌词只通过了编译。
 
 ## 免责声明
 
