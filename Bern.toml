@@ -3,7 +3,7 @@
 [app]
 id = "enji"
 bundle_id = "com.mcdfsteve.enji"
-version = "0.2.2"
+version = "0.3.0"
 name = { "zh-Hans" = "Enji Music", "en" = "Enji Music" }
 # On iPhone the app's folder shows in the Files app: music put there is the
 # local library.
@@ -29,7 +29,7 @@ windows = "assets/icon/enji.ico"
 linux = "assets/icon/hicolor"
 
 [resources]
-paths = ["assets/mark.png", "assets/cover-place.png"]
+paths = ["assets/mark.png", "assets/cover-place.png", "assets/tray.svg"]
 
 [languages]
 supported = ["zh-Hans", "en"]
@@ -79,6 +79,10 @@ channels = ["ipc"]
 
 [targets.ios]
 platform = "ios"
+channels = ["ipc"]
+
+[targets.tvos]
+platform = "tvos"
 channels = ["ipc"]
 
 [targets.android]
