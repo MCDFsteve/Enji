@@ -1,4 +1,4 @@
-## 0.3.0 新增
+## 0.3.1 新增
 
 - **电视**：Android TV 上用遥控器操作，左侧是导航栏，用手机扫码登录，直接装 `.apk`。Apple TV 版已经适配，但这一版还没有安装包。
 - **一起听**：在设置里打开后，用网易云的房间和朋友一起听，切歌、暂停、拖进度都会同步。
@@ -11,7 +11,7 @@
 - **手机横屏**：导航移到左侧，播放页左右分栏。
 - **Android 上的播放**：来电或其他 App 开始放音乐时会暂停，拔耳机也会暂停。
 
-## 0.3.0 改进与修正
+## 0.3.1 改进与修正
 
 - **封面律动**：新版插件按真实的节拍跳动，不再动一会儿就停。到插件商店更新到 1.1.0。
 - **插件**：改成弹窗显示，不再挤压设置页。
@@ -65,7 +65,7 @@ Linux 版在 Ubuntu 24.04 虚拟机（ARM64）里实际用过；这里发布的�
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
 
-## What's new in 0.3.0
+## What's new in 0.3.1
 
 - **TV**: Android TV with the remote, a rail of pages down the side and sign-in with your phone, from the same `.apk`. Apple TV is supported too, but this version has no package for it.
 - **Listen Together**: once on in Settings, listen with a friend in NetEase's rooms: skipping, pausing and seeking stay in step.
@@ -78,7 +78,7 @@ Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公
 - **Phones held sideways**: the pages move to a rail at the side, and the playing page splits in two.
 - **Playing on Android**: music pauses for a call or another app, and when headphones come out.
 
-## What's better and fixed in 0.3.0
+## What's better and fixed in 0.3.1
 
 - **Cover Pulse**: the new plugin follows the real beat and no longer stops after a while. Update it to 1.1.0 in the plugin market.
 - **Plugins** open in a dialog and no longer squeeze the settings.

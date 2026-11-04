@@ -37,14 +37,15 @@ jobs:
           workspaces: . -> target
 
       # The Bern CLI keeps credentials in the Secret Service over D-Bus;
-      # the Linux app also needs GTK, libadwaita and ALSA.
+      # the Linux app also needs GTK, libadwaita, WebKit for the annual
+      # report and ALSA.
       - name: Linux libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev libasound2-dev pkg-config
           if [ "${{ matrix.target }}" = linux ]; then
-            sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+            sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev
           fi
 
       # The simulator build, then the device build the .ipa holds.
