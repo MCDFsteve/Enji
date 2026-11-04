@@ -98,10 +98,13 @@ style! {
     // The playing page's close button, at the top trailing corner. On iOS
     // the status bar is there over the page, across the top of an iPad and
     // down the trailing edge of the unfolded iPhone Duo: the button stands
-    // left of its icons.
+    // left of its icons, the battery's percentage among them. On an Android
+    // tablet it stands below them.
     Row.close_now { padding_x: 24, padding_y: 18 }
     #[target(ios)]
-    Row.close_now { padding_x: 100, padding_y: 18 }
+    Row.close_now { padding_x: 130, padding_y: 18 }
+    #[target(android)]
+    Row.close_now { padding_x: 24, padding_y: 44 }
 
     // The settings' cards, and the cover's place while nothing plays.
     Stack.card {
@@ -282,6 +285,9 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
                     Toast(content: app.error, key: app.error_key)
                 }
             }
+            // Roaming that started with the app plays on the playing page. A
+            // watch also runs once as it appears, before that has happened.
+            Watch(value: app.fm_opened) => draft.now.set(app.fm_opened > 0)
             // A page chosen in the sidebar shows instead of an open playlist;
             // the account's page opens its own playlist, if it has one.
             Watch(value: nav.page) => app.page_changed(nav.page == Page::Library)

@@ -17,6 +17,9 @@ mod store;
 mod together;
 #[cfg(target_os = "tvos")]
 mod tv_audio;
+#[cfg(any(target_os = "android", test))]
+#[cfg_attr(test, allow(dead_code))]
+mod usb_audio;
 
 use bern::{media::MediaSource, CommandError};
 use enji_kit::{convert, plays};
@@ -255,6 +258,18 @@ impl enji::Commands for EnjiEngine {
     fn set_report_listening(&mut self, on: bool) -> Result<(), CommandError> {
         self.submit(Job::SetReportListening(on))
     }
+    fn set_usb_exclusive(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetUsbExclusive(on))
+    }
+    fn play_fm(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::PlayFm)
+    }
+    fn fm_dislike(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::FmDislike)
+    }
+    fn set_fm_on_start(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetFmOnStart(on))
+    }
     fn set_together(&mut self, on: bool) -> Result<(), CommandError> {
         self.submit(Job::SetTogether(on))
     }
@@ -338,6 +353,9 @@ impl enji::Commands for EnjiEngine {
     }
     fn import_plugin(&mut self, file: MediaSource) -> Result<(), CommandError> {
         self.submit(Job::ImportPlugin(file.url))
+    }
+    fn set_word_lyrics(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetWordLyrics(on))
     }
     fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetCoverLyrics(shown))

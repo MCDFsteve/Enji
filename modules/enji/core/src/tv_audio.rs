@@ -136,7 +136,7 @@ impl Output {
     }
 
     /// A sink playing through this output.
-    pub fn sink(&self) -> Result<Sink, String> {
+    pub fn sink(&mut self, _rate: u32) -> Result<Sink, String> {
         let (sink, queue) = Sink::new_idle();
         self.controller.add(queue);
         Ok(sink)

@@ -28,3 +28,8 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 bern-script = { workspace = true, features = ["boa"] }
 rand = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+# A USB DAC to itself: asked of the system's audio service, through Java.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"

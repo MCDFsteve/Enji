@@ -58,6 +58,37 @@
 
 <p align="center"><a href="docs/screenshots/iphone-duo-inner-now-playing.png"><img src="docs/screenshots/iphone-duo-inner-now-playing.png" width="640" alt="Now playing on the unfolded iPhone Duo: the cover on the left half, lyrics on the right half, the hinge between them"></a><br><sub>iPhone Duo unfolded: the cover and the lyrics on either side of the hinge</sub></p>
 
+<table>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/ipad-charts.png"><img src="docs/screenshots/ipad-charts.png" alt="iPad charts"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/ipad-now-playing.png"><img src="docs/screenshots/ipad-now-playing.png" alt="iPad now playing"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>iPad</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/android-tablet-charts.png"><img src="docs/screenshots/android-tablet-charts.png" alt="Android tablet charts"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/android-tablet-now-playing.png"><img src="docs/screenshots/android-tablet-now-playing.png" alt="Android tablet now playing"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Android tablet</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/apple-tv-charts.png"><img src="docs/screenshots/apple-tv-charts.png" alt="Apple TV charts"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/apple-tv-now-playing.png"><img src="docs/screenshots/apple-tv-now-playing.png" alt="Apple TV now playing"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Apple TV</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/android-tv-charts.png"><img src="docs/screenshots/android-tv-charts.png" alt="Android TV charts"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/android-tv-now-playing.png"><img src="docs/screenshots/android-tv-now-playing.png" alt="Android TV now playing"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Android TV</sub></td>
+</tr>
+</table>
+
 ## Highlights
 
 - **Light.** The macOS `.app` is 13.9 MiB, 7 MiB zipped, and uses 61 MiB of memory sitting on the Charts page.
@@ -69,10 +100,12 @@
 
 - **NetEase Cloud Music**: daily picks, recommended playlists and 60+ charts, with pages for every playlist, album and artist. Without signing in you can still browse charts, search and play free songs.
 - **Sign in** by scanning a QR code with the NetEase Cloud Music app; on a phone, save the code to your photos and pick it from the album in that app. Your sign-in stays on your own device.
+- **Roaming**: signed in, start it from the home page. One song follows another with no end, and Dislike moves on. It can also open when the app starts.
 - **Your playlists**: liked songs, playlists you made or saved; create playlists, add songs to them, like a song.
 - **Search** NetEase and your own music at once, with trending searches and your search history.
-- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. Holding a phone upright, the line being sung also shows under the cover.
+- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. On songs NetEase times word by word, the line lights up as it is sung, in desktop lyrics too. Holding a phone upright, the line being sung also shows under the cover.
 - **Quality**: standard, higher, extreme, lossless or Hi-Res (above 320k needs NetEase VIP).
+- **USB exclusive output**: on Android 14 and later, a USB DAC plays each song at its own sample rate, without the system resampling it. It needs the phone's maker to allow it.
 - **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
 - **Downloads**: keep songs on your device with their lyrics and covers; on a computer they go to Enji in your Music folder. Downloaded songs and your own files are marked in every list.
 - **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification all show what's playing and control it. The music keeps playing when you switch apps or lock the screen.
@@ -89,7 +122,18 @@
 
 ## Download
 
-Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg` for macOS, `.ipa` for iPhone and iPad, `-setup.exe` for Windows, `.apk` for Android, `.deb` for Linux. The macOS, iOS and Windows builds aren't signed by a developer: install the `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time. Android TV takes the same `.apk`; Apple TV has no package yet.
+Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest):
+
+| System | File |
+| --- | --- |
+| macOS | `-macos-arm64.dmg` for Apple silicon, `-macos-x64.dmg` for Intel |
+| iPhone / iPad | `-ios.ipa` |
+| Apple TV | `-tvos.ipa` |
+| Windows | `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip` |
+| Android phones, tablets and TVs | Most take `-android-arm64-v8a.apk`; very old 32-bit devices `-android-armeabi-v7a.apk`; emulators and x86 devices `-android-x86_64.apk` |
+| Linux | `-linux-x64` or `-linux-arm64`, as `.deb` or `.tar.gz` |
+
+The macOS, iOS, tvOS and Windows builds aren't signed by a developer: install an `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time.
 
 ## For AI
 

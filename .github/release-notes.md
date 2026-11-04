@@ -1,3 +1,17 @@
+## 0.3.2 新增
+
+- **逐字歌词**：网易云给了逐字时间的歌，唱到哪个字亮到哪个字，歌词页、封面下的歌词和桌面歌词都一样。可以在设置里关掉。
+- **私人漫游**：登录后首页有入口，歌放完自动接下一首，不想听就点“不喜欢”。设置里可以打开“启动时打开私人漫游”。
+- **USB 独占输出**：Android 14 及以上，插 USB 解码器时按歌曲原本的采样率输出，不经过系统重采样。需要手机厂商开放这项功能。打开后系统音量不再生效，请先调低设备音量。
+- **Apple TV 安装包**：`-tvos.ipa`，没有开发者签名，需要自己签名安装。
+- **更多架构**：Mac 增加 Intel 版，Windows 和 Linux 增加 ARM64 版。Android 按架构拆成三个 `.apk`，下载更小。
+
+## 0.3.2 修正
+
+- **Android：** 在播放页点空白处不再点到下面的页面。
+- **iPad：** 播放页的收起按钮不再压在状态栏的图标上。
+- **Linux：** `.deb` 的文件名和其他安装包统一。
+
 ## 0.3.1 新增
 
 - **电视**：Android TV 上用遥控器操作，左侧是导航栏，用手机扫码登录，直接装 `.apk`。Apple TV 版已经适配，但这一版还没有安装包。
@@ -47,23 +61,38 @@
 
 | 系统 | 文件 |
 | --- | --- |
-| macOS（Apple 芯片） | `.dmg` |
-| iPhone / iPad（iOS 17 及以上） | `.ipa` |
-| Windows（x64） | `-setup.exe` 安装版，或 `.zip` 免安装版 |
-| Android 8.0 及以上 | `.apk` |
-| Linux（Ubuntu 24.04 或更新） | `.deb`，或 `.tar.gz` |
+| macOS（Apple 芯片） | `-macos-arm64.dmg` |
+| macOS（Intel） | `-macos-x64.dmg` |
+| iPhone / iPad（iOS 17 及以上） | `-ios.ipa` |
+| Apple TV（tvOS 18 及以上） | `-tvos.ipa` |
+| Windows（x64） | `-windows-x64-setup.exe` 安装版，或 `.zip` 免安装版 |
+| Windows（ARM64） | `-windows-arm64-setup.exe` 安装版，或 `.zip` 免安装版 |
+| Android 8.0 及以上 | 手机、平板和电视大多用 `-android-arm64-v8a.apk`；很旧的 32 位设备用 `-android-armeabi-v7a.apk`；模拟器和 x86 设备用 `-android-x86_64.apk` |
+| Linux（Ubuntu 24.04 或更新） | `-linux-x64` 或 `-linux-arm64` 的 `.deb`，或 `.tar.gz` |
 
 **macOS**：应用没有经过 Apple 公证，第一次打开会被拦下。到“系统设置 → 隐私与安全性”底部点“仍要打开”即可。
 
-**iPhone / iPad**：`.ipa` 没有开发者签名，用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名后安装。
+**iPhone / iPad / Apple TV**：`.ipa` 没有开发者签名，用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名后安装。
 
 **Windows**：安装包没有代码签名，SmartScreen 提示时点“更多信息 → 仍要运行”。
 
 **Android**：如果装过自己构建的测试版，需要先卸载再安装；之后的版本都能直接覆盖更新。
 
-Linux 版在 Ubuntu 24.04 虚拟机（ARM64）里实际用过；这里发布的是 x64 版。
-
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
+
+## What's new in 0.3.2
+
+- **Word-by-word lyrics**: on songs NetEase times word by word, the line lights up as it is sung, on the lyrics page, under the cover and in desktop lyrics. Settings can turn it off.
+- **Roaming**: signed in, start it from the home page. One song follows another with no end, and Dislike moves on. Settings can open it when the app starts.
+- **USB exclusive output**: on Android 14 and later, a USB DAC plays each song at its own sample rate, without the system resampling it. It needs the phone's maker to allow it. Once on, system volume no longer applies, so turn the device down first.
+- **Apple TV package**: `-tvos.ipa`, not signed for distribution, so sign it yourself to install it.
+- **More architectures**: Intel Macs, and ARM64 for Windows and Linux. Android comes as three smaller `.apk` files, one for each architecture.
+
+## What's fixed in 0.3.2
+
+- **Android**: a press on a blank part of the playing page no longer reaches the page under it.
+- **iPad**: the playing page's close button no longer sits on the status bar's icons.
+- **Linux**: the `.deb` is named like the other packages.
 
 ## What's new in 0.3.1
 
@@ -112,6 +141,6 @@ Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公
 
 ## Download
 
-macOS (Apple silicon): `.dmg`, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. iPhone / iPad (iOS 17+): `.ipa`, not signed for distribution; install it with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID. Windows (x64): `-setup.exe` or the portable `.zip`, unsigned. Android 8.0+: `.apk`. Linux (Ubuntu 24.04 or newer, x64): `.deb` or `.tar.gz`, used in an ARM64 Ubuntu 24.04 virtual machine.
+macOS: `-macos-arm64.dmg` for Apple silicon, `-macos-x64.dmg` for Intel, not notarized; allow it under System Settings → Privacy & Security → Open Anyway. iPhone / iPad (iOS 17+): `-ios.ipa`. Apple TV (tvOS 18+): `-tvos.ipa`. Neither is signed for distribution; install them with AltStore, Sideloadly or a similar tool, which signs them with your Apple ID. Windows: `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip`, unsigned. Android 8.0+: `-android-arm64-v8a.apk` for most phones, tablets and TVs, `-android-armeabi-v7a.apk` for very old 32-bit devices, `-android-x86_64.apk` for emulators and x86 devices. Linux (Ubuntu 24.04 or newer): `-linux-x64` or `-linux-arm64`, as `.deb` or `.tar.gz`.
 
 Enji is an unofficial, third-party NetEase Cloud Music client, not affiliated with NetEase, for learning and technical exchange only.

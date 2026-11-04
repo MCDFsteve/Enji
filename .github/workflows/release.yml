@@ -23,17 +23,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macOS, os: macos-26, target: macos }
-          - { name: iOS, os: macos-26, target: ios }
-          - { name: Windows, os: windows-latest, target: windows }
-          - { name: Android, os: ubuntu-24.04, target: android }
-          - { name: Linux, os: ubuntu-24.04, target: linux }
+          - { name: macOS, os: macos-26, target: macos, key: macos-arm64 }
+          - { name: macOS Intel, os: macos-26-intel, target: macos, key: macos-x64 }
+          - { name: iOS, os: macos-26, target: ios, key: ios }
+          - { name: Apple TV, os: macos-26, target: tvos, key: tvos }
+          - { name: Windows, os: windows-latest, target: windows, key: windows-x64 }
+          - { name: Windows ARM, os: windows-11-arm, target: windows, key: windows-arm64 }
+          - { name: Android, os: ubuntu-24.04, target: android, key: android }
+          - { name: Linux, os: ubuntu-24.04, target: linux, key: linux-x64 }
+          - { name: Linux ARM, os: ubuntu-24.04-arm, target: linux, key: linux-arm64 }
     steps:
       - uses: actions/checkout@v4
 
+      # The ARM images may come without it.
+      - name: Rustup
+        if: runner.arch == 'ARM64' && runner.os != 'macOS'
+        shell: bash
+        run: |
+          if command -v rustup >/dev/null; then
+            exit 0
+          fi
+          if [ "$RUNNER_OS" = Windows ]; then
+            curl --proto '=https' --tlsv1.2 -sSfLo rustup-init.exe https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe
+            ./rustup-init.exe -y --default-toolchain none --profile minimal
+            echo "$USERPROFILE\.cargo\bin" >> "$GITHUB_PATH"
+          else
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: ${{ matrix.key }}
           workspaces: . -> target
 
       # The Bern CLI keeps credentials in the Secret Service over D-Bus;
@@ -53,6 +74,10 @@ jobs:
         if: matrix.target == 'ios'
         run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 
+      - name: Apple TV targets
+        if: matrix.target == 'tvos'
+        run: rustup target add aarch64-apple-tvos aarch64-apple-tvos-sim
+
       - name: Java
         if: matrix.target == 'android'
         uses: actions/setup-java@v4
@@ -71,7 +96,7 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
-          rustup target add aarch64-linux-android
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
       # Without the secret the APK is signed with a debug key, which
       # cannot update an installed release.
@@ -97,7 +122,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          cargo binstall --no-confirm --targets "$(rustc -vV | sed -n 's/^host: //p')" bern-cli@0.1.3
+          cargo binstall --no-confirm --targets "$(rustc -vV | sed -n 's/^host: //p')" bern-cli@0.1.4
 
       - name: Package
         if: runner.os != 'Windows'
@@ -118,7 +143,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: enji-${{ matrix.target }}
+          name: enji-${{ matrix.key }}
           path: target/bern/dist/*
           if-no-files-found: error
 

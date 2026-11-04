@@ -58,6 +58,37 @@
 
 <p align="center"><a href="docs/screenshots/iphone-duo-inner-now-playing.png"><img src="docs/screenshots/iphone-duo-inner-now-playing.png" width="640" alt="iPhone Duo 展开后的内屏播放页：封面在左半屏，歌词在右半屏，中间隔着铰链"></a><br><sub>iPhone Duo 展开：封面和歌词分在铰链两侧</sub></p>
 
+<table>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/ipad-charts.png"><img src="docs/screenshots/ipad-charts.png" alt="iPad 排行榜"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/ipad-now-playing.png"><img src="docs/screenshots/ipad-now-playing.png" alt="iPad 播放页"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>iPad</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/android-tablet-charts.png"><img src="docs/screenshots/android-tablet-charts.png" alt="Android 平板 排行榜"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/android-tablet-now-playing.png"><img src="docs/screenshots/android-tablet-now-playing.png" alt="Android 平板 播放页"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Android 平板</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/apple-tv-charts.png"><img src="docs/screenshots/apple-tv-charts.png" alt="Apple TV 排行榜"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/apple-tv-now-playing.png"><img src="docs/screenshots/apple-tv-now-playing.png" alt="Apple TV 播放页"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Apple TV</sub></td>
+</tr>
+<tr>
+<td width="50%" align="center"><a href="docs/screenshots/android-tv-charts.png"><img src="docs/screenshots/android-tv-charts.png" alt="Android TV 排行榜"></a></td>
+<td width="50%" align="center"><a href="docs/screenshots/android-tv-now-playing.png"><img src="docs/screenshots/android-tv-now-playing.png" alt="Android TV 播放页"></a></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Android TV</sub></td>
+</tr>
+</table>
+
 ## 特色
 
 - **轻。** macOS 版 `.app` 13.9 MiB，压缩后 7 MiB；停在排行榜页时占用 61 MiB 内存。
@@ -69,10 +100,12 @@
 
 - **听网易云**：每日推荐、推荐歌单和 60 多个排行榜，歌单、专辑、歌手都能点进去看。不登录也能看排行榜、搜歌、听免费歌曲。
 - **登录**：用网易云音乐 App 扫码登录；在手机上把二维码存到相册，再在网易云音乐里从相册扫码。登录信息只保存在你自己的设备上。
+- **私人漫游**：登录后从首页打开，歌放完自动接下一首，不想听就点“不喜欢”；也可以设成启动时直接打开。
 - **我的歌单**：我喜欢的音乐、自建和收藏的歌单；可以新建歌单、把歌加进去、给歌点红心。
 - **搜索**：网易云和本机的歌一起搜，有热搜榜和搜索记录。
-- **歌词**：跟着歌逐行滚动，带中文翻译，点一行就跳到那里；也能看歌曲评论。手机竖着拿时，封面下方也显示正在唱的那一行。
+- **歌词**：跟着歌逐行滚动，带中文翻译，点一行就跳到那里；也能看歌曲评论。网易云给了逐字时间的歌，唱到哪个字亮到哪个字，桌面歌词也一样。手机竖着拿时，封面下方也显示正在唱的那一行。
 - **音质**：标准、较高、极高、无损、Hi-Res 可选（320k 以上需要网易云会员）。
+- **USB 独占输出**：Android 14 及以上，插 USB 解码器时按歌曲原本的采样率输出，不经过系统重采样。需要手机厂商开放这项功能。
 - **本地音乐**：MP3、FLAC、M4A、WAV 等常见格式都能放，播放时写出格式和码率，例如“FLAC · 921 kbps · 44.1 kHz · 16 bit”。电脑上添加文件夹；iPhone 上把歌放进“文件”App 的 Enji 文件夹；Android 上选一个文件夹。
 - **下载**：把歌连同歌词和封面存到本机，电脑上在“音乐”文件夹的 Enji 里。下载过的歌和本机的歌在列表里都有标记。
 - **系统的播放控件**：键盘上的媒体键、macOS 菜单栏、iPhone 的锁屏和控制中心、Windows 的媒体浮窗、Linux 桌面的媒体控件、Android 的通知栏，都能看到正在放的歌并控制播放。切到别的 App 或锁屏后音乐不停。
@@ -89,7 +122,18 @@
 
 ## 下载
 
-到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：macOS 用 `.dmg`，iPhone / iPad 用 `.ipa`，Windows 用 `-setup.exe`，Android 用 `.apk`，Linux 用 `.deb`。macOS、iOS 和 Windows 版没有开发者签名：`.ipa` 需要用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名安装，其余的第一次打开时怎么放行写在发布说明里。 Android TV 用同一个 `.apk`；Apple TV 版暂时没有安装包。
+到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：
+
+| 系统 | 文件 |
+| --- | --- |
+| macOS | Apple 芯片用 `-macos-arm64.dmg`，Intel 用 `-macos-x64.dmg` |
+| iPhone / iPad | `-ios.ipa` |
+| Apple TV | `-tvos.ipa` |
+| Windows | `-windows-x64-setup.exe` 或 `-windows-arm64-setup.exe`，也有免安装的 `.zip` |
+| Android 手机、平板和电视 | 大多用 `-android-arm64-v8a.apk`；很旧的 32 位设备用 `-android-armeabi-v7a.apk`；模拟器和 x86 设备用 `-android-x86_64.apk` |
+| Linux | `-linux-x64` 或 `-linux-arm64` 的 `.deb`，也有 `.tar.gz` |
+
+macOS、iOS、tvOS 和 Windows 版没有开发者签名：`.ipa` 需要用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名安装，其余的第一次打开时怎么放行写在发布说明里。
 
 ## 交给 AI
 

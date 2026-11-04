@@ -22,7 +22,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -36,8 +36,8 @@ opt-level = 3
 
 [workspace.dependencies]
 # Bern from crates.io, at the version of the build tool the README installs.
-bern = "=0.1.3"
-bern-script = "=0.1.3"
+bern = "=0.1.4"
+bern-script = "=0.1.4"
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
 enji-ui = { path = "modules/enji/ui" }

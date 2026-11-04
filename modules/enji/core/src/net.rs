@@ -60,6 +60,12 @@ pub enum Job {
     SetReportListening(bool),
     SetHeartMode(bool),
     SetTogether(bool),
+    SetUsbExclusive(bool),
+    SetWordLyrics(bool),
+    PlayFm,
+    FmSongs(Vec<Song>),
+    FmDislike,
+    SetFmOnStart(bool),
     SetTogetherOpen(bool),
     CreateTogether,
     JoinTogether(String),
@@ -330,6 +336,15 @@ pub fn initial_state() -> State {
         online_info: saved["online_info"].as_bool().unwrap_or(true),
         report_listening: saved["report_listening"].as_bool().unwrap_or(true),
         heart_mode: saved["heart_mode"].as_bool().unwrap_or(false),
+        fm: false,
+        fm_on_start: saved["fm_on_start"].as_bool().unwrap_or(false),
+        fm_opened: 0,
+        android: cfg!(target_os = "android"),
+        usb_exclusive: saved["usb_exclusive"].as_bool().unwrap_or(false),
+        usb_available: crate::audio::exclusive_available(),
+        usb_plugged: false,
+        usb_refused: false,
+        usb_format: String::new(),
         together: saved["together"].as_bool().unwrap_or(false),
         together_open: false,
         together_room: String::new(),
@@ -349,6 +364,8 @@ pub fn initial_state() -> State {
         backdrop: saved["backdrop"].as_bool().unwrap_or(true),
         show_format: saved["show_format"].as_bool().unwrap_or(true),
         cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
+        word_lyrics: saved["word_lyrics"].as_bool().unwrap_or(true),
+        lyric_lit: -1,
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
@@ -380,6 +397,7 @@ fn save_settings(state: &State) {
         "backdrop": state.backdrop,
         "show_format": state.show_format,
         "cover_lyrics": state.cover_lyrics,
+        "word_lyrics": state.word_lyrics,
         "desktop_lyrics": state.desktop_lyrics,
         "desktop_lyrics_locked": state.desktop_lyrics_locked,
         "plugins": state.plugins.iter().filter(|plugin| plugin.enabled).map(|plugin| plugin.id.clone()).collect::<Vec<_>>(),
@@ -390,6 +408,8 @@ fn save_settings(state: &State) {
         "annual_report": state.annual_report,
         "on_close": format!("{:?}", state.on_close),
         "heart_mode": state.heart_mode,
+        "fm_on_start": state.fm_on_start,
+        "usb_exclusive": state.usb_exclusive,
         "together": state.together,
         "order": format!("{:?}", state.order),
         "show_plays": state.show_plays,
@@ -527,6 +547,13 @@ struct Worker {
     /// The heart mode asked NetEase for songs, and has some.
     heart_asking: bool,
     heart_filled: bool,
+    fm_asking: bool,
+    /// What comes back starts the roaming, rather than going on with it.
+    fm_starting: bool,
+    /// The next song was asked for before NetEase sent any.
+    fm_waiting: bool,
+    /// It may start by itself, once, as the app opens.
+    fm_on_start_due: bool,
     /// Where a seek is going, and when it was asked.
     seeking: Option<(f64, Instant)>,
     /// The room listened together in.
@@ -631,7 +658,7 @@ pub async fn run(
     waker: Option<Waker>,
 ) {
     let shared = Shared { state, waker };
-    let volume = shared.read(|s| s.volume) as f32;
+    let (volume, exclusive) = shared.read(|s| (s.volume as f32, s.usb_exclusive));
     let cookie = store::cookie();
     let mut worker = Worker {
         http: reqwest::Client::builder()
@@ -640,7 +667,7 @@ pub async fn run(
             .unwrap_or_default(),
         jobs,
         shared,
-        audio: Audio::start(volume),
+        audio: Audio::start(volume, exclusive),
         uid: 0,
         signing_in: None,
         queue: Vec::new(),
@@ -684,6 +711,10 @@ pub async fn run(
         before_heart: None,
         heart_asking: false,
         heart_filled: false,
+        fm_asking: false,
+        fm_starting: false,
+        fm_waiting: false,
+        fm_on_start_due: true,
         seeking: None,
         room: None,
         room_reports: None,
@@ -720,6 +751,7 @@ pub async fn run(
     // Plugins hear the music's loudness and answer more often than that:
     // often enough for a pulse to land on the beat.
     let mut quick = tokio::time::interval(Duration::from_millis(25));
+    let mut words = tokio::time::interval(Duration::from_millis(40));
     loop {
         tokio::select! {
             job = receive.recv() => match job {
@@ -728,6 +760,7 @@ pub async fn run(
             },
             _ = tick.tick() => worker.tick(),
             _ = quick.tick(), if !worker.plugins.is_empty() => worker.plugin_tick(),
+            _ = words.tick(), if worker.lines.iter().any(|line| !line.words.is_empty()) => worker.word_tick(),
         }
     }
 }
@@ -787,10 +820,16 @@ impl Worker {
                 }
                 self.signing_in = None;
                 enji_kit::set_cookie(Some(cookie));
+                // Signing in is not the app opening.
+                self.fm_on_start_due = false;
                 self.fetch_account(true);
             }
             Job::Account(uid) => {
                 self.uid = uid;
+                if std::mem::take(&mut self.fm_on_start_due) && self.shared.read(|s| s.fm_on_start && s.netease) {
+                    self.shared.update(|s| s.fm_opened += 1);
+                    self.start_fm();
+                }
                 self.refresh();
                 self.load_likes();
                 self.load_plays();
@@ -884,6 +923,8 @@ impl Worker {
                     self.start(index);
                 }
             }
+            // Roaming has no modes: it goes on from song to song.
+            Job::NextMode if self.in_fm() => {}
             Job::NextMode => {
                 let heart = self.can_heart();
                 let mode = self.shared.read(|s| match s.mode {
@@ -904,6 +945,32 @@ impl Worker {
                 }
             }
             Job::HeartSongs(songs) => self.heart_songs(songs),
+            Job::PlayFm => self.start_fm(),
+            Job::FmSongs(songs) => self.fm_songs(songs),
+            Job::FmDislike => self.fm_dislike(),
+            Job::SetFmOnStart(on) => self.shared.update(|s| {
+                s.fm_on_start = on;
+                save_settings(s);
+            }),
+            Job::SetWordLyrics(on) => {
+                self.shared.update(|s| {
+                    s.word_lyrics = on;
+                    s.lyric_lit = -1;
+                    save_settings(s);
+                });
+                // The song's own lines as the setting has them now.
+                if let Some(song) = self.queue.get(self.at).filter(|song| song.file.is_empty()).cloned() {
+                    self.lines.clear();
+                    self.lyrics_of(song.id);
+                }
+            }
+            Job::SetUsbExclusive(on) => {
+                self.audio.exclusive(on);
+                self.shared.update(|s| {
+                    s.usb_exclusive = on;
+                    save_settings(s);
+                });
+            }
             Job::SetTogether(on) => {
                 self.shared.update(|s| {
                     s.together = on;
@@ -1685,6 +1752,8 @@ impl Worker {
 
     /// A new queue, `at` playing; Misuzu Music's `setQueue`.
     fn set_queue(&mut self, songs: Vec<Song>, at: usize) {
+        self.shared.update(|s| s.fm = false);
+        self.fm_waiting = false;
         self.queue = songs;
         self.play_next.clear();
         self.shuffle.clear();
@@ -1820,9 +1889,10 @@ impl Worker {
             } else {
                 (s.lyric_now.clone(), s.lyric_next.clone())
             };
-            Some((first, second, s.desktop_lyrics_locked, s.playing))
+            let lit = usize::try_from(s.lyric_lit).ok().filter(|_| !s.lyric_now.is_empty());
+            Some((first, second, lit, s.desktop_lyrics_locked, s.playing))
         });
-        let Some((first, second, locked, playing)) = shown else {
+        let Some((first, second, lit, locked, playing)) = shown else {
             return bern::overlay::hide("lyrics");
         };
         // Phones show it smaller, over another app.
@@ -1832,8 +1902,8 @@ impl Worker {
             "lyrics",
             &Overlay {
                 lines: vec![
-                    Line { text: first, size: large, bold: true, color: [255, 255, 255, 255] },
-                    Line { text: second, size: small, bold: false, color: [255, 255, 255, 215] },
+                    Line { text: first, size: large, bold: true, color: [255, 255, 255, 255], lit },
+                    Line { text: second, size: small, bold: false, color: [255, 255, 255, 215], lit: None },
                 ],
                 place: bern::overlay::Place::Free,
                 locked,
@@ -2863,6 +2933,9 @@ impl Worker {
         if song.id > 0 && index + 3 >= self.queue.len() && self.in_heart_mode() {
             self.ask_heart(song.id);
         }
+        if index + 2 >= self.queue.len() && self.in_fm() {
+            self.ask_fm();
+        }
         // The queue is shown from the playing song on.
         self.publish_queue();
         self.token += 1;
@@ -2899,6 +2972,7 @@ impl Worker {
             s.lyrics_near.clear();
             s.has_lyrics = false;
             s.line = 0;
+            s.lyric_lit = -1;
             s.browsing = false;
             s.format.clear();
             sung(s);
@@ -2916,6 +2990,7 @@ impl Worker {
             let _ = jobs.send(Job::Failed { token, message: "网易云音乐已在设置中关闭".into() });
             return;
         }
+        let by_word = self.shared.read(|s| s.word_lyrics);
         tokio::spawn(async move {
             let id = param(song.id);
             let url = async {
@@ -2934,14 +3009,7 @@ impl Worker {
             let lyric_query = Query::new().param("id", &id);
             let lyric = client.lyric_new(&lyric_query);
             let (url, lyric) = tokio::join!(url, lyric);
-            let lines = lyric
-                .map(|r| {
-                    lyrics::parse(
-                        r.body["lrc"]["lyric"].as_str().unwrap_or(""),
-                        r.body["tlyric"]["lyric"].as_str().unwrap_or(""),
-                    )
-                })
-                .unwrap_or_default();
+            let lines = lyric.map(|r| lyrics::of_answer(&r.body, by_word)).unwrap_or_default();
             let response = match url {
                 Ok((url, preview, format)) => match http.get(&url).send().await.and_then(|r| r.error_for_status()) {
                     Ok(response) => Ok((response, preview, format)),
@@ -3026,12 +3094,10 @@ impl Worker {
     /// The lyrics of the NetEase song `id`, for its local copy.
     fn lyrics_of(&self, id: i64) {
         let (client, jobs, token) = (enji_kit::client(), self.jobs.clone(), self.token);
+        let by_word = self.shared.read(|s| s.word_lyrics);
         tokio::spawn(async move {
             if let Ok(r) = client.lyric_new(&Query::new().param("id", &param(id))).await {
-                let lines = lyrics::parse(
-                    r.body["lrc"]["lyric"].as_str().unwrap_or(""),
-                    r.body["tlyric"]["lyric"].as_str().unwrap_or(""),
-                );
+                let lines = lyrics::of_answer(&r.body, by_word);
                 let _ = jobs.send(Job::LocalInfo { token, lines, cover: String::new() });
             }
         });
@@ -3041,6 +3107,7 @@ impl Worker {
     /// and cover a local file lacks.
     fn look_up(&self, song: Song, want_lyrics: bool) {
         let (client, jobs, token) = (enji_kit::client(), self.jobs.clone(), self.token);
+        let by_word = self.shared.read(|s| s.word_lyrics);
         tokio::spawn(async move {
             let words = format!("{} {}", song.name, song.artists);
             let query = Query::new().param("keywords", words.trim()).param("type", "1").param("limit", "8");
@@ -3063,10 +3130,7 @@ impl Worker {
             if want_lyrics {
                 if let Some(id) = best["id"].as_i64() {
                     if let Ok(r) = client.lyric_new(&Query::new().param("id", &param(id))).await {
-                        lines = lyrics::parse(
-                            r.body["lrc"]["lyric"].as_str().unwrap_or(""),
-                            r.body["tlyric"]["lyric"].as_str().unwrap_or(""),
-                        );
+                        lines = lyrics::of_answer(&r.body, by_word);
                     }
                 }
             }
@@ -3083,7 +3147,13 @@ impl Worker {
         if count == 0 {
             return;
         }
-        let mode = self.shared.read(|s| s.mode.clone());
+        let roaming = self.in_fm();
+        if roaming && forward && self.at + 1 >= count && self.play_next.is_empty() {
+            self.fm_waiting = true;
+            return self.ask_fm();
+        }
+        // Roaming goes from song to song, whatever the mode was.
+        let mode = if roaming { PlayMode::RepeatAll } else { self.shared.read(|s| s.mode.clone()) };
         if forward && let Some(index) = self.take_play_next() {
             if mode == PlayMode::Shuffle && count > 1 {
                 self.shuffle.sync(count, self.at);
@@ -3101,6 +3171,97 @@ impl Worker {
             (_, false) => (self.at + count - 1) % count,
         };
         self.start(next);
+    }
+
+    // MARK: Word by word
+
+    /// How much of line `line` is lit at `at`, as the state tells it.
+    fn lit_at(&self, line: i64, at: f64) -> i64 {
+        let on = self.shared.read(|s| s.word_lyrics);
+        let sung = self.lines.get(line as usize).filter(|_| on).and_then(|line| line.sung(at));
+        sung.map_or(-1, |lit| lit as i64)
+    }
+
+    /// The sung line up to the word that plays now, more often than the
+    /// song's place shows.
+    fn word_tick(&mut self) {
+        let (line, was, desktop) = self.shared.read(|s| (s.line, s.lyric_lit, s.desktop_lyrics));
+        let lit = self.lit_at(line, self.audio.position());
+        if lit != was {
+            self.shared.update(|s| s.lyric_lit = lit);
+            if desktop {
+                self.show_desktop_lyrics();
+            }
+        }
+    }
+
+    // MARK: Roaming
+
+    fn in_fm(&self) -> bool {
+        self.shared.read(|s| s.fm)
+    }
+
+    /// Songs NetEase picks for the account in place of the queue.
+    fn start_fm(&mut self) {
+        if self.uid == 0 {
+            return self.shared.fail("登录后才能使用私人漫游");
+        }
+        self.fm_starting = true;
+        self.ask_fm();
+    }
+
+    /// NetEase sends a few at a time, and only their ids are read: these
+    /// songs come in the older shape, with less about them than a song's
+    /// details have.
+    fn ask_fm(&mut self) {
+        if self.fm_asking {
+            return;
+        }
+        self.fm_asking = true;
+        let (client, jobs) = (enji_kit::client(), self.jobs.clone());
+        tokio::spawn(async move {
+            let picked = client.personal_fm(&Query::new()).await.map(|r| r.body).unwrap_or_default();
+            let ids: Vec<i64> = picked["data"].as_array().into_iter().flatten().filter_map(|song| song["id"].as_i64()).collect();
+            let _ = jobs.send(Job::FmSongs(songs_of(&client, &ids).await));
+        });
+    }
+
+    fn fm_songs(&mut self, songs: Vec<Song>) {
+        self.fm_asking = false;
+        let songs = songs.into_iter().filter(|song| !song.unavailable);
+        if std::mem::take(&mut self.fm_starting) {
+            let songs: Vec<Song> = songs.collect();
+            if songs.is_empty() {
+                return self.shared.fail("私人漫游暂时没有可播放的歌曲");
+            }
+            if self.in_heart_mode() {
+                self.set_mode(PlayMode::RepeatAll);
+            }
+            self.queue_list = 0;
+            self.set_queue(songs, 0);
+            self.shared.update(|s| s.fm = true);
+            return self.start(0);
+        }
+        if !self.in_fm() {
+            return;
+        }
+        let played: std::collections::HashSet<i64> = self.queue.iter().map(|song| song.id).collect();
+        self.queue.extend(songs.filter(|song| !played.contains(&song.id)));
+        self.publish_queue();
+        if std::mem::take(&mut self.fm_waiting) && self.at + 1 < self.queue.len() {
+            self.start(self.at + 1);
+        }
+    }
+
+    /// NetEase hears that the playing song is not wanted, and the next plays.
+    fn fm_dislike(&mut self) {
+        let Some(song) = self.queue.get(self.at).filter(|_| self.in_fm()) else { return };
+        let query = Query::new().param("id", &param(song.id)).param("time", &param(self.position as i64));
+        let client = enji_kit::client();
+        tokio::spawn(async move {
+            let _ = client.fm_trash(&query).await;
+        });
+        self.advance(true, false);
     }
 
     // MARK: The heart mode
@@ -3770,6 +3931,13 @@ impl Worker {
         if let Some(message) = status.error {
             self.shared.fail(message);
         }
+        if self.shared.read(|s| (s.usb_plugged, s.usb_refused, &s.usb_format) != (status.usb_plugged, status.usb_refused, &status.usb_format)) {
+            self.shared.update(|s| {
+                s.usb_plugged = status.usb_plugged;
+                s.usb_refused = status.usb_refused;
+                s.usb_format = status.usb_format.clone();
+            });
+        }
         if status.ended == Some(self.token) {
             self.finish_listening();
             // In a room one side moves it on, and the other follows.
@@ -3816,12 +3984,14 @@ impl Worker {
             self.show_counts();
         }
         let line_changed = self.shared.read(|s| s.line != line);
+        let lit = self.lit_at(line, position);
         self.shared.update(|s| {
             let length = s.current.as_ref().map_or(0.0, |song| song.seconds);
             s.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
             s.elapsed = convert::clock(position);
             if s.line != line {
                 s.line = line;
+                s.lyric_lit = lit;
                 dress(&mut s.lyrics, line, s.browsing);
                 sung(s);
                 // Browsed lyrics stay where the person put them.

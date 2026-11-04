@@ -2,7 +2,7 @@
 //! playlists NetEase recommends.
 
 use bern::prelude::*;
-use enji_protocol::enji::{self, Detail, Source};
+use enji_protocol::enji::{self, Detail, Login, Source};
 use enji_ui::{detail_view, detail_view_props, playlist_card, playlist_card_props, song_row, song_row_props};
 use recommend_protocol::recommend::{self, DayPart};
 
@@ -46,6 +46,11 @@ pub fn home_page(app: enji::Client, recommend: recommend::Client) -> impl View {
         ScrollView {
             Column(gap: 20, padding: if window.compact { 18 } else { 32 }) {
                 greeting(app: app, recommend: recommend)
+                if app.login == Login::In {
+                    Row {
+                        Button(id: play_fm, label: tr! { "zh-Hans" => "私人漫游", "en" => "Roaming" }, icon: "dot.radiowaves.left.and.right", shape: capsule, height: 36) => app.play_fm()
+                    }
+                }
                 if recommend.has_daily {
                     Row(gap: 12, align: center) {
                         Text(content: tr! { "zh-Hans" => "每日推荐", "en" => "Daily Mix" }, style: title2)

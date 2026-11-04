@@ -5,6 +5,8 @@
 use crate::beats::{Beat, Beats};
 #[cfg(target_os = "tvos")]
 use crate::tv_audio::Output;
+#[cfg(target_os = "android")]
+use crate::usb_audio::{Exclusive, Plugged};
 use rodio::{Sink, Source};
 use symphonia::core::{
     audio::SampleBuffer,
@@ -21,8 +23,11 @@ use std::{
         atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc, Arc, Condvar, Mutex,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+/// How often a USB DAC is looked for, while one is wanted.
+const LOOK_AGAIN: Duration = Duration::from_secs(2);
 
 /// How loud the music being played is: the RMS of the samples decoded
 /// last, from 0 to about 1, and of their low end (below about 150 Hz,
@@ -63,21 +68,136 @@ pub fn levels() -> (f32, f32) {
 
 /// The system's audio output, as rodio plays through it.
 #[cfg(not(target_os = "tvos"))]
-struct Output {
+struct Shared {
     _stream: rodio::OutputStream,
     handle: rodio::OutputStreamHandle,
+}
+
+/// Where a song plays. A DAC of its own leaves no room for the shared
+/// output, which would keep it mixing.
+#[cfg(not(target_os = "tvos"))]
+struct Output {
+    shared: Option<Shared>,
+    /// A USB DAC is to be used alone.
+    #[cfg(target_os = "android")]
+    wanted: bool,
+    /// The USB output plugged in, while `wanted`.
+    #[cfg(target_os = "android")]
+    usb: Option<Plugged>,
+    #[cfg(target_os = "android")]
+    exclusive: Option<Exclusive>,
 }
 
 #[cfg(not(target_os = "tvos"))]
 impl Output {
     fn open() -> Result<Output, String> {
-        let (_stream, handle) = rodio::OutputStream::try_default().map_err(|e| e.to_string())?;
-        Ok(Output { _stream, handle })
+        let mut output = Output {
+            shared: None,
+            #[cfg(target_os = "android")]
+            wanted: false,
+            #[cfg(target_os = "android")]
+            usb: None,
+            #[cfg(target_os = "android")]
+            exclusive: None,
+        };
+        output.share()?;
+        Ok(output)
     }
 
-    fn sink(&self) -> Result<Sink, String> {
-        Sink::try_new(&self.handle).map_err(|e| e.to_string())
+    /// The shared output, opened if it is not.
+    fn share(&mut self) -> Result<&rodio::OutputStreamHandle, String> {
+        if self.shared.is_none() {
+            let (_stream, handle) = rodio::OutputStream::try_default().map_err(|e| e.to_string())?;
+            self.shared = Some(Shared { _stream, handle });
+        }
+        Ok(&self.shared.as_ref().expect("opened above").handle)
     }
+
+    /// A sink for a song of `rate`: on the DAC if it can take that rate.
+    fn sink(&mut self, rate: u32) -> Result<Sink, String> {
+        #[cfg(target_os = "android")]
+        if let Some(sink) = self.exclusive_sink(rate) {
+            return Ok(sink);
+        }
+        #[cfg(not(target_os = "android"))]
+        let _ = rate;
+        Sink::try_new(self.share()?).map_err(|e| e.to_string())
+    }
+}
+
+/// Elsewhere no app can have a USB DAC to itself.
+#[cfg(not(target_os = "android"))]
+impl Output {
+    fn set_exclusive(&mut self, _: bool) -> bool {
+        false
+    }
+    fn moved(&mut self) -> bool {
+        false
+    }
+    fn rest(&self) {}
+    fn wake(&self) {}
+    fn report(&self, _: &mut Status, _: bool) {}
+}
+
+#[cfg(target_os = "android")]
+impl Output {
+    fn exclusive_sink(&mut self, rate: u32) -> Option<Sink> {
+        if self.exclusive.as_ref().is_some_and(|open| open.lost() || open.rate() != rate) {
+            self.exclusive = None;
+        }
+        if self.exclusive.is_none() {
+            self.usb = if self.wanted { Plugged::find() } else { None };
+            let usb = self.usb.as_ref().filter(|usb| usb.takes(rate))?;
+            // While the shared output plays, the DAC keeps mixing.
+            self.shared = None;
+            self.exclusive = Exclusive::open(usb, rate);
+        }
+        Some(self.exclusive.as_ref()?.sink())
+    }
+
+    /// Whether what plays should move for this.
+    fn set_exclusive(&mut self, on: bool) -> bool {
+        self.wanted = on;
+        self.usb = if on { Plugged::find() } else { None };
+        self.exclusive.take().is_some() || self.usb.is_some()
+    }
+
+    /// Whether what plays should move: its DAC went, or one came.
+    fn moved(&mut self) -> bool {
+        if !self.wanted {
+            return false;
+        }
+        let found = Plugged::find();
+        let changed = self.usb.as_ref().map(Plugged::id) != found.as_ref().map(Plugged::id);
+        self.usb = found;
+        let moved = changed || self.exclusive.as_ref().is_some_and(Exclusive::lost);
+        if moved {
+            self.exclusive = None;
+        }
+        moved
+    }
+
+    fn rest(&self) {
+        self.exclusive.iter().for_each(Exclusive::rest);
+    }
+
+    fn wake(&self) {
+        self.exclusive.iter().for_each(Exclusive::wake);
+    }
+
+    fn report(&self, status: &mut Status, playing: bool) {
+        status.usb_plugged = self.usb.is_some();
+        status.usb_refused = playing && self.usb.is_some() && self.exclusive.is_none();
+        status.usb_format = self.exclusive.as_ref().map_or_else(String::new, Exclusive::describe);
+    }
+}
+
+/// Whether this system can give a USB DAC to one app.
+pub fn exclusive_available() -> bool {
+    #[cfg(target_os = "android")]
+    return crate::usb_audio::available();
+    #[cfg(not(target_os = "android"))]
+    false
 }
 
 /// A song as it downloads.
@@ -369,6 +489,7 @@ enum Command {
     Resume,
     Seek(f64),
     Volume(f32),
+    Exclusive(bool),
     Stop,
 }
 
@@ -380,6 +501,12 @@ pub struct Status {
     /// The song of this token has played to its end.
     pub ended: Option<u64>,
     pub error: Option<String>,
+    /// A USB output is plugged in, as far as anything wanted one.
+    pub usb_plugged: bool,
+    /// It is plugged in, and the song plays without it.
+    pub usb_refused: bool,
+    /// How the USB DAC plays now that the song has it alone; empty otherwise.
+    pub usb_format: String,
 }
 
 pub struct Audio {
@@ -388,13 +515,13 @@ pub struct Audio {
 }
 
 impl Audio {
-    pub fn start(volume: f32) -> Self {
+    pub fn start(volume: f32, exclusive: bool) -> Self {
         let (commands, receive) = mpsc::channel();
         let status = Arc::new(Mutex::new(Status::default()));
         let shared = status.clone();
         let _ = std::thread::Builder::new()
             .name("enji-audio".into())
-            .spawn(move || run(receive, shared, volume));
+            .spawn(move || run(receive, shared, volume, exclusive));
         Self { commands, status }
     }
 
@@ -416,6 +543,15 @@ impl Audio {
     pub fn stop(&self) {
         let _ = self.commands.send(Command::Stop);
     }
+    /// Whether a USB DAC is to be used alone, the song playing moving at once.
+    pub fn exclusive(&self, on: bool) {
+        let _ = self.commands.send(Command::Exclusive(on));
+    }
+
+    /// Seconds into the song, as often as words change.
+    pub fn position(&self) -> f64 {
+        self.status.lock().unwrap_or_else(|e| e.into_inner()).position
+    }
 
     /// What the thread last reported; an ended song is reported once.
     pub fn status(&self) -> Status {
@@ -427,9 +563,33 @@ impl Audio {
     }
 }
 
-fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume: f32) {
+/// `stream` playing on `output` from its start.
+fn start(output: &mut Output, stream: &Stream, volume: f32) -> Result<Sink, String> {
+    let source = Decoded::open(stream).map_err(|e| format!("无法解码这首歌：{e}"))?;
+    let sink = output.sink(source.rate)?;
+    sink.set_volume(volume);
+    sink.append(source);
+    Ok(sink)
+}
+
+/// The song of `old` carrying on where it was, on what `output` gives now.
+fn moved_on(output: &mut Output, old: Sink, stream: &Stream, volume: f32) -> Result<Sink, String> {
+    let (at, paused) = (old.get_pos(), old.is_paused());
+    drop(old);
+    let sink = start(output, stream, volume)?;
+    sink.pause();
+    let _ = sink.try_seek(at);
+    if paused {
+        output.rest();
+    } else {
+        sink.play();
+    }
+    Ok(sink)
+}
+
+fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume: f32, exclusive: bool) {
     let report = |f: &dyn Fn(&mut Status)| f(&mut status.lock().unwrap_or_else(|e| e.into_inner()));
-    let output = match Output::open() {
+    let mut output = match Output::open() {
         Ok(found) => found,
         Err(e) => {
             let message = format!("没有可用的音频输出：{e}");
@@ -437,51 +597,75 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
             return;
         }
     };
+    let _ = output.set_exclusive(exclusive);
     let mut sink: Option<Sink> = None;
     let mut current: Option<u64> = None;
+    // What plays, to start it again on another output.
+    let mut song: Option<Stream> = None;
+    let mut looked = Instant::now();
     loop {
-        match commands.recv_timeout(Duration::from_millis(100)) {
+        let mut moving = false;
+        match commands.recv_timeout(Duration::from_millis(30)) {
             Ok(Command::Play(token, stream)) => {
                 sink = None;
                 current = None;
-                match Decoded::open(&stream) {
-                    Ok(source) => match output.sink() {
-                        Ok(next) => {
-                            next.set_volume(volume);
-                            next.append(source);
-                            sink = Some(next);
-                            current = Some(token);
-                        }
-                        Err(e) => {
-                            let message = e.to_string();
-                            report(&|s| s.error = Some(message.clone()));
-                        }
-                    },
-                    Err(e) => {
-                        let message = format!("无法解码这首歌：{e}");
-                        report(&|s| s.error = Some(message.clone()));
+                match start(&mut output, &stream, volume) {
+                    Ok(next) => {
+                        sink = Some(next);
+                        current = Some(token);
+                        song = Some(stream);
                     }
+                    Err(message) => report(&|s| s.error = Some(message.clone())),
                 }
             }
-            Ok(Command::Pause) => sink.iter().for_each(Sink::pause),
-            Ok(Command::Resume) => sink.iter().for_each(Sink::play),
+            Ok(Command::Pause) => {
+                sink.iter().for_each(Sink::pause);
+                output.rest();
+            }
+            Ok(Command::Resume) => {
+                output.wake();
+                sink.iter().for_each(Sink::play);
+            }
             Ok(Command::Seek(seconds)) => {
                 if let Some(sink) = &sink {
+                    // A seek waits for the output to read on.
+                    output.wake();
                     let _ = sink.try_seek(Duration::from_secs_f64(seconds.max(0.0)));
+                    if sink.is_paused() {
+                        output.rest();
+                    }
                 }
             }
             Ok(Command::Volume(level)) => {
                 volume = level;
                 sink.iter().for_each(|sink| sink.set_volume(level));
             }
+            Ok(Command::Exclusive(on)) => {
+                moving = output.set_exclusive(on);
+            }
             Ok(Command::Stop) => {
                 sink = None;
                 current = None;
+                song = None;
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => return,
         }
+        if looked.elapsed() >= LOOK_AGAIN {
+            looked = Instant::now();
+            moving |= output.moved();
+        }
+        if moving
+            && current.is_some()
+            && let (Some(old), Some(stream)) = (sink.take(), &song)
+        {
+            match moved_on(&mut output, old, stream, volume) {
+                Ok(next) => sink = Some(next),
+                Err(message) => report(&|s| s.error = Some(message.clone())),
+            }
+        }
         let mut now = status.lock().unwrap_or_else(|e| e.into_inner());
+        output.report(&mut now, current.is_some());
         match &sink {
             Some(sink) => {
                 now.position = sink.get_pos().as_secs_f64();

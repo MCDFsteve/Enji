@@ -661,6 +661,25 @@ pub mod enji {
         pub report_listening: bool,
         /// The heart mode joins the play modes.
         pub heart_mode: bool,
+        /// Songs NetEase picks for the account play, with no end.
+        pub fm: bool,
+        /// That starts by itself with the app.
+        pub fm_on_start: bool,
+        /// Grows as it starts by itself: the playing page opens for it.
+        pub fm_opened: i64,
+        /// This is Android, whose tablets have a bar across the bottom.
+        pub android: bool,
+        /// A USB DAC plays each song alone, at the song's own rate.
+        pub usb_exclusive: bool,
+        /// Whether this system can do that.
+        pub usb_available: bool,
+        /// A USB output is plugged in, while it is wanted.
+        pub usb_plugged: bool,
+        /// It is plugged in, and the song plays without it.
+        pub usb_refused: bool,
+        /// How the DAC plays right now; empty while the song is not on it.
+        #[content]
+        pub usb_format: String,
         /// Listening together shows beside the player.
         pub together: bool,
         /// Its window is open.
@@ -684,6 +703,11 @@ pub mod enji {
         pub show_format: bool,
         /// On a phone, the sung line under the cover.
         pub cover_lyrics: bool,
+        /// Lines timed word by word light up word by word.
+        pub word_lyrics: bool,
+        /// How many characters of the sung line are lit; below zero when
+        /// the line is not timed by the word.
+        pub lyric_lit: i64,
         /// The sung line floating over everything else on the screen.
         pub desktop_lyrics: bool,
         /// Clicks go through the desktop lyrics; unlocked, they can be moved.
@@ -812,6 +836,10 @@ pub mod enji {
         /// Send what is listened to to the account's listening record on NetEase, or stop.
         fn set_report_listening(&mut self, on: bool) -> Result<(), CommandError>;
         /// Show listening together beside the player, or leave it and hide it.
+        fn set_usb_exclusive(&mut self, on: bool) -> Result<(), CommandError>;
+        fn play_fm(&mut self) -> Result<(), CommandError>;
+        fn fm_dislike(&mut self) -> Result<(), CommandError>;
+        fn set_fm_on_start(&mut self, on: bool) -> Result<(), CommandError>;
         fn set_together(&mut self, on: bool) -> Result<(), CommandError>;
         fn open_together(&mut self) -> Result<(), CommandError>;
         fn close_together(&mut self) -> Result<(), CommandError>;
@@ -860,6 +888,7 @@ pub mod enji {
         /// Install a plugin from a `.enj` package.
         fn import_plugin(&mut self, file: MediaSource) -> Result<(), CommandError>;
         fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
+        fn set_word_lyrics(&mut self, on: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;

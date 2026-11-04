@@ -1902,7 +1902,7 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             if app.cover_lyrics {
                                 Column(gap: 3, padding_y: 8, height: 100, align: leading) {
                                     if app.lyric_now != "" {
-                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2)
+                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2, lit: app.lyric_lit)
                                         if app.show_translation && app.lyric_now_translation != "" {
                                             Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
                                         }
@@ -1945,7 +1945,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                 // Each part a layer of its own: a layer is as tall as the
                 // window, so the lyrics scroll within it.
                 Row(gap: if window.large { 56 } else { 48 }, padding_x: if window.large { 64 } else { 48 }, align: center) {
-                    Column(gap: 18, width: 400) {
+                    Column(gap: 18, width: if app.android { 340 } else { 400 }) {
                         // A spinner on the cover's place until a picture of it
                         // comes: the small cover, often loaded already for the
                         // lists and the player bar, then the sharp one over it.
@@ -1953,7 +1953,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                         Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
                             Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
                                 Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
-                                    Canvas(width: 400, height: 400) {
+                                    Canvas(width: if app.android { 340 } else { 400 }, height: if app.android { 340 } else { 400 }) {
                                         Shape(kind: rounded, corner: 20, fill: fill.subtle)
                                     }
                                     // Only while a picture is coming: a song without
@@ -1961,10 +1961,10 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                     if song.artwork.url != "" {
                                         Progress
                                     } else {
-                                        Image(source: "assets/cover-place.png", width: 400, height: 400, fit: cover, corner: 20)
+                                        Image(source: "assets/cover-place.png", width: if app.android { 340 } else { 400 }, height: if app.android { 340 } else { 400 }, fit: cover, corner: 20)
                                     }
-                                    Image(source: song.cover, width: 400, height: 400, fit: cover, corner: 20)
-                                    Image(source: song.artwork, width: 400, height: 400, fit: cover, corner: 20, glow: 1.05, glow_opacity: 0.22)
+                                    Image(source: song.cover, width: if app.android { 340 } else { 400 }, height: if app.android { 340 } else { 400 }, fit: cover, corner: 20)
+                                    Image(source: song.artwork, width: if app.android { 340 } else { 400 }, height: if app.android { 340 } else { 400 }, fit: cover, corner: 20, glow: 1.05, glow_opacity: 0.22)
                                 }
                             }
                         }
@@ -1999,7 +1999,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                             Spacer
                         }
                         // What follows, and what shows beside the cover.
-                        Row(gap: 26, align: center) {
+                        Row(gap: if app.android { 0 } else { 26 }, align: center) {
                             Spacer
                             mode_button(app: app)
                             together_button(app: app)
@@ -2081,7 +2081,7 @@ pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                     ForEach(items: app.lyrics, key: key) |line| {
                         Button(id: lyric, label: line.text, variant: lyric) {
                             Column(gap: 4, padding_x: 14, padding_y: 10, blur: line.blur, animate: smooth) {
-                                Text(content: line.text, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
+                                Text(content: line.text, lit: if line.current { app.lyric_lit } else { -1 }, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
                                 if line.translated && app.show_translation {
                                     Text(content: line.translation, font_size: if window.compact { 15 } else if line.current { 18 } else { 16 }, emphasis: secondary, animate: smooth)
                                 }
@@ -2180,6 +2180,18 @@ pub fn like_button(app: enji::Client) -> impl View {
 #[component]
 pub fn mode_button(app: enji::Client) -> impl View {
     ui! {
+        if app.fm {
+            IconButton(id: fm_dislike, icon: "trash", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "不喜欢", "en" => "Dislike" }) => app.fm_dislike()
+        } else {
+            mode_choice(app: app)
+        }
+    }
+}
+
+/// What plays after the song, and the way to change that.
+#[component]
+pub fn mode_choice(app: enji::Client) -> impl View {
+    ui! {
         match app.mode {
             PlayMode::RepeatAll => {
                 IconButton(id: repeat_all, icon: "repeat", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "列表循环", "en" => "Repeat All" }) => app.next_mode()
@@ -2203,6 +2215,18 @@ pub fn mode_button(app: enji::Client) -> impl View {
 #[component]
 pub fn tv_mode_button(app: enji::Client) -> impl View {
     ui! {
+        if app.fm {
+            IconButton(id: tv_fm_dislike, icon: "trash", font_size: 30, height: 84, label: tr! { "zh-Hans" => "不喜欢", "en" => "Dislike" }) => app.fm_dislike()
+        } else {
+            tv_mode_choice(app: app)
+        }
+    }
+}
+
+/// What plays after the song on a TV, and the way to change that.
+#[component]
+pub fn tv_mode_choice(app: enji::Client) -> impl View {
+    ui! {
         match app.mode {
             PlayMode::RepeatAll => {
                 IconButton(id: tv_repeat_all, icon: "repeat", font_size: 30, height: 84, label: tr! { "zh-Hans" => "列表循环", "en" => "Repeat All" }) => app.next_mode()
@@ -2225,6 +2249,18 @@ pub fn tv_mode_button(app: enji::Client) -> impl View {
 /// The same on a TV that counts half as many points across, as Android TV.
 #[component]
 pub fn tv_small_mode_button(app: enji::Client) -> impl View {
+    ui! {
+        if app.fm {
+            IconButton(id: tv_fm_dislike_small, icon: "trash", font_size: 18, height: 44, label: tr! { "zh-Hans" => "不喜欢", "en" => "Dislike" }) => app.fm_dislike()
+        } else {
+            tv_small_mode_choice(app: app)
+        }
+    }
+}
+
+/// What plays after the song on a smaller TV, and the way to change that.
+#[component]
+pub fn tv_small_mode_choice(app: enji::Client) -> impl View {
     ui! {
         match app.mode {
             PlayMode::RepeatAll => {
@@ -2341,7 +2377,7 @@ pub fn tv_now_playing(app: enji::Client) -> impl View {
                     ForEach(items: app.lyrics_near, key: key) |line| {
                         if line.current {
                             Column(gap: 8, align: leading) {
-                                Text(content: line.text, style: large_title, bold: true, lines: 2)
+                                Text(content: line.text, style: large_title, bold: true, lines: 2, lit: app.lyric_lit)
                                 if line.translation != "" {
                                     Text(content: line.translation, style: title3, emphasis: secondary, lines: 2)
                                 }
@@ -2832,6 +2868,19 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
                                 Column(width: 22, align: center) {
                                     Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" }, icon: "text.bubble", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" })
+                                Spacer
+                                Switch(id: word_lyrics, label: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" }, label_hidden: true, checked: app.word_lyrics, style: switch) => app.set_word_lyrics(app.word_lyrics)
+                            }
+                        }
+                        if app.netease {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
                                         Label(title: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }, icon: "heart", display: icon, font_size: 15)
                                     }
                                 }
@@ -2862,6 +2911,44 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                     Spacer
                                     Switch(id: annual_report, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, label_hidden: true, checked: app.annual_report, style: switch) => app.set_annual_report(app.annual_report)
                                 }
+                            }
+                        }
+                        if app.netease {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" }, icon: "dot.radiowaves.left.and.right", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" })
+                                Spacer
+                                Switch(id: fm_on_start, label: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" }, label_hidden: true, checked: app.fm_on_start, style: switch) => app.set_fm_on_start(app.fm_on_start)
+                            }
+                        }
+                        if app.usb_available {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" }, icon: "headphones", display: icon, font_size: 15)
+                                    }
+                                }
+                                Column(gap: 2, align: leading) {
+                                    Text(content: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" })
+                                    if app.usb_exclusive {
+                                        if app.usb_format != "" {
+                                            Text(content: app.usb_format, style: caption, emphasis: secondary)
+                                            Text(content: tr! { "zh-Hans" => "系统音量不再生效，请先调低设备音量", "en" => "System volume no longer applies. Turn the device down first." }, style: caption, emphasis: secondary)
+                                        } else if app.usb_refused {
+                                            Text(content: tr! { "zh-Hans" => "这台设备无法独占播放这首歌", "en" => "This device can't play this song exclusively" }, style: caption, emphasis: secondary)
+                                        } else if !app.usb_plugged {
+                                            Text(content: tr! { "zh-Hans" => "未连接 USB 音频设备", "en" => "No USB audio device" }, style: caption, emphasis: secondary)
+                                        }
+                                    }
+                                }
+                                Spacer
+                                Switch(id: usb_exclusive, label: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" }, label_hidden: true, checked: app.usb_exclusive, style: switch) => app.set_usb_exclusive(app.usb_exclusive)
                             }
                         }
                         // The switches of the modules that can be turned off.
