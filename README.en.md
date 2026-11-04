@@ -78,12 +78,18 @@
 - **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification all show what's playing and control it. The music keeps playing when you switch apps or lock the screen.
 - **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them. Hover over them (tap on Android) to skip, pause or lock them; locked, clicks go through them.
 - **Plugins**: install plugins from the plugin market in Settings, such as lyrics on the Windows taskbar or a cover that pulses with the beat. Plugins are written in JavaScript; see [enji-plugins](https://github.com/MCDFsteve/enji-plugins).
-- **History**: what you played recently, and how many times you played each song.
+- **History**: what you played recently, and how many times you played each song. What you listen to goes to your NetEase account (you can turn this off in Settings), for its rankings and annual report.
+- **Heart Mode**: once on in Settings, it sits with Repeat and Shuffle: from the playing song, songs NetEase picks for you.
+- **Listen Together**: once on in Settings, listen with a friend in NetEase's rooms: skipping, pausing and seeking stay in step.
+- **Account**: open your account in Settings for your level and how far the next one is, your listening time, year by year, your most played songs and your medals, and pick a year to read NetEase's own annual report (which Settings can turn off).
+- **Pick up where you left off**: the next time you open Enji, the last song and its place are still there. Press play to go on.
+- **Stay in the background**: on a computer, choose in Settings whether closing the window quits. Staying, the music plays on, with controls in the system tray (the menu bar on a Mac).
+- **TV**: Apple TV and Android TV, with the remote; sign in by scanning a code with your phone.
 - **Looks**: light, dark or follow the system; Chinese or English. The format line, the lyrics under the cover and the desktop lyrics can each be turned off in Settings.
 
 ## Download
 
-Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg` for macOS, `.ipa` for iPhone and iPad, `-setup.exe` for Windows, `.apk` for Android, `.deb` for Linux. The macOS, iOS and Windows builds aren't signed by a developer: install the `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time.
+Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest): `.dmg` for macOS, `.ipa` for iPhone and iPad, `-setup.exe` for Windows, `.apk` for Android, `.deb` for Linux. The macOS, iOS and Windows builds aren't signed by a developer: install the `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time. Android TV takes the same `.apk`; Apple TV has no package yet.
 
 ## For AI
 
@@ -139,7 +145,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```sh
-cargo binstall bern-cli@0.1.2
+cargo binstall bern-cli@0.1.3
 ```
 
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) downloads `bern` ready-built; `cargo install --locked bern-cli@0.1.2` compiles it instead.

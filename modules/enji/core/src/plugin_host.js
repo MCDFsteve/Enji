@@ -29,7 +29,9 @@ var enji = {
   // macos, ios, windows, linux or android.
   platform: __enji.config.platform,
   hostVersion: __enji.config.hostVersion,
-  // `song`, `lyric`, `playback` and, with the `audio` permission, `audio`.
+  // `song`, `lyric`, `playback` and, with the `audio` permission, `audio`:
+  // `{ level, bass, beat, bpm, position }`, `beat` the strength of a beat
+  // about to land, from 0 to 1, and 0 between beats.
   on: function (event, handler) {
     (__enji.handlers[event] = __enji.handlers[event] || []).push(handler);
   },
@@ -59,10 +61,11 @@ var overlay = {
 };
 
 var cover = {
-  // The playing page's cover gives a little pulse.
-  pulse: function () {
+  // The playing page's cover gives a pulse, as strong as `strength`, from 0
+  // to 1; a middling one without it.
+  pulse: function (strength) {
     if (!__enjiHas('cover')) return false;
-    __enjiCall('coverPulse', []);
+    __enjiCall('coverPulse', [strength === undefined ? 0.5 : Number(strength)]);
     return true;
   },
 };

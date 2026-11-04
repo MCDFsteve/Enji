@@ -5,15 +5,17 @@
 
 use crate::{
     audio::{self, Audio, Stream},
-    convert, downloads, local, lyrics, plugins,
+    convert, downloads,
+    listens,
+    local, lyrics, plugins, resume,
     shuffle::Shuffle,
-    store,
+    store, together,
 };
 use bern::{media::MediaSource, wake::Waker};
 use enji_kit::{list, renumbered};
 use enji_protocol::enji::{
     Appearance, Detail, Download, Folder, Login, Offer, Plugin, LyricLine, Panel, PlayMode, Played, Playlist, Quality, Song,
-    SongOrder, Source, State,
+    CloseAction, ListenYear, Medal, Profile, SongOrder, Source, State, TogetherUser, TopRange,
 };
 use ncm_api_rs::{ApiClient, CryptoType, NcmError, Query, RequestOption};
 use rand::Rng;
@@ -55,6 +57,32 @@ pub enum Job {
     SetQuality(Quality),
     SetOrder(SongOrder),
     SetShowPlays(bool),
+    SetReportListening(bool),
+    SetHeartMode(bool),
+    SetTogether(bool),
+    SetTogetherOpen(bool),
+    CreateTogether,
+    JoinTogether(String),
+    LeaveTogether,
+    CopyTogetherLink,
+    /// The account is in this room: `fresh` when it was just created, for
+    /// what plays here to become its list.
+    TogetherEntered { info: Value, inviter: i64, fresh: bool },
+    /// The account is in no room, or entering one failed with this.
+    TogetherNotEntered(Option<String>),
+    /// The room's state read, or the code it failed with.
+    TogetherRead(Result<Value, i64>),
+    /// Who is in the room; `None` when it is over.
+    TogetherMembers(Option<Value>),
+    TogetherHeartbeat(Value),
+    /// The songs of the room's list, with the command that came with them.
+    TogetherList { songs: Vec<Song>, command: Option<together::Command>, received: i64 },
+    /// A song the room plays that is not in the queue.
+    TogetherSong { song: Option<Song>, command: together::Command, received: i64 },
+    /// What the heart mode plays next, as NetEase picked it.
+    HeartSongs(Vec<Song>),
+    /// NetEase took the listening reports on their way, or not.
+    Reported(bool),
     SetDefaultPlaylist(i64),
     PageChanged(bool),
     SetTranslation(bool),
@@ -71,6 +99,16 @@ pub enum Job {
     NowArtwork { token: u64, bytes: Arc<Vec<u8>> },
     SetPluginEnabled(String, bool),
     RemovePlugin(String),
+    OpenAccount,
+    SetAnnualReport(bool),
+    SetOnClose(CloseAction),
+    /// What NetEase says of the account.
+    ProfileRead(Box<AccountRead>),
+    SetTopRange(TopRange),
+    OpenReport(i64),
+    CloseReport,
+    /// The address of the latest annual report.
+    SetPluginsOpen(bool),
     LoadOffers,
     Offers(Vec<plugins::Listing>),
     InstallPlugin(String),
@@ -229,12 +267,38 @@ pub fn initial_state() -> State {
         playing: false,
         buffering: false,
         preview: false,
+        profile: None,
+        listen_years: Vec::new(),
+        has_listen_years: false,
+        top_songs: Vec::new(),
+        has_top_songs: false,
+        top_range: TopRange::All,
+        medals: Vec::new(),
+        has_medals: false,
+        medal_count: 0,
+        annual_report: saved["annual_report"].as_bool().unwrap_or(true),
+        // On a Mac closing a window has never quit an application.
+        on_close: match pick("on_close").as_str() {
+            "Background" => CloseAction::Background,
+            "Quit" => CloseAction::Quit,
+            _ if cfg!(target_os = "macos") => CloseAction::Background,
+            _ => CloseAction::Quit,
+        },
+        desktop: cfg!(not(any(target_os = "android", target_os = "ios", target_os = "tvos"))),
+        report_url: String::new(),
+        cookie_file: String::new(),
+        cookie_domain: ".music.163.com".into(),
+        report_close: ".btn-close".into(),
+        report_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 NeteaseMusic/9.4.30".into(),
+        plugins_open: false,
         plugins: Vec::new(),
         has_plugins: false,
         offers: Vec::new(),
         has_offers: false,
         offers_loading: false,
+        cover_pulse_soft: 0,
         cover_pulse: 0,
+        cover_pulse_strong: 0,
         downloads: Vec::new(),
         has_downloads: false,
         current_downloading: false,
@@ -248,6 +312,7 @@ pub fn initial_state() -> State {
         total: "0:00".into(),
         volume: saved["volume"].as_f64().unwrap_or(0.8),
         lyrics: Vec::new(),
+        lyrics_near: Vec::new(),
         has_lyrics: false,
         line: 0,
         scroll_to: 0,
@@ -263,6 +328,16 @@ pub fn initial_state() -> State {
         details_loading: false,
         netease: saved["netease"].as_bool().unwrap_or(true),
         online_info: saved["online_info"].as_bool().unwrap_or(true),
+        report_listening: saved["report_listening"].as_bool().unwrap_or(true),
+        heart_mode: saved["heart_mode"].as_bool().unwrap_or(false),
+        together: saved["together"].as_bool().unwrap_or(false),
+        together_open: false,
+        together_room: String::new(),
+        together_busy: false,
+        together_struggling: false,
+        together_users: Vec::new(),
+        together_alone: false,
+        together_link: String::new(),
         quality: match pick("quality").as_str() {
             "Standard" => Quality::Standard,
             "Higher" => Quality::Higher,
@@ -311,6 +386,11 @@ fn save_settings(state: &State) {
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
         "online_info": state.online_info,
+        "report_listening": state.report_listening,
+        "annual_report": state.annual_report,
+        "on_close": format!("{:?}", state.on_close),
+        "heart_mode": state.heart_mode,
+        "together": state.together,
         "order": format!("{:?}", state.order),
         "show_plays": state.show_plays,
         "default_playlist": state.default_playlist,
@@ -423,8 +503,44 @@ struct Worker {
     listings: Vec<plugins::Listing>,
     /// The overlays plugins put up, to take down with them.
     plugin_overlays: std::collections::HashSet<String>,
+    /// How many beats the plugins heard of.
+    beats_told: u32,
     /// What was played, the latest first.
     history: Vec<Entry>,
+    /// What was listened to, for the account's record on NetEase.
+    listens: listens::Listens,
+    /// What the account listened to most, of all time and this week.
+    top_all: Vec<Song>,
+    top_week: Vec<Song>,
+    /// Where playback stands, kept for the next launch.
+    resume: resume::Resume,
+    /// Opened with the song left last time: how far it was, until it plays.
+    left_at: Option<f64>,
+    /// Where to go once the song that is starting has loaded.
+    start_at: Option<f64>,
+    /// The playlist the queue was started from; 0 for any other list.
+    queue_list: i64,
+    /// When the listening reports were last sent.
+    reported_at: Instant,
+    /// What played before the heart mode: the queue and its playlist.
+    before_heart: Option<(Vec<Song>, i64)>,
+    /// The heart mode asked NetEase for songs, and has some.
+    heart_asking: bool,
+    heart_filled: bool,
+    /// Where a seek is going, and when it was asked.
+    seeking: Option<(f64, Instant)>,
+    /// The room listened together in.
+    room: Option<together::Room>,
+    /// Its reports, sent in order by a task of their own.
+    room_reports: Option<mpsc::UnboundedSender<together::Report>>,
+    /// The room was asked for its state.
+    room_reading: bool,
+    /// What happens now comes from the room: it is not reported back.
+    following: bool,
+    /// Where the room's song should be once it has started here.
+    room_pending: Option<(u64, together::Command, i64)>,
+    /// The song ended and the other side moves the room on.
+    room_song_ended: Option<Instant>,
     /// A playlist to play once its songs arrive.
     play_opened: Option<i64>,
     /// The songs the modules list: today's songs, what a search found in
@@ -463,6 +579,18 @@ struct Entry {
 
 /// How many songs the play history keeps.
 const HISTORY: usize = 200;
+/// How close to a seek's target the player must say it is, and how long it
+/// is waited for.
+const SEEK_ARRIVED: f64 = 3.0;
+const SEEK_WAIT: Duration = Duration::from_secs(20);
+/// How long after a song ended the side that follows waits to be moved on.
+const ROOM_MOVES_ON: Duration = Duration::from_secs(3);
+/// Where NetEase's web player sends what it played, and the page it says
+/// it comes from: from anywhere else the log is taken and then ignored.
+const LOG_URL: &str = "https://clientlogusf.music.163.com/weapi/feedback/weblog";
+const LOG_PAGE: &str = "https://music.163.com";
+/// How soon listening reports that could not be sent are tried again.
+const REPORT_AGAIN: Duration = Duration::from_secs(300);
 
 /// A playlist as it was when last opened, shown at once when it opens
 /// again.
@@ -543,7 +671,26 @@ pub async fn run(
             .unwrap_or_default(),
         listings: Vec::new(),
         plugin_overlays: std::collections::HashSet::new(),
+        beats_told: 0,
         history: Vec::new(),
+        listens: listens::Listens::load(),
+        top_all: Vec::new(),
+        top_week: Vec::new(),
+        resume: resume::Resume::default(),
+        left_at: None,
+        start_at: None,
+        queue_list: 0,
+        reported_at: Instant::now(),
+        before_heart: None,
+        heart_asking: false,
+        heart_filled: false,
+        seeking: None,
+        room: None,
+        room_reports: None,
+        room_reading: false,
+        following: false,
+        room_pending: None,
+        room_song_ended: None,
         play_opened: None,
         daily: Vec::new(),
         results: Vec::new(),
@@ -562,6 +709,7 @@ pub async fn run(
         worker.shared.update(|s| s.phone_folder = folder.to_string_lossy().to_string());
     }
     worker.publish_library();
+    worker.open_left();
     worker.start_plugins();
     worker.rescan();
     if cookie.is_some() && worker.shared.read(|s| s.netease) {
@@ -569,8 +717,9 @@ pub async fn run(
     }
     worker.refresh();
     let mut tick = tokio::time::interval(Duration::from_millis(200));
-    // Plugins hear the music's loudness and answer more often than that.
-    let mut quick = tokio::time::interval(Duration::from_millis(50));
+    // Plugins hear the music's loudness and answer more often than that:
+    // often enough for a pulse to land on the beat.
+    let mut quick = tokio::time::interval(Duration::from_millis(25));
     loop {
         tokio::select! {
             job = receive.recv() => match job {
@@ -606,13 +755,28 @@ impl Worker {
             Job::SignOut => {
                 store::forget_cookie();
                 enji_kit::set_cookie(None);
+                self.leave_room();
                 self.uid = 0;
+                self.listens.forget();
+                if self.in_heart_mode() {
+                    self.set_mode(PlayMode::RepeatAll);
+                }
                 self.liked.clear();
+                self.stack.retain(|(kind, _)| *kind != Detail::Account);
+                self.show_top();
                 self.shared.update(|s| {
                     s.login = Login::Out;
                     s.current_liked = false;
                     s.nickname.clear();
                     s.avatar = MediaSource::new("");
+                    s.profile = None;
+                    s.listen_years.clear();
+                    s.has_listen_years = false;
+                    s.top_songs.clear();
+                    s.has_top_songs = false;
+                    s.medals.clear();
+                    s.has_medals = false;
+                    s.medal_count = 0;
                     s.mine.clear();
                     sort_playlists(s);
                 });
@@ -630,8 +794,28 @@ impl Worker {
                 self.refresh();
                 self.load_likes();
                 self.load_plays();
+                self.report_listens();
+                self.find_room();
             }
             Job::Counted => self.show_counts(),
+            Job::SetReportListening(on) => {
+                self.shared.update(|s| {
+                    s.report_listening = on;
+                    save_settings(s);
+                });
+                if on {
+                    self.report_listens();
+                } else {
+                    self.listens.forget();
+                }
+            }
+            Job::Reported(taken) => {
+                self.listens.sent(taken);
+                // More may wait than one request carries.
+                if taken {
+                    self.report_listens();
+                }
+            }
             Job::Liked(ids) => {
                 self.liked = ids.into_iter().collect();
                 let liked = &self.liked;
@@ -684,8 +868,14 @@ impl Worker {
                 let list = self.list_of(&source);
                 if index < list.len() {
                     self.failures = 0;
+                    self.queue_list = if source == Source::Playlist { self.shared.read(|s| s.opened.as_ref().map_or(0, |list| list.id)) } else { 0 };
                     self.set_queue(list, index);
                     self.start(index);
+                    if self.in_heart_mode() {
+                        // The heart mode goes on from the new song.
+                        self.before_heart = None;
+                        self.enter_heart();
+                    }
                 }
             }
             Job::PlayQueued(index) => {
@@ -695,20 +885,84 @@ impl Worker {
                 }
             }
             Job::NextMode => {
+                let heart = self.can_heart();
                 let mode = self.shared.read(|s| match s.mode {
                     PlayMode::RepeatAll => PlayMode::RepeatOne,
                     PlayMode::RepeatOne => PlayMode::Shuffle,
-                    PlayMode::Shuffle => PlayMode::RepeatAll,
+                    PlayMode::Shuffle if heart => PlayMode::Heart,
+                    PlayMode::Shuffle | PlayMode::Heart => PlayMode::RepeatAll,
                 });
-                let shuffling = mode == PlayMode::Shuffle;
+                self.set_mode(mode);
+            }
+            Job::SetHeartMode(on) => {
                 self.shared.update(|s| {
-                    s.mode = mode;
+                    s.heart_mode = on;
                     save_settings(s);
                 });
-                if shuffling && self.queue.len() > 1 {
-                    self.shuffle.generate(self.queue.len(), self.at);
+                if !on && self.in_heart_mode() {
+                    self.set_mode(PlayMode::RepeatAll);
                 }
-                self.publish_queue();
+            }
+            Job::HeartSongs(songs) => self.heart_songs(songs),
+            Job::SetTogether(on) => {
+                self.shared.update(|s| {
+                    s.together = on;
+                    save_settings(s);
+                });
+                if on {
+                    self.find_room();
+                } else {
+                    self.leave_room();
+                }
+            }
+            Job::SetTogetherOpen(open) => self.shared.update(|s| s.together_open = open),
+            Job::CreateTogether => self.enter_room(None),
+            Job::JoinTogether(link) => match together::invitation(&link) {
+                Ok(invitation) => self.enter_room(Some(invitation)),
+                Err(message) => self.shared.fail(message),
+            },
+            Job::LeaveTogether => self.leave_room(),
+            Job::CopyTogetherLink => {
+                let link = self.shared.read(|s| s.together_link.clone());
+                match bern::platform::copy_text(&link) {
+                    Ok(()) => self.shared.tell("已复制邀请链接"),
+                    Err(_) => self.shared.fail("无法复制邀请链接"),
+                }
+            }
+            Job::TogetherEntered { info, inviter, fresh } => self.room_entered(&info, inviter, fresh),
+            Job::TogetherNotEntered(message) => {
+                self.shared.update(|s| s.together_busy = false);
+                if let Some(message) = message {
+                    self.shared.fail(message);
+                }
+            }
+            Job::TogetherRead(answer) => self.room_read(answer),
+            Job::TogetherMembers(info) => self.room_members(info),
+            Job::TogetherHeartbeat(data) => {
+                if let Some(room) = &mut self.room {
+                    room.heartbeat_answered(&data);
+                }
+            }
+            Job::TogetherList { songs, command, received } => {
+                if self.room.is_some() {
+                    let at = command.as_ref().and_then(|command| songs.iter().position(|song| song.id == command.playback.song)).unwrap_or(0);
+                    self.following = true;
+                    self.queue_list = 0;
+                    self.set_queue(songs, at);
+                    self.following = false;
+                    if let Some(command) = command {
+                        self.follow_room(command, received);
+                    }
+                }
+            }
+            Job::TogetherSong { song, command, received } => {
+                if let (Some(song), true) = (song, self.room.is_some()) {
+                    self.following = true;
+                    self.queue.push(song);
+                    self.publish_queue();
+                    self.following = false;
+                    self.follow_room(command, received);
+                }
             }
             Job::Toggle => self.toggle(),
             Job::Next => self.advance(true, false),
@@ -851,13 +1105,25 @@ impl Worker {
             }),
             Job::Seek(progress) => {
                 let length = self.shared.read(|s| s.current.as_ref().map_or(0.0, |song| song.seconds));
+                if self.left_at.is_some() {
+                    return self.show_left(progress.clamp(0.0, 1.0) * length);
+                }
                 self.audio.seek(progress.clamp(0.0, 1.0) * length);
                 self.show_now_playing(Some(progress.clamp(0.0, 1.0) * length));
+                self.moved_to(progress.clamp(0.0, 1.0) * length);
+                self.report_to_room(true);
             }
             Job::SeekLine(key) => {
                 if let Some(line) = self.lines.get(key as usize) {
+                    if self.left_at.is_some() {
+                        let time = line.time;
+                        self.show_left(time);
+                        return self.toggle();
+                    }
                     self.audio.seek(line.time);
                     self.show_now_playing(Some(line.time));
+                    self.moved_to(line.time);
+                    self.report_to_room(true);
                     self.scrolling = false;
                     self.settle(Some(key));
                     if self.paused {
@@ -999,6 +1265,58 @@ impl Worker {
                 plugins::remove(&id);
                 self.publish_plugins();
                 self.shared.update(|s| save_settings(s));
+            }
+            Job::OpenAccount => {
+                if self.uid <= 0 {
+                    return self.shared.fail("登录后才能看账号");
+                }
+                self.push(Detail::Account, self.uid);
+                self.load_profile();
+            }
+            Job::ProfileRead(read) => {
+                let read = *read;
+                self.top_all = read.top_all;
+                self.top_week = read.top_week;
+                self.shared.update(|s| {
+                    if read.profile.is_some() {
+                        s.profile = read.profile;
+                    }
+                    s.has_listen_years = !read.years.is_empty();
+                    s.listen_years = read.years;
+                    s.has_medals = !read.medals.is_empty();
+                    s.medals = read.medals;
+                    s.medal_count = read.medal_count;
+                });
+                self.show_top_songs();
+            }
+            Job::SetTopRange(range) => {
+                self.shared.update(|s| s.top_range = range);
+                self.show_top_songs();
+            }
+            Job::SetOnClose(action) => self.shared.update(|s| {
+                s.on_close = action;
+                save_settings(s);
+            }),
+            Job::SetAnnualReport(on) => self.shared.update(|s| {
+                s.annual_report = on;
+                save_settings(s);
+            }),
+            Job::OpenReport(year) => {
+                if self.uid <= 0 {
+                    return self.shared.fail("登录后才能看年度听歌报告");
+                }
+                let file = enji_kit::store::cookie_path().to_string_lossy().to_string();
+                self.shared.update(|s| {
+                    s.report_url = report_address(year);
+                    s.cookie_file = file;
+                });
+            }
+            Job::CloseReport => self.shared.update(|s| s.report_url.clear()),
+            Job::SetPluginsOpen(open) => {
+                self.shared.update(|s| s.plugins_open = open);
+                if open {
+                    self.handle(Job::LoadOffers);
+                }
             }
             Job::LoadOffers => {
                 self.shared.update(|s| s.offers_loading = true);
@@ -1284,6 +1602,11 @@ impl Worker {
                 self.paused = false;
                 self.stream = Some(stream.clone());
                 self.audio.play(token, stream);
+                let from = self.start_at.take().unwrap_or(0.0);
+                if from > 0.0 {
+                    self.audio.seek(from);
+                    self.moved_to(from);
+                }
                 if let Some(song) = self.queue.get(self.at).cloned() {
                     self.record(song);
                 }
@@ -1305,7 +1628,7 @@ impl Worker {
                     s.scroll_to = 0;
                     s.scroll_tick += 1;
                 });
-                self.show_now_playing(Some(0.0));
+                self.show_now_playing(Some(from));
                 self.desktop_lyrics();
             }
             Job::Format { token, format } => {
@@ -1355,6 +1678,7 @@ impl Worker {
             Source::LocalResults => self.local_results.clone(),
             Source::History => s.history.iter().map(|played| played.song.clone()).collect(),
             Source::Album => s.album_songs.clone(),
+            Source::Top => s.top_songs.clone(),
             Source::Artist => s.artist_songs.clone(),
         })
     }
@@ -1427,6 +1751,7 @@ impl Worker {
             s.queue = shown;
             s.queue_at = at;
         });
+        self.report_to_room(false);
     }
 
     /// Read the local folders again, away from the worker; while a scan
@@ -1564,7 +1889,7 @@ impl Worker {
                     description: listing.pack.description.clone(),
                     author: listing.pack.author.clone(),
                     installed: have.is_some(),
-                    newer: have.is_some_and(|(pack, _)| pack.version != listing.pack.version),
+                    newer: have.is_some_and(|(pack, _)| plugins::is_newer(&listing.pack.version, &pack.version)),
                     fits: listing.pack.fits_here(),
                     platforms: listing.pack.platforms_label(),
                 }
@@ -1618,10 +1943,16 @@ impl Worker {
     /// plugins asked for.
     fn plugin_tick(&mut self) {
         let playing = self.shared.read(|s| s.playing);
-        if playing && self.plugins.wants_audio() {
+        let hearing = self.plugins.wants_audio();
+        audio::follow_beat(hearing);
+        if playing && hearing {
             let (level, bass) = audio::levels();
             let position = self.position;
-            self.send_plugins("audio", json!({ "level": level, "bass": bass, "position": position }));
+            // Only a beat told since the last time; two would not be seen apart.
+            let (told, beat) = audio::beat();
+            let strength = if told != self.beats_told { beat.strength } else { 0.0 };
+            self.beats_told = told;
+            self.send_plugins("audio", json!({ "level": level, "bass": bass, "beat": strength, "bpm": beat.bpm, "position": position }));
         }
         for (plugin, call) in self.plugins.calls() {
             match call {
@@ -1635,7 +1966,15 @@ impl Worker {
                     bern::overlay::hide(&id);
                     self.plugin_overlays.remove(&id);
                 }
-                plugins::Call::CoverPulse => self.shared.update(|s| s.cover_pulse += 1),
+                plugins::Call::CoverPulse(strength) => self.shared.update(|s| {
+                    if strength < 0.34 {
+                        s.cover_pulse_soft += 1;
+                    } else if strength < 0.67 {
+                        s.cover_pulse += 1;
+                    } else {
+                        s.cover_pulse_strong += 1;
+                    }
+                }),
                 plugins::Call::Toast(message) => self.shared.tell(message),
                 plugins::Call::Log(message) => eprintln!("plugin {plugin}: {message}"),
                 plugins::Call::StorageSet(..) => {}
@@ -1997,6 +2336,7 @@ impl Worker {
             Detail::Playlist => s.opened.as_ref().map(|list| list.id),
             Detail::Album => s.album.as_ref().map(|album| album.id),
             Detail::Artist => s.artist.as_ref().map(|artist| artist.id),
+            Detail::Account => Some(id),
             Detail::Page => None,
         });
         self.shared.update(|s| s.detail = kind.clone());
@@ -2005,9 +2345,56 @@ impl Worker {
                 Detail::Playlist => self.open(id, None),
                 Detail::Album => self.load_album(id),
                 Detail::Artist => self.load_artist(id),
-                Detail::Page => {}
+                Detail::Account | Detail::Page => {}
             }
         }
+    }
+
+    /// The songs of the range chosen on the account page.
+    fn show_top_songs(&self) {
+        let (all, week) = (self.top_all.clone(), self.top_week.clone());
+        self.shared.update(|s| {
+            s.top_songs = if s.top_range == TopRange::Week { week } else { all };
+            s.has_top_songs = !s.top_songs.is_empty();
+        });
+    }
+
+    /// What NetEase says of the account, and which years have a report:
+    /// asked each time, so a new report shows the day it is up.
+    fn load_profile(&self) {
+        let (client, http, jobs, id) = (enji_kit::client(), self.http.clone(), self.jobs.clone(), self.uid);
+        tokio::spawn(async move {
+            let uid = param(id);
+            let by_uid = Query::new().param("uid", &uid);
+            let nothing = Query::new();
+            let all_time = Query::new().param("uid", &uid).param("type", "0");
+            let this_week = Query::new().param("uid", &uid).param("type", "1");
+            let (detail, total, level, counts, vip, years, all, week, medals, reports) = tokio::join!(
+                client.user_detail(&by_uid),
+                client.listen_data_total(&nothing),
+                client.user_level(&nothing),
+                client.user_subcount(&nothing),
+                client.vip_info(&by_uid),
+                client.listen_data_year_report(&nothing),
+                client.user_record(&all_time),
+                client.user_record(&this_week),
+                client.user_medal(&by_uid),
+                report_years(&http),
+            );
+            let body = |answer: Result<ncm_api_rs::ApiResponse, _>| answer.map(|answer| answer.body).unwrap_or(Value::Null);
+            let (level, counts, vip) = (body(level), body(counts), body(vip));
+            let medals = body(medals);
+            let seconds = body(total)["data"]["totalDuration"].as_i64().unwrap_or(0);
+            let read = AccountRead {
+                profile: detail.ok().map(|detail| profile_of(id, &detail.body, seconds, &level, &counts, &vip)),
+                years: listen_years(&body(years), &reports),
+                top_all: top_songs(&body(all)["allData"]),
+                top_week: top_songs(&body(week)["weekData"]),
+                medal_count: medals["data"]["medalNum"].as_i64().unwrap_or(0),
+                medals: medals_of(&medals),
+            };
+            let _ = jobs.send(Job::ProfileRead(Box::new(read)));
+        });
     }
 
     fn load_album(&self, id: i64) {
@@ -2415,14 +2802,70 @@ impl Worker {
 
     // MARK: Playback
 
+    /// The song left last time, paused where it was, with its queue.
+    fn open_left(&mut self) {
+        let Some(left) = resume::load() else { return };
+        self.set_queue(left.songs, left.at);
+        let Some(song) = self.queue.get(self.at).cloned().map(crate::covers::localized) else { return };
+        self.paused = true;
+        self.resume.song(&self.queue, self.at);
+        self.shared.update(|s| {
+            s.current = Some(song.clone());
+            s.current_id = song.id;
+            downloads_changed(s);
+            s.queue_at = self.at as i64;
+            s.total = song.duration.clone();
+        });
+        self.show_left(left.position);
+        self.publish_queue();
+        self.load_panel();
+        self.left_lyrics(&song);
+    }
+
+    /// The song left last time stands at `position`, for when it plays.
+    fn show_left(&mut self, position: f64) {
+        self.left_at = Some(position);
+        self.position = position;
+        self.resume.place(self.at, position);
+        self.shared.update(|s| {
+            let length = s.current.as_ref().map_or(0.0, |song| song.seconds);
+            s.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
+            s.elapsed = convert::clock(position);
+        });
+    }
+
+    /// The lyrics of the song left last time, before it plays.
+    fn left_lyrics(&self, song: &Song) {
+        if !song.file.is_empty() {
+            let token = self.token;
+            let name = bern::files::name(&song.file).unwrap_or_default();
+            let lines = local::lyrics(&song.file, &name, None);
+            let _ = self.jobs.send(Job::LocalInfo { token, lines, cover: String::new() });
+        } else if self.shared.read(|s| s.netease) {
+            self.lyrics_of(song.id);
+        }
+    }
+
     fn start(&mut self, index: usize) {
         // Its covers from this device when they were fetched ahead.
         let Some(song) = self.queue.get(index).cloned().map(crate::covers::localized) else { return };
+        self.finish_listening();
+        self.begin_listening(&song);
+        self.room_song_ended = None;
         self.at = index;
+        self.position = 0.0;
+        self.seeking = None;
+        self.paused = false;
+        self.left_at = None;
+        self.start_at = None;
+        self.resume.song(&self.queue, index);
+        // More to come before the heart mode runs out.
+        if song.id > 0 && index + 3 >= self.queue.len() && self.in_heart_mode() {
+            self.ask_heart(song.id);
+        }
         // The queue is shown from the playing song on.
         self.publish_queue();
         self.token += 1;
-        self.position = 0.0;
         self.lines.clear();
         self.audio.stop();
         if let Some(stream) = self.stream.take() {
@@ -2453,6 +2896,7 @@ impl Worker {
             s.elapsed = "0:00".into();
             s.total = song.duration.clone();
             s.lyrics.clear();
+            s.lyrics_near.clear();
             s.has_lyrics = false;
             s.line = 0;
             s.browsing = false;
@@ -2659,6 +3103,448 @@ impl Worker {
         self.start(next);
     }
 
+    // MARK: The heart mode
+
+    fn in_heart_mode(&self) -> bool {
+        self.shared.read(|s| s.mode == PlayMode::Heart)
+    }
+
+    /// It needs the switch in the settings and an account to pick for.
+    fn can_heart(&self) -> bool {
+        self.uid > 0 && self.shared.read(|s| s.netease && s.heart_mode)
+    }
+
+    /// Play on as `mode` has it from the playing song.
+    fn set_mode(&mut self, mode: PlayMode) {
+        let was_heart = self.in_heart_mode();
+        let (shuffling, heart) = (mode == PlayMode::Shuffle, mode == PlayMode::Heart);
+        self.shared.update(|s| {
+            s.mode = mode;
+            save_settings(s);
+        });
+        if was_heart && !heart {
+            self.leave_heart();
+        }
+        if shuffling && self.queue.len() > 1 {
+            self.shuffle.generate(self.queue.len(), self.at);
+        }
+        self.publish_queue();
+        if heart {
+            self.enter_heart();
+        }
+    }
+
+    /// Go on from the playing song with what NetEase picks after it, or
+    /// from the first song of the queue that is on NetEase.
+    fn enter_heart(&mut self) {
+        let seed = self.queue.get(self.at).into_iter().chain(&self.queue).find(|song| song.id > 0).map(|song| song.id);
+        let Some(seed) = seed else {
+            self.shared.fail("先播放一首网易云音乐的歌");
+            return self.set_mode(PlayMode::RepeatAll);
+        };
+        if self.before_heart.is_none() {
+            self.before_heart = Some((self.queue.clone(), self.queue_list));
+        }
+        self.heart_filled = false;
+        self.ask_heart(seed);
+    }
+
+    /// Ask NetEase what goes well after `seed`: it picks from around the
+    /// account's liked songs, the first of its playlists, and no other list.
+    fn ask_heart(&mut self, seed: i64) {
+        if self.heart_asking {
+            return;
+        }
+        self.heart_asking = true;
+        let list = self.shared.read(|s| s.mine.first().map_or(0, |list| list.id));
+        let (client, jobs) = (enji_kit::client(), self.jobs.clone());
+        tokio::spawn(async move {
+            let query = Query::new().param("id", &param(seed)).param("pid", &param(list)).param("sid", &param(seed)).param("count", "1");
+            let picked = client.playmode_intelligence_list(&query).await.map(|r| r.body).unwrap_or_default();
+            let songs: Vec<Song> = picked["data"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .map(|(i, one)| convert::song(&one["songInfo"], i, Some(&one["songInfo"]["privilege"])))
+                .filter(|song| song.id > 0 && !song.unavailable)
+                .collect();
+            let _ = jobs.send(Job::HeartSongs(songs));
+        });
+    }
+
+    /// What NetEase picked follows the playing song.
+    fn heart_songs(&mut self, songs: Vec<Song>) {
+        self.heart_asking = false;
+        if !self.in_heart_mode() {
+            return;
+        }
+        if songs.is_empty() {
+            // Once under way it goes on with the songs it has.
+            if !self.heart_filled {
+                self.shared.fail("心动模式暂时没有可播放的歌曲");
+                self.set_mode(PlayMode::RepeatAll);
+            }
+            return;
+        }
+        self.heart_filled = true;
+        self.queue.truncate(self.at + 1);
+        let played: std::collections::HashSet<i64> = self.queue.iter().map(|song| song.id).collect();
+        self.queue.extend(songs.into_iter().filter(|song| !played.contains(&song.id)));
+        self.publish_queue();
+    }
+
+    /// Back to the list played before the heart mode, at the playing song.
+    fn leave_heart(&mut self) {
+        let Some((mut queue, list)) = self.before_heart.take() else { return };
+        let playing = self.queue.get(self.at).cloned();
+        let at = match playing {
+            Some(song) => queue.iter().position(|one| one.id == song.id).unwrap_or_else(|| {
+                queue.insert(0, song);
+                0
+            }),
+            None => 0,
+        };
+        self.queue = queue;
+        self.at = at;
+        self.queue_list = list;
+        self.play_next.clear();
+    }
+
+    /// The song was moved to `position`, which it reaches soon.
+    fn moved_to(&mut self, position: f64) {
+        self.position = position;
+        self.seeking = Some((position, Instant::now()));
+    }
+
+    // MARK: Listening together
+
+    /// What plays here as the room is told it, if it is on NetEase.
+    fn room_playback(&self) -> Option<together::Playback> {
+        let song = self.queue.get(self.at).filter(|song| song.id > 0)?;
+        Some(together::Playback { song: song.id, playing: !self.paused, progress: (self.position * 1000.0) as i64 })
+    }
+
+    /// The account may be in a room already, from here or elsewhere.
+    fn find_room(&mut self) {
+        if self.uid <= 0 || self.room.is_some() || !self.shared.read(|s| s.together && s.netease) {
+            return;
+        }
+        let jobs = self.jobs.clone();
+        tokio::spawn(async move {
+            let job = match room_call(together::STATUS, json!({})).await {
+                Ok(data) if data["inRoom"].as_bool() == Some(true) => {
+                    let inviter = data["roomInfo"]["creatorId"].as_i64().unwrap_or(0);
+                    Job::TogetherEntered { info: data["roomInfo"].clone(), inviter, fresh: false }
+                }
+                _ => Job::TogetherNotEntered(None),
+            };
+            let _ = jobs.send(job);
+        });
+    }
+
+    /// Join the room of `invitation`, or start one.
+    fn enter_room(&mut self, invitation: Option<(String, i64)>) {
+        if self.uid <= 0 {
+            return self.shared.fail("登录后才能一起听");
+        }
+        if self.room.is_some() {
+            return;
+        }
+        self.shared.update(|s| s.together_busy = true);
+        let (jobs, me) = (self.jobs.clone(), self.uid);
+        tokio::spawn(async move {
+            let job = async {
+                let status = room_call(together::STATUS, json!({})).await.map_err(|(_, message)| message)?;
+                if status["inRoom"].as_bool() == Some(true) {
+                    let inviter = status["roomInfo"]["creatorId"].as_i64().unwrap_or(me);
+                    return Ok(Job::TogetherEntered { info: status["roomInfo"].clone(), inviter, fresh: false });
+                }
+                match invitation {
+                    Some((room, inviter)) => {
+                        room_call(together::ACCEPT, json!({ "refer": "inbox_invite", "roomId": room, "inviterId": param(inviter) })).await.map_err(|(_, message)| message)?;
+                        let status = room_call(together::STATUS, json!({})).await.map_err(|(_, message)| message)?;
+                        Ok(Job::TogetherEntered { info: status["roomInfo"].clone(), inviter, fresh: false })
+                    }
+                    None => {
+                        let created = room_call(together::CREATE, json!({ "refer": "songplay_more" })).await.map_err(|(_, message)| message)?;
+                        Ok(Job::TogetherEntered { info: created["roomInfo"].clone(), inviter: me, fresh: true })
+                    }
+                }
+            }
+            .await
+            .unwrap_or_else(|message: String| Job::TogetherNotEntered(Some(message)));
+            let _ = jobs.send(job);
+        });
+    }
+
+    fn room_entered(&mut self, info: &Value, inviter: i64, fresh: bool) {
+        let id = info["roomId"].as_str().map(str::to_string).or_else(|| info["roomId"].as_i64().map(|id| id.to_string())).unwrap_or_default();
+        if id.is_empty() {
+            self.shared.update(|s| s.together_busy = false);
+            return self.shared.fail("没有拿到房间信息");
+        }
+        let creator = info["creatorId"].as_i64().unwrap_or(inviter);
+        let (reports, mut outgoing) = mpsc::unbounded_channel::<together::Report>();
+        let jobs = self.jobs.clone();
+        tokio::spawn(async move {
+            while let Some((path, body)) = outgoing.recv().await {
+                if let Ok(data) = room_call(path, body).await
+                    && path == together::HEARTBEAT
+                {
+                    let _ = jobs.send(Job::TogetherHeartbeat(data));
+                }
+            }
+        });
+        self.room_reports = Some(reports);
+        self.room = Some(together::Room::new(id.clone(), creator, self.uid));
+        let song = self.queue.get(self.at).map_or(0, |song| song.id);
+        let link = together::share_link(&id, inviter, song);
+        self.shared.update(|s| {
+            s.together_busy = false;
+            s.together_room = id;
+            s.together_link = link;
+        });
+        self.show_members(info);
+        if fresh {
+            self.report_to_room(false);
+        }
+    }
+
+    fn show_members(&mut self, info: &Value) {
+        let me = self.uid;
+        let users: Vec<TogetherUser> = info["roomUsers"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|user| TogetherUser {
+                id: user["userId"].as_i64().unwrap_or(0),
+                name: user["nickname"].as_str().unwrap_or("").to_string(),
+                avatar: convert::cover(user["avatarUrl"].as_str().unwrap_or(""), 120),
+            })
+            .collect();
+        self.shared.update(|s| {
+            s.together_alone = !users.iter().any(|user| user.id != me);
+            s.together_users = users;
+        });
+    }
+
+    /// Say goodbye to the room, which ends it for both sides.
+    fn leave_room(&mut self) {
+        let Some(room) = self.room.take() else { return };
+        self.room_reports = None;
+        self.room_pending = None;
+        self.room_song_ended = None;
+        self.room_reading = false;
+        tokio::spawn(async move {
+            let _ = room_call(together::END, json!({ "roomId": room.id })).await;
+        });
+        self.clear_room();
+    }
+
+    fn clear_room(&mut self) {
+        self.shared.update(|s| {
+            s.together_room.clear();
+            s.together_link.clear();
+            s.together_users.clear();
+            s.together_alone = false;
+            s.together_struggling = false;
+        });
+    }
+
+    /// Something changed here: tell the room what it needs to know.
+    fn report_to_room(&mut self, seek: bool) {
+        if self.following || self.room.is_none() {
+            return;
+        }
+        let Some(now) = self.room_playback() else { return };
+        let list: Vec<i64> = self.queue.iter().map(|song| song.id).filter(|id| *id > 0).collect();
+        let mode = self.shared.read(|s| together::mode_name(&s.mode));
+        let Some(room) = &mut self.room else { return };
+        for report in room.report(now, seek, &list, mode) {
+            if let Some(reports) = &self.room_reports {
+                let _ = reports.send(report);
+            }
+        }
+    }
+
+    /// Read the room when it is time, and do what waits on the song.
+    fn room_tick(&mut self) {
+        if let Some((token, command, received)) = self.room_pending.clone()
+            && token == self.token
+            && !self.shared.read(|s| s.buffering)
+        {
+            self.room_pending = None;
+            self.follow_room(command, received);
+        }
+        if self.room_song_ended.is_some_and(|at| at.elapsed() >= ROOM_MOVES_ON) {
+            self.room_song_ended = None;
+            self.advance(true, true);
+        }
+        let now = self.room_playback();
+        let Some(room) = &mut self.room else { return };
+        if room.read_due() && !self.room_reading {
+            self.room_reading = true;
+            room.reading();
+            let (jobs, id) = (self.jobs.clone(), room.id.clone());
+            tokio::spawn(async move {
+                let answer = room_call(together::READ, json!({ "roomId": id })).await.map_err(|(code, _)| code);
+                let _ = jobs.send(Job::TogetherRead(answer));
+            });
+        }
+        if room.members_due() {
+            room.reading_members();
+            let jobs = self.jobs.clone();
+            tokio::spawn(async move {
+                if let Ok(data) = room_call(together::STATUS, json!({})).await {
+                    let info = (data["inRoom"].as_bool() == Some(true)).then(|| data["roomInfo"].clone());
+                    let _ = jobs.send(Job::TogetherMembers(info));
+                }
+            });
+        }
+        if let Some(now) = now
+            && let Some(report) = room.heartbeat(&now)
+            && let Some(reports) = &self.room_reports
+        {
+            let _ = reports.send(report);
+        }
+    }
+
+    fn room_members(&mut self, info: Option<Value>) {
+        let id = self.room.as_ref().map(|room| room.id.clone());
+        match info {
+            Some(info) if id.as_deref() == info["roomId"].as_str() => self.show_members(&info),
+            _ if id.is_some() => self.room_over(),
+            _ => {}
+        }
+    }
+
+    /// The room ended without us leaving it.
+    fn room_over(&mut self) {
+        self.room = None;
+        self.room_reports = None;
+        self.room_pending = None;
+        self.room_reading = false;
+        self.clear_room();
+        self.shared.tell("一起听已结束");
+    }
+
+    fn room_read(&mut self, answer: Result<Value, i64>) {
+        self.room_reading = false;
+        let Some(room) = &mut self.room else { return };
+        let data = match answer {
+            Ok(data) => data,
+            // The room or the sign-in is gone.
+            Err(301 | 488) => return self.room_over(),
+            Err(_) => {
+                room.failed();
+                let struggling = room.struggling();
+                return self.shared.update(|s| s.together_struggling = struggling);
+            }
+        };
+        let news = room.read(&data);
+        self.shared.update(|s| s.together_struggling = false);
+        let received = now_ms();
+        if let Some(mode) = news.mode.as_deref() {
+            let mode = match mode {
+                "SINGLE_LOOP" => PlayMode::RepeatOne,
+                "RANDOM" => PlayMode::Shuffle,
+                _ => PlayMode::RepeatAll,
+            };
+            if self.shared.read(|s| s.mode != mode && s.mode != PlayMode::Heart) {
+                self.following = true;
+                self.set_mode(mode);
+                self.following = false;
+            }
+        }
+        let here: Vec<i64> = self.queue.iter().map(|song| song.id).collect();
+        match news.list.filter(|list| !list.is_empty() && *list != here) {
+            Some(list) => {
+                let (client, jobs, command) = (enji_kit::client(), self.jobs.clone(), news.command);
+                tokio::spawn(async move {
+                    let songs = songs_of(&client, &list).await;
+                    let _ = jobs.send(Job::TogetherList { songs, command, received });
+                });
+            }
+            None => {
+                if let Some(command) = news.command {
+                    self.follow_room(command, received);
+                }
+            }
+        }
+    }
+
+    /// Do what the room's last command says.
+    fn follow_room(&mut self, command: together::Command, received: i64) {
+        self.room_song_ended = None;
+        let target = command.playback.song;
+        // What really plays: the queue may have just moved to it.
+        if self.shared.read(|s| s.current_id) != target {
+            match self.queue.iter().position(|song| song.id == target) {
+                Some(index) => {
+                    self.following = true;
+                    self.start(index);
+                    self.following = false;
+                    self.room_pending = Some((self.token, command, received));
+                }
+                None => {
+                    let (client, jobs) = (enji_kit::client(), self.jobs.clone());
+                    tokio::spawn(async move {
+                        let song = songs_of(&client, &[target]).await.into_iter().next();
+                        let _ = jobs.send(Job::TogetherSong { song, command, received });
+                    });
+                }
+            }
+            return;
+        }
+        if self.shared.read(|s| s.buffering) {
+            self.room_pending = Some((self.token, command, received));
+            return;
+        }
+        self.following = true;
+        let position = command.position(now_ms(), received);
+        if (position - self.position).abs() > together::CLOSE_ENOUGH {
+            self.audio.seek(position);
+            self.show_now_playing(Some(position));
+            self.moved_to(position);
+        }
+        if command.playback.playing == self.paused {
+            self.toggle();
+        }
+        self.following = false;
+    }
+
+    // MARK: The listening record
+
+    fn begin_listening(&mut self, song: &Song) {
+        // Local songs, below 0, are not on NetEase.
+        if song.id > 0 && self.uid > 0 && self.shared.read(|s| s.netease && s.report_listening) {
+            self.listens.begin(song.id);
+            self.report_listens();
+        }
+    }
+
+    fn finish_listening(&mut self) {
+        if self.listens.finish() {
+            self.report_listens();
+        }
+    }
+
+    /// Send NetEase what waits, one request at a time.
+    fn report_listens(&mut self) {
+        self.reported_at = Instant::now();
+        if self.uid <= 0 || !self.shared.read(|s| s.netease && s.report_listening) {
+            return;
+        }
+        let Some(cookie) = store::cookie() else { return };
+        let Some(logs) = self.listens.next_batch() else { return };
+        let (http, jobs) = (self.http.clone(), self.jobs.clone());
+        tokio::spawn(async move {
+            let taken = send_listens(&http, &cookie, logs).await;
+            let _ = jobs.send(Job::Reported(taken));
+        });
+    }
+
     // MARK: Likes
 
     fn load_likes(&self) {
@@ -2792,7 +3678,17 @@ impl Worker {
         if !has_song || buffering {
             return;
         }
+        // The song left last time has yet to load.
+        if let Some(position) = self.left_at {
+            self.start(self.at);
+            self.start_at = Some(position);
+            self.resume.place(self.at, position);
+            return;
+        }
         self.paused = !self.paused;
+        if self.paused {
+            self.resume.place(self.at, self.position);
+        }
         if self.paused {
             self.audio.pause();
         } else {
@@ -2800,6 +3696,7 @@ impl Worker {
         }
         let playing = !self.paused;
         self.shared.update(|s| s.playing = playing);
+        self.report_to_room(false);
         self.show_now_playing(None);
         self.show_desktop_lyrics();
         let position = self.position;
@@ -2874,12 +3771,37 @@ impl Worker {
             self.shared.fail(message);
         }
         if status.ended == Some(self.token) {
-            return self.advance(true, true);
+            self.finish_listening();
+            // In a room one side moves it on, and the other follows.
+            if self.room.as_ref().is_some_and(|room| !room.leads()) {
+                self.room_song_ended = Some(Instant::now());
+            } else {
+                return self.advance(true, true);
+            }
+        }
+        self.room_tick();
+        // What could not be sent is tried again now and then.
+        if self.reported_at.elapsed() >= REPORT_AGAIN {
+            self.report_listens();
+        }
+        // The song left last time has not loaded: the player has no place.
+        if self.left_at.is_some() {
+            return;
+        }
+        // A seek takes a while where the song has not downloaded yet: until
+        // then the player still says where it was.
+        if let Some((target, at)) = self.seeking {
+            if (status.position - target).abs() > SEEK_ARRIVED && at.elapsed() < SEEK_WAIT {
+                return;
+            }
+            self.seeking = None;
         }
         if (status.position - self.position).abs() < 0.05 {
             return;
         }
         self.position = status.position;
+        self.listens.heard(status.position);
+        self.resume.heard(self.at, status.position);
         let line = self
             .lines
             .iter()
@@ -2914,6 +3836,10 @@ impl Worker {
         }
     }
 }
+
+/// The lines a TV shows above the sung one, and from it on.
+const NEAR_SHOWN_BEFORE: usize = 1;
+const NEAR_SHOWN_AFTER: usize = 5;
 
 /// Lines above and below the sung one that are near it: about half of
 /// those a lyrics page shows over it, with the sung line a third of the way
@@ -3031,6 +3957,11 @@ fn sung(s: &mut State) {
     s.lyric_now = text;
     s.lyric_now_translation = translation;
     s.lyric_next = next;
+    let sung_at = at.unwrap_or(0);
+    let words = |line: &&LyricLine| !line.text.trim().is_empty();
+    let before: Vec<LyricLine> = s.lyrics[..sung_at].iter().rev().filter(words).take(NEAR_SHOWN_BEFORE).cloned().collect();
+    let after = s.lyrics[sung_at..].iter().filter(words).take(NEAR_SHOWN_AFTER).cloned();
+    s.lyrics_near = before.into_iter().rev().chain(after).collect();
 }
 
 /// How NetEase streams a song, such as `FLAC · 900 kbps`, from the address
@@ -3074,6 +4005,201 @@ async fn outline(client: &ApiClient, id: i64) -> Result<Value, NcmError> {
     let option = RequestOption { crypto: CryptoType::Eapi, ..Default::default() };
     let r = client.request("/api/v6/playlist/detail", json!({ "id": param(id), "n": 0, "s": 8 }), option).await?;
     Ok(r.body["playlist"].clone())
+}
+
+/// The first year NetEase keeps a report of at this address.
+const FIRST_REPORT: i32 = 2023;
+
+/// The annual report of `year`.
+fn report_address(year: i64) -> String {
+    format!("https://y.music.163.com/st/year{year}/?full_screen=true")
+}
+
+/// The years with a report, the latest first. The page of a year NetEase
+/// has yet to report on, until around the end of December, has no title.
+async fn report_years(http: &reqwest::Client) -> Vec<i64> {
+    let this_year = chrono::Datelike::year(&chrono::Local::now());
+    let mut years = Vec::new();
+    for year in (FIRST_REPORT..=this_year).rev().map(i64::from) {
+        let page = http.get(report_address(year)).send().await;
+        let up = match page {
+            Ok(page) => page.text().await.is_ok_and(|text| text.contains("<title>")),
+            Err(_) => false,
+        };
+        if up {
+            years.push(year);
+        }
+    }
+    years
+}
+
+/// How many songs the account page ranks, and medals it shows.
+const TOP_SONGS: usize = 8;
+const MEDALS: usize = 16;
+
+/// What the account page shows, read together.
+pub struct AccountRead {
+    profile: Option<Profile>,
+    years: Vec<ListenYear>,
+    top_all: Vec<Song>,
+    top_week: Vec<Song>,
+    medals: Vec<Medal>,
+    medal_count: i64,
+}
+
+/// `1234567` as it reads: `1,234,567`.
+fn grouped(number: i64) -> String {
+    let digits = number.abs().to_string();
+    let mut text = String::new();
+    for (place, digit) in digits.chars().enumerate() {
+        if place > 0 && (digits.len() - place).is_multiple_of(3) {
+            text.push(',');
+        }
+        text.push(digit);
+    }
+    if number < 0 { format!("-{text}") } else { text }
+}
+
+/// What NetEase says of the account `id`, which has listened for `seconds`:
+/// `user_detail`, `user_level`, `user_subcount` and `vip_info`.
+fn profile_of(id: i64, detail: &Value, seconds: i64, level: &Value, counts: &Value, vip: &Value) -> Profile {
+    let profile = &detail["profile"];
+    let number = |value: &Value| grouped(value.as_i64().unwrap_or(0));
+    let days = detail["createDays"].as_i64().unwrap_or(0);
+    let member = vip["data"]["redVipLevel"].as_i64().unwrap_or(0) > 0;
+    let until = vip["data"]["associator"]["expireTime"].as_i64().unwrap_or(0);
+    let date = chrono::DateTime::from_timestamp_millis(until)
+        .filter(|_| member)
+        .map(|date| date.with_timezone(&chrono::Local).format("%Y.%m.%d").to_string());
+    let badge = vip["data"]["redVipLevelIcon"].as_str().filter(|_| member).unwrap_or("");
+    Profile {
+        id,
+        signature: profile["signature"].as_str().unwrap_or("").trim().to_string(),
+        level: detail["level"].as_i64().unwrap_or(0),
+        songs: number(&detail["listenSongs"]),
+        hours: grouped(seconds / 3600),
+        years: format!("{:.1}", days as f64 / 365.25),
+        follows: number(&profile["follows"]),
+        fans: number(&profile["followeds"]),
+        events: number(&profile["eventCount"]),
+        own_playlists: number(&counts["createdPlaylistCount"]),
+        saved_playlists: number(&counts["subPlaylistCount"]),
+        artists: number(&counts["artistCount"]),
+        level_songs: number(&level["data"]["nowPlayCount"]),
+        level_goal: number(&level["data"]["nextPlayCount"]),
+        level_progress: level["data"]["progress"].as_f64().unwrap_or(0.0).clamp(0.0, 1.0),
+        vip_badge: MediaSource::new(secure(badge)),
+        vip_until: date.unwrap_or_default(),
+    }
+}
+
+/// Pictures come by `https`, as iOS asks of them.
+fn secure(url: &str) -> String {
+    url.strip_prefix("http://").map_or_else(|| url.to_string(), |rest| format!("https://{rest}"))
+}
+
+/// The years of `listen_data_year_report`, and any with only a report.
+fn listen_years(report: &Value, reports: &[i64]) -> Vec<ListenYear> {
+    let items = report["data"]["yearItems"].as_array().cloned().unwrap_or_default();
+    let seconds = |year: i64| {
+        items.iter().find(|item| item["year"].as_i64() == Some(year)).and_then(|item| item["playDuration"].as_i64()).unwrap_or(0)
+    };
+    let mut years: Vec<i64> = items.iter().filter_map(|item| item["year"].as_i64()).chain(reports.iter().copied()).collect();
+    years.sort_unstable_by(|a, b| b.cmp(a));
+    years.dedup();
+    let longest = years.iter().map(|&year| seconds(year)).max().unwrap_or(0).max(1);
+    years
+        .into_iter()
+        .map(|year| ListenYear {
+            year,
+            name: year.to_string(),
+            hours: grouped(seconds(year) / 3600),
+            share: seconds(year) as f64 / longest as f64,
+            has_report: reports.contains(&year),
+        })
+        .collect()
+}
+
+/// The songs of `user_record`, each with how often it played.
+fn top_songs(records: &Value) -> Vec<Song> {
+    let records = records.as_array().map_or(&[][..], Vec::as_slice);
+    records
+        .iter()
+        .take(TOP_SONGS)
+        .enumerate()
+        .map(|(index, record)| {
+            let mut song = convert::song(&record["song"], index, None);
+            song.plays = record["playCount"].as_i64().unwrap_or(0);
+            song
+        })
+        .collect()
+}
+
+/// The first of the medals of `user_medal`.
+fn medals_of(medals: &Value) -> Vec<Medal> {
+    let list = medals["data"]["obtainMedals"].as_array().map_or(&[][..], Vec::as_slice);
+    list.iter()
+        .take(MEDALS)
+        .enumerate()
+        .filter_map(|(index, medal)| {
+            let picture = medal["medalPicUrl"].as_str().filter(|url| !url.is_empty())?;
+            Some(Medal {
+                id: index as i64,
+                name: medal["medalName"].as_str().unwrap_or("").to_string(),
+                picture: MediaSource::new(secure(picture)),
+            })
+        })
+        .collect()
+}
+
+/// Send `logs` as the web player does: whether NetEase took them.
+async fn send_listens(http: &reqwest::Client, cookie: &str, logs: Vec<Value>) -> bool {
+    let csrf = cookie.split(';').find_map(|part| part.trim().strip_prefix("__csrf=")).unwrap_or("");
+    let form = ncm_api_rs::crypto::weapi(&json!({ "logs": Value::Array(logs).to_string(), "csrf_token": csrf }));
+    let answer = http
+        .post(format!("{LOG_URL}?csrf_token={csrf}"))
+        .header("Cookie", cookie)
+        .header("Referer", format!("{LOG_PAGE}/"))
+        .header("Origin", LOG_PAGE)
+        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .form(&form)
+        .send()
+        .await;
+    let Ok(answer) = answer else { return false };
+    let text = answer.text().await.unwrap_or_default();
+    serde_json::from_str::<Value>(&text).is_ok_and(|said| said["code"].as_i64() == Some(200))
+}
+
+/// A call to the room's service: what it answered in `data`, or its code
+/// and what to tell the person.
+async fn room_call(path: &'static str, body: Value) -> Result<Value, (i64, String)> {
+    let crypto = if path == together::STATUS { CryptoType::Weapi } else { CryptoType::Eapi };
+    let option = RequestOption { crypto, ..Default::default() };
+    match enji_kit::client().request(path, body, option).await {
+        Ok(r) if r.body["code"].as_i64() == Some(200) && r.body["data"]["success"].as_bool() != Some(false) => Ok(r.body["data"].clone()),
+        Ok(r) => {
+            let said = r.body["message"].as_str().or(r.body["data"]["failedMessage"].as_str()).unwrap_or("一起听请求失败");
+            Err((r.body["code"].as_i64().unwrap_or(0), said.to_string()))
+        }
+        Err(NcmError::Api { code, msg }) => Err((code, if msg == "Unknown error" { "一起听请求失败".to_string() } else { msg })),
+        Err(NcmError::AuthRequired(_)) => Err((301, "需要重新登录".to_string())),
+        Err(_) => Err((0, "网络连接失败".to_string())),
+    }
+}
+
+/// The songs `ids`, in that order.
+async fn songs_of(client: &ApiClient, ids: &[i64]) -> Vec<Song> {
+    const PAGE: usize = 250;
+    let mut found = HashMap::new();
+    for page in ids.chunks(PAGE) {
+        let asked = page.iter().map(i64::to_string).collect::<Vec<_>>().join(",");
+        if let Ok(r) = client.song_detail(&Query::new().param("ids", &asked)).await {
+            for song in convert::songs(&r.body["songs"], &r.body["privileges"]) {
+                found.insert(song.id, song);
+            }
+        }
+    }
+    renumbered(ids.iter().filter_map(|id| found.remove(id)))
 }
 
 /// The songs of the playlist `info`, in its order, with when each went in.
@@ -3183,6 +4309,83 @@ fn arrange(songs: &mut [Song], order: &SongOrder) {
 
 #[cfg(test)]
 mod tests {
+    use super::{grouped, listen_years, medals_of, profile_of, report_address, secure, top_songs};
+    use serde_json::{json, Value};
+    #[test]
+    fn the_profile_reads_what_netease_says_of_the_account() {
+        let detail = json!({
+            "level": 9,
+            "listenSongs": 1991,
+            "createDays": 2600,
+            "profile": { "signature": " 你好 ", "follows": 12, "followeds": 34 },
+        });
+        let level = json!({ "data": { "nowPlayCount": 991, "nextPlayCount": 2000, "progress": 0.4955 } });
+        let counts = json!({ "createdPlaylistCount": 7, "subPlaylistCount": 10, "artistCount": 45 });
+        let vip = json!({ "data": { "redVipLevel": 7, "redVipLevelIcon": "http://p.net/v.png", "associator": { "expireTime": 1_794_412_799_000_i64 } } });
+        let profile = profile_of(7, &detail, 11_372_490, &level, &counts, &vip);
+        assert_eq!(profile.signature, "你好");
+        assert_eq!((profile.level, profile.songs.as_str(), profile.years.as_str()), (9, "1,991", "7.1"));
+        assert_eq!((profile.follows.as_str(), profile.fans.as_str()), ("12", "34"));
+        assert_eq!(profile.hours, "3,159");
+        assert_eq!((profile.level_songs.as_str(), profile.level_goal.as_str()), ("991", "2,000"));
+        assert_eq!(profile.vip_badge.url, "https://p.net/v.png");
+        assert!(profile.vip_until.starts_with("2026."));
+        // Without a membership there is no badge and no date.
+        let none = profile_of(7, &detail, 0, &Value::Null, &Value::Null, &Value::Null);
+        assert_eq!((none.vip_badge.url.as_str(), none.vip_until.as_str()), ("", ""));
+    }
+
+    #[test]
+    fn numbers_read_in_thousands() {
+        assert_eq!(grouped(0), "0");
+        assert_eq!(grouped(999), "999");
+        assert_eq!(grouped(1000), "1,000");
+        assert_eq!(grouped(1_234_567), "1,234,567");
+    }
+
+    #[test]
+    fn years_come_from_the_listening_and_the_reports() {
+        let report = json!({ "data": { "yearItems": [
+            { "year": 2024, "playDuration": 7200 },
+            { "year": 2025, "playDuration": 3600 },
+        ] } });
+        let years = listen_years(&report, &[2026, 2025]);
+        let names: Vec<&str> = years.iter().map(|year| year.name.as_str()).collect();
+        assert_eq!(names, ["2026", "2025", "2024"]);
+        assert_eq!(years[1].hours, "1");
+        assert_eq!(years[1].share, 0.5);
+        assert_eq!(years[2].share, 1.0);
+        assert_eq!(years.iter().map(|year| year.has_report).collect::<Vec<_>>(), [true, true, false]);
+        // Nothing read at all is no years, not a fault.
+        assert!(listen_years(&Value::Null, &[]).is_empty());
+    }
+
+    #[test]
+    fn the_ranking_keeps_how_often_each_song_played() {
+        let records: Vec<Value> = (0..20).map(|n| json!({ "playCount": 100 - n, "song": { "id": n + 1, "name": "a" } })).collect();
+        let songs = top_songs(&Value::Array(records));
+        assert_eq!(songs.len(), super::TOP_SONGS);
+        assert_eq!((songs[0].id, songs[0].plays), (1, 100));
+        assert!(top_songs(&Value::Null).is_empty());
+    }
+
+    #[test]
+    fn medals_without_a_picture_are_left_out() {
+        let medals = json!({ "data": { "obtainMedals": [
+            { "medalName": "a", "medalPicUrl": "http://p.net/a.png" },
+            { "medalName": "b" },
+        ] } });
+        let found = medals_of(&medals);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].picture.url, "https://p.net/a.png");
+        assert_eq!(secure("https://p.net/a.png"), "https://p.net/a.png");
+    }
+
+    #[test]
+    fn a_report_has_its_year_in_the_address() {
+        assert_eq!(report_address(2026), "https://y.music.163.com/st/year2026/?full_screen=true");
+    }
+
     use super::{SongOrder, arrange};
     use bern::media::MediaSource;
     use enji_protocol::enji::Song;

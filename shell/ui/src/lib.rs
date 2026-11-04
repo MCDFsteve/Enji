@@ -6,7 +6,7 @@
 //! where the shell leaves room for them.
 
 use bern::prelude::*;
-use enji_protocol::enji::{self, Detail, Login};
+use enji_protocol::enji::{self, CloseAction, Detail, Login};
 use enji_shell_protocol::shell;
 use enji_ui::*;
 
@@ -19,6 +19,9 @@ style! {
         // A sheet's spring: quick to rise, settling with the faintest
         // overshoot.
         sheet: spring(period: 0.5, damping: 0.86),
+        // Back from a beat's pulse: at once and without a bounce, as a
+        // speaker's cone.
+        beat: spring(period: 0.34, damping: 1.0),
     }
 
     transition {
@@ -109,6 +112,14 @@ style! {
         background: fill.subtle,
         corner: 8,
     }
+    // The account's picture behind who it is, and its level on it.
+    Stack.hero {
+        corner: 20,
+    }
+    Stack.level {
+        background: fill.subtle,
+        corner: 8,
+    }
     // What signing in brings, as small tags.
     Stack.tag {
         background: fill.subtle,
@@ -145,6 +156,9 @@ pub enum Page {
     History,
     #[label(tr! { "zh-Hans" => "设置", "en" => "Settings" })]
     Settings,
+    /// A TV's tab for the playing song, which shows over the pages elsewhere.
+    #[label(tr! { "zh-Hans" => "正在播放", "en" => "Now Playing" })]
+    Playing,
 }
 
 #[bern::session]
@@ -167,7 +181,14 @@ pub fn app(app: enji::Client, windows: AppWindows) -> impl View {
                     CommandItem(id: menu_like, label: tr! { "zh-Hans" => "喜欢 / 取消喜欢", "en" => "Like / Unlike" }, shortcut: "cmd+l", enabled: app.login == Login::In) => app.toggle_like()
                 }
             }
-            Window(id: main, title: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, initial: open, chrome: unified, width: 1200, height: 780, min_width: 960, min_height: 620) {
+            // Set to stay in the background, closing the window leaves
+            // Enji playing here.
+            StatusItem(shown: app.on_close == CloseAction::Background, image: "assets/tray.svg", label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }) {
+                CommandItem(id: tray_toggle, label: tr! { "zh-Hans" => "播放 / 暂停", "en" => "Play / Pause" }) => app.toggle()
+                CommandItem(id: tray_previous, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
+                CommandItem(id: tray_next, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
+            }
+            Window(id: main, title: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, initial: open, chrome: unified, width: 1200, height: 780, min_width: 960, min_height: 700) {
                 main_window(app: app)
             }
         }
@@ -197,18 +218,31 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
             // Tabs and a small player on a phone, a sidebar and a bar elsewhere.
             Adaptive(id: shell) {
                 Layout(size: compact) { phone_shell(app: app) }
-                Layout(size: expanded) { desktop_shell(app: app) }
+                // A phone on its side is wide but has no height to spare.
+                Layout(size: expanded) {
+                    if window.short {
+                        phone_shell(app: app)
+                    } else {
+                        desktop_shell(app: app)
+                    }
+                }
+                Layout(size: tv) { tv_shell(app: app) }
             }
             // What modules show over the pages, such as search on a phone.
             Slot(id: overlays)
             // The page the condition shows moves in and out itself: the
             // layer is what appears, not something inside it.
-            if draft.now && window.compact {
+            // Turning the phone changes what is in the layer, not the layer.
+            if draft.now && !window.tv && (window.compact || window.short) {
                 Stack(appear: sheet, disappear: sheet) {
-                    phone_now_playing(app: app)
+                    if window.compact {
+                        phone_now_playing(app: app)
+                    } else {
+                        side_now_playing(app: app)
+                    }
                 }
             }
-            if draft.now && !window.compact {
+            if draft.now && !window.short && !window.compact && !window.tv {
                 Stack(under_bars: true, appear: sheet, disappear: sheet) {
                     now_playing(app: app)
                 }
@@ -222,6 +256,15 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
             if app.naming {
                 naming_dialog(app: app)
             }
+            if app.plugins_open {
+                plugins_dialog(app: app)
+            }
+            if app.together_open {
+                together_dialog(app: app)
+            }
+            if app.report_url != "" && !window.tv {
+                report_dialog(app: app)
+            }
             if let Some(list) = app.deleting {
                 delete_dialog(app: app, list: list)
             }
@@ -230,12 +273,12 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
             }
             // On a phone, over the small player and the tabs.
             if app.has_notice {
-                Column(padding_x: 24, padding_y: if window.compact { 124 } else { 24 }) {
+                Column(padding_x: 24, padding_y: if window.compact || window.short && !window.tv { 124 } else { 24 }) {
                     Toast(content: app.notice, icon: "checkmark.circle.fill", key: app.notice_key)
                 }
             }
             if app.has_error {
-                Column(padding_x: 24, padding_y: if window.compact { 124 } else { 24 }) {
+                Column(padding_x: 24, padding_y: if window.compact || window.short && !window.tv { 124 } else { 24 }) {
                     Toast(content: app.error, key: app.error_key)
                 }
             }
@@ -315,6 +358,26 @@ pub fn phone_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
     }
 }
 
+/// The pages in tabs across the top, for a remote: the playing song is one
+/// of them, and the rest stand under it.
+#[component]
+pub fn tv_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
+    ui! {
+        Tabs(id: tv_tabs, selection: nav.page, fallback: Page::Library) {
+            Pages(slot: main, all: true)
+            Tab(value: Page::Library, label: tr! { "zh-Hans" => "我的", "en" => "Mine" }, icon: "music.note.list") {
+                page_view(app: app, page: Page::Library)
+            }
+            Tab(value: Page::Playing, label: tr! { "zh-Hans" => "正在播放", "en" => "Now Playing" }, icon: "play.fill") {
+                tv_now_playing(app: app)
+            }
+            Tab(value: Page::Settings, label: tr! { "zh-Hans" => "设置", "en" => "Settings" }, icon: "gearshape") {
+                page_view(app: app, page: Page::Settings)
+            }
+        }
+    }
+}
+
 /// One of the core's pages, or the playlist opened from it; with NetEase
 /// off, the local music in place of the account's page.
 #[component]
@@ -325,15 +388,20 @@ pub fn page_view(app: enji::Client, page: Page) -> impl View {
         } else {
             match page {
                 Page::Library => {
-                    if window.compact {
+                    if window.compact || window.short && !window.tv {
                         mine_page(app: app)
-                    } else if app.netease {
+                    } else if app.netease || window.tv {
                         library_page(app: app)
                     } else {
                         local_page(app: app)
                     }
                 }
-                Page::Local => { local_page(app: app) }
+                // A TV has no folders to choose music from.
+                Page::Local => {
+                    if !window.tv {
+                        local_page(app: app)
+                    }
+                }
                 Page::History => { history_page(app: app) }
                 Page::Settings => { settings_page(app: app) }
                 _ => {}

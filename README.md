@@ -78,12 +78,18 @@
 - **系统的播放控件**：键盘上的媒体键、macOS 菜单栏、iPhone 的锁屏和控制中心、Windows 的媒体浮窗、Linux 桌面的媒体控件、Android 的通知栏，都能看到正在放的歌并控制播放。切到别的 App 或锁屏后音乐不停。
 - **桌面歌词**：电脑和 Android 上，歌词可以浮在所有窗口上面，拖到哪里就停在哪里。鼠标移上去（Android 上点一下）就能切歌、暂停和锁定；锁定后鼠标点击会穿过它。
 - **插件**：在设置里的插件商店安装插件，比如 Windows 任务栏歌词、跟着鼓点跳动的封面。插件用 JavaScript 编写，见 [enji-plugins](https://github.com/MCDFsteve/enji-plugins)。
-- **播放记录**：最近听过什么，每首歌听了几次。
+- **播放记录**：最近听过什么，每首歌听了几次。听过的歌同步到网易云账号（可在设置里关闭），计入听歌排行和年度报告。
+- **心动模式**：在设置里打开后，它和列表循环、随机播放在一起，从正在放的歌开始，接上网易云为你挑的歌。
+- **一起听**：在设置里打开后，用网易云的房间和朋友一起听：切歌、暂停、拖进度都会同步。
+- **账号**：点开设置里的账号，能看到等级和升级进度、听歌时长、每年听了多少、最常听的歌和勋章，还能选年份打开网易云的官方年度听歌报告（不想要可以在设置里关掉）。
+- **接着听**：下次打开时，上次放的歌和进度还在，按播放就接着放。
+- **留在后台**：电脑上可以在设置里选关闭窗口时退出还是留在后台。留在后台时音乐继续放，从任务栏托盘（macOS 是菜单栏）能控制和打开窗口。
+- **电视**：Apple TV 和 Android TV 上用遥控器操作，用手机扫码登录。
 - **外观**：浅色、深色或跟随系统，中文和英文界面；格式、封面下的歌词和桌面歌词都能在设置里关掉。
 
 ## 下载
 
-到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：macOS 用 `.dmg`，iPhone / iPad 用 `.ipa`，Windows 用 `-setup.exe`，Android 用 `.apk`，Linux 用 `.deb`。macOS、iOS 和 Windows 版没有开发者签名：`.ipa` 需要用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名安装，其余的第一次打开时怎么放行写在发布说明里。
+到 [Releases](https://github.com/MCDFsteve/Enji/releases/latest) 下载：macOS 用 `.dmg`，iPhone / iPad 用 `.ipa`，Windows 用 `-setup.exe`，Android 用 `.apk`，Linux 用 `.deb`。macOS、iOS 和 Windows 版没有开发者签名：`.ipa` 需要用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名安装，其余的第一次打开时怎么放行写在发布说明里。 Android TV 用同一个 `.apk`；Apple TV 版暂时没有安装包。
 
 ## 交给 AI
 
@@ -139,7 +145,7 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```sh
-cargo binstall bern-cli@0.1.2
+cargo binstall bern-cli@0.1.3
 ```
 
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 会下载编译好的 `bern`；也可以用 `cargo install --locked bern-cli@0.1.2` 自己编译。

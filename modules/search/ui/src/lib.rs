@@ -172,7 +172,11 @@ pub fn search_home(search: search::Client) -> impl View {
                                             }
                                         }
                                         Column(gap: 2, align: leading) {
-                                            Text(content: word.word, bold: word.top, lines: 1)
+                                            if word.top {
+                                                    Text(content: word.word, bold: true, lines: 1)
+                                                } else {
+                                                    Text(content: word.word, lines: 1)
+                                                }
                                             if word.note != "" {
                                                 Text(content: word.note, style: caption, emphasis: secondary, lines: 1)
                                             }
@@ -230,7 +234,7 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
             SearchKind::Albums => {
                 ScrollView {
                     Column(padding: if window.compact { 18 } else { 32 }) {
-                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: search.album_results, key: id, stagger: 0.02) |album| {
                                 album_card(app: app, album: album)
                             }
@@ -252,7 +256,7 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
             SearchKind::Playlists => {
                 ScrollView {
                     Column(padding: if window.compact { 18 } else { 32 }) {
-                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: search.playlist_results, key: id, stagger: 0.02) |list| {
                                 playlist_card(app: app, list: list)
                             }

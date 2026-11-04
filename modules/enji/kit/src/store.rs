@@ -3,21 +3,21 @@
 
 use std::{fs, path::PathBuf};
 
-/// Where Enji keeps its files: the app's own storage on phones, the
+/// Where Enji keeps its files: the app's own storage on phones and TVs, the
 /// system's place for application data elsewhere (Application Support,
 /// AppData, ~/.local/share).
 pub fn dir() -> PathBuf {
-    #[cfg(any(target_os = "android", target_os = "ios"))]
+    #[cfg(any(target_os = "android", target_os = "ios", target_os = "tvos"))]
     {
         bern::storage::data_dir().unwrap_or_else(std::env::temp_dir)
     }
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "tvos")))]
     {
         dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Enji")
     }
 }
 
-pub(crate) fn cookie_path() -> PathBuf {
+pub fn cookie_path() -> PathBuf {
     dir().join("cookie.txt")
 }
 

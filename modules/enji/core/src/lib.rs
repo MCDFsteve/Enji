@@ -3,18 +3,24 @@
 //! state each time the worker wakes it.
 
 mod audio;
+mod beats;
 mod covers;
 mod downloads;
+mod listens;
 mod local;
 mod lyrics;
 mod net;
 mod plugins;
+mod resume;
 mod shuffle;
 mod store;
+mod together;
+#[cfg(target_os = "tvos")]
+mod tv_audio;
 
 use bern::{media::MediaSource, CommandError};
 use enji_kit::{convert, plays};
-use enji_protocol::enji::{self, Appearance, Login, Panel, Playlist, Quality, Song, SongOrder, Source, State};
+use enji_protocol::enji::{self, Appearance, CloseAction, Login, Panel, TopRange, Playlist, Quality, Song, SongOrder, Source, State};
 use net::Job;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
@@ -246,6 +252,33 @@ impl enji::Commands for EnjiEngine {
     fn set_show_plays(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetShowPlays(shown))
     }
+    fn set_report_listening(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetReportListening(on))
+    }
+    fn set_together(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetTogether(on))
+    }
+    fn open_together(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::SetTogetherOpen(true))
+    }
+    fn close_together(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::SetTogetherOpen(false))
+    }
+    fn create_together(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::CreateTogether)
+    }
+    fn join_together(&mut self, link: String) -> Result<(), CommandError> {
+        self.submit(Job::JoinTogether(link))
+    }
+    fn leave_together(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::LeaveTogether)
+    }
+    fn copy_together_link(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::CopyTogetherLink)
+    }
+    fn set_heart_mode(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetHeartMode(on))
+    }
     fn set_default_playlist(&mut self, id: i64) -> Result<(), CommandError> {
         self.submit(Job::SetDefaultPlaylist(id))
     }
@@ -272,6 +305,30 @@ impl enji::Commands for EnjiEngine {
     }
     fn remove_plugin(&mut self, id: String) -> Result<(), CommandError> {
         self.submit(Job::RemovePlugin(id))
+    }
+    fn open_account(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::OpenAccount)
+    }
+    fn set_top_range(&mut self, range: TopRange) -> Result<(), CommandError> {
+        self.submit(Job::SetTopRange(range))
+    }
+    fn set_on_close(&mut self, action: CloseAction) -> Result<(), CommandError> {
+        self.submit(Job::SetOnClose(action))
+    }
+    fn set_annual_report(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetAnnualReport(on))
+    }
+    fn open_report(&mut self, year: i64) -> Result<(), CommandError> {
+        self.submit(Job::OpenReport(year))
+    }
+    fn close_report(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::CloseReport)
+    }
+    fn open_plugins(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::SetPluginsOpen(true))
+    }
+    fn close_plugins(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::SetPluginsOpen(false))
     }
     fn load_offers(&mut self) -> Result<(), CommandError> {
         self.submit(Job::LoadOffers)

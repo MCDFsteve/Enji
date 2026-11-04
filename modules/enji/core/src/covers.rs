@@ -15,8 +15,10 @@ use std::{
 /// How many covers are kept; the oldest go first.
 const KEPT: usize = 300;
 
+/// Beside the local songs' covers, which a scan tidies away unless a song
+/// uses them.
 fn dir() -> PathBuf {
-    crate::store::dir().join("covers")
+    crate::store::dir().join("song-covers")
 }
 
 fn path_of(url: &str) -> PathBuf {

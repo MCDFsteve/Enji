@@ -80,6 +80,8 @@ pub mod enji {
         Album,
         #[label(tr! { "zh-Hans" => "歌手", "en" => "Artist" })]
         Artist,
+        #[label(tr! { "zh-Hans" => "账号", "en" => "Account" })]
+        Account,
     }
 
     /// A folder whose music is in the local library.
@@ -150,6 +152,10 @@ pub mod enji {
         RepeatOne,
         #[label(tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" })]
         Shuffle,
+        /// NetEase's heart mode: after the playing song, songs it picks for
+        /// the account.
+        #[label(tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" })]
+        Heart,
     }
 
     /// What the playing page shows beside the cover.
@@ -191,6 +197,15 @@ pub mod enji {
         Lossless,
         #[label(tr! { "zh-Hans" => "Hi-Res", "en" => "Hi-Res" })]
         Hires,
+    }
+
+    /// What closing the window does, where the system has a place to stay.
+    #[value]
+    pub enum CloseAction {
+        #[label(tr! { "zh-Hans" => "退出", "en" => "Quit" })]
+        Quit,
+        #[label(tr! { "zh-Hans" => "留在后台", "en" => "Stay in the Background" })]
+        Background,
     }
 
     #[value]
@@ -257,6 +272,87 @@ pub mod enji {
         pub platforms: String,
     }
 
+    /// What NetEase says of the signed-in account, its numbers as they
+    /// read.
+    #[value]
+    pub struct Profile {
+        pub id: i64,
+        #[content]
+        pub signature: String,
+        pub level: i64,
+        /// How many songs it has listened to.
+        #[content]
+        pub songs: String,
+        /// How long it has listened, in whole hours.
+        #[content]
+        pub hours: String,
+        /// How long it has been on NetEase.
+        #[content]
+        pub years: String,
+        #[content]
+        pub follows: String,
+        #[content]
+        pub fans: String,
+        #[content]
+        pub events: String,
+        #[content]
+        pub own_playlists: String,
+        #[content]
+        pub saved_playlists: String,
+        #[content]
+        pub artists: String,
+        /// How far it is to the next level, in songs.
+        #[content]
+        pub level_songs: String,
+        #[content]
+        pub level_goal: String,
+        pub level_progress: f64,
+        /// Its membership: the badge, and until when; empty without one.
+        pub vip_badge: MediaSource,
+        #[content]
+        pub vip_until: String,
+    }
+
+    /// A year of listening, and whether NetEase has its annual report.
+    #[value]
+    pub struct ListenYear {
+        pub year: i64,
+        #[content]
+        pub name: String,
+        #[content]
+        pub hours: String,
+        /// How much of the longest year it was.
+        pub share: f64,
+        pub has_report: bool,
+    }
+
+    /// A medal the account has.
+    #[value]
+    pub struct Medal {
+        pub id: i64,
+        #[content]
+        pub name: String,
+        pub picture: MediaSource,
+    }
+
+    /// Which listening the account page ranks.
+    #[value]
+    pub enum TopRange {
+        #[label(tr! { "zh-Hans" => "全部", "en" => "All Time" })]
+        All,
+        #[label(tr! { "zh-Hans" => "本周", "en" => "This Week" })]
+        Week,
+    }
+
+    /// Someone in the room listened together in.
+    #[value]
+    pub struct TogetherUser {
+        pub id: i64,
+        #[content]
+        pub name: String,
+        pub avatar: MediaSource,
+    }
+
     /// A plugin the plugin market lists.
     #[value]
     pub struct Offer {
@@ -307,6 +403,8 @@ pub mod enji {
         History,
         #[label(tr! { "zh-Hans" => "专辑", "en" => "Album" })]
         Album,
+        #[label(tr! { "zh-Hans" => "最常听", "en" => "Most Played" })]
+        Top,
         #[label(tr! { "zh-Hans" => "歌手的热门歌曲", "en" => "Artist's Top Songs" })]
         Artist,
     }
@@ -453,6 +551,42 @@ pub mod enji {
         pub buffering: bool,
         /// Only a short preview: the song is for members.
         pub preview: bool,
+        /// The account page's profile, once read.
+        pub profile: Option<Profile>,
+        /// The account's years of listening, the latest first.
+        pub listen_years: Vec<ListenYear>,
+        pub has_listen_years: bool,
+        /// What it listened to most, in `top_range`.
+        pub top_songs: Vec<Song>,
+        pub has_top_songs: bool,
+        pub top_range: TopRange,
+        /// Its medals, the first of them, and how many it has.
+        pub medals: Vec<Medal>,
+        pub has_medals: bool,
+        pub medal_count: i64,
+        /// The annual reports are offered at all.
+        pub annual_report: bool,
+        /// What closing the window does.
+        pub on_close: CloseAction,
+        /// A computer, where windows close and a status area can keep the
+        /// application.
+        pub desktop: bool,
+        /// The annual report's page, shown when not empty; the file of the
+        /// account's cookies it signs in with, on which domain, and how it
+        /// is told it is in NetEase's app.
+        #[content]
+        pub report_url: String,
+        #[content]
+        pub cookie_file: String,
+        #[content]
+        pub cookie_domain: String,
+        #[content]
+        pub report_agent: String,
+        /// The report's own close button, as a CSS selector.
+        #[content]
+        pub report_close: String,
+        /// The plugins' window is open.
+        pub plugins_open: bool,
         /// The installed plugins, by name.
         pub plugins: Vec<Plugin>,
         pub has_plugins: bool,
@@ -460,8 +594,11 @@ pub mod enji {
         pub offers: Vec<Offer>,
         pub has_offers: bool,
         pub offers_loading: bool,
-        /// Each pulse a plugin gives the playing cover adds one.
+        /// Each pulse a plugin gives the playing cover adds one, by how
+        /// strong it is.
+        pub cover_pulse_soft: i64,
         pub cover_pulse: i64,
+        pub cover_pulse_strong: i64,
         /// The songs being downloaded, the first started first.
         pub downloads: Vec<Download>,
         pub has_downloads: bool,
@@ -488,6 +625,8 @@ pub mod enji {
         pub total: String,
         pub volume: f64,
         pub lyrics: Vec<LyricLine>,
+        /// The sung line and those around it, for a TV to show large.
+        pub lyrics_near: Vec<LyricLine>,
         pub has_lyrics: bool,
         /// The key of the line being sung.
         pub line: i64,
@@ -517,6 +656,26 @@ pub mod enji {
         pub netease: bool,
         /// Lyrics and covers looked up on NetEase for local songs without them.
         pub online_info: bool,
+        /// What is listened to goes to the account's listening record on
+        /// NetEase, as in its own apps.
+        pub report_listening: bool,
+        /// The heart mode joins the play modes.
+        pub heart_mode: bool,
+        /// Listening together shows beside the player.
+        pub together: bool,
+        /// Its window is open.
+        pub together_open: bool,
+        /// The room listened in; empty outside one.
+        pub together_room: String,
+        /// A room is being entered or left.
+        pub together_busy: bool,
+        /// The room cannot be reached for now.
+        pub together_struggling: bool,
+        pub together_users: Vec<TogetherUser>,
+        /// Nobody else is in the room yet.
+        pub together_alone: bool,
+        /// The link that invites someone to the room.
+        pub together_link: String,
         pub quality: Quality,
         pub show_translation: bool,
         /// The playing song's cover, blurred, behind the whole window.
@@ -650,6 +809,20 @@ pub mod enji {
         /// Order the songs of the open playlist and of the local folders.
         fn set_order(&mut self, order: SongOrder) -> Result<(), CommandError>;
         fn set_show_plays(&mut self, shown: bool) -> Result<(), CommandError>;
+        /// Send what is listened to to the account's listening record on NetEase, or stop.
+        fn set_report_listening(&mut self, on: bool) -> Result<(), CommandError>;
+        /// Show listening together beside the player, or leave it and hide it.
+        fn set_together(&mut self, on: bool) -> Result<(), CommandError>;
+        fn open_together(&mut self) -> Result<(), CommandError>;
+        fn close_together(&mut self) -> Result<(), CommandError>;
+        /// Start a room with what plays now, or go back to the account's room.
+        fn create_together(&mut self) -> Result<(), CommandError>;
+        /// Join the room of an invitation link from NetEase.
+        fn join_together(&mut self, link: String) -> Result<(), CommandError>;
+        fn leave_together(&mut self) -> Result<(), CommandError>;
+        fn copy_together_link(&mut self) -> Result<(), CommandError>;
+        /// Let the play modes include NetEase's heart mode, or not.
+        fn set_heart_mode(&mut self, on: bool) -> Result<(), CommandError>;
         /// The playlist the account's page opens straight into; 0 for none.
         fn set_default_playlist(&mut self, id: i64) -> Result<(), CommandError>;
         /// Another page was chosen: close what was open over the page; on
@@ -666,6 +839,20 @@ pub mod enji {
         /// Turn an installed plugin on or off.
         fn set_plugin_enabled(&mut self, id: String, on: bool) -> Result<(), CommandError>;
         fn remove_plugin(&mut self, id: String) -> Result<(), CommandError>;
+        /// Show what NetEase says of the account.
+        fn open_account(&mut self) -> Result<(), CommandError>;
+        /// Rank what the account listened to over `range`.
+        fn set_top_range(&mut self, range: TopRange) -> Result<(), CommandError>;
+        /// Quit when the window closes, or stay in the status area.
+        fn set_on_close(&mut self, action: CloseAction) -> Result<(), CommandError>;
+        /// Offer the annual listening reports, or not.
+        fn set_annual_report(&mut self, on: bool) -> Result<(), CommandError>;
+        /// Show NetEase's annual listening report of the account for `year`.
+        fn open_report(&mut self, year: i64) -> Result<(), CommandError>;
+        fn close_report(&mut self) -> Result<(), CommandError>;
+        /// Show the installed plugins and what the market lists.
+        fn open_plugins(&mut self) -> Result<(), CommandError>;
+        fn close_plugins(&mut self) -> Result<(), CommandError>;
         /// Ask the plugin market what it lists.
         fn load_offers(&mut self) -> Result<(), CommandError>;
         /// Install, or update, a plugin the market lists.

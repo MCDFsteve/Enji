@@ -96,11 +96,18 @@ impl Pack {
                 "linux" => "Linux",
                 "android" => "Android",
                 "ios" => "iOS",
+                "tvos" => "tvOS",
                 other => other,
             })
             .collect::<Vec<_>>()
             .join(" / ")
     }
+}
+
+/// Whether the version `offered` is later than `installed`, number by number.
+pub fn is_newer(offered: &str, installed: &str) -> bool {
+    let numbers = |version: &str| -> Vec<u64> { version.split('.').map(|part| part.parse().unwrap_or(0)).collect() };
+    numbers(offered) > numbers(installed)
 }
 
 /// This system as plugins name it.
@@ -109,6 +116,8 @@ pub fn platform_name() -> &'static str {
         "macos"
     } else if cfg!(target_os = "ios") {
         "ios"
+    } else if cfg!(target_os = "tvos") {
+        "tvos"
     } else if cfg!(target_os = "windows") {
         "windows"
     } else if cfg!(target_os = "android") {
@@ -245,7 +254,8 @@ fn text_of(value: &Value, key: &str) -> String {
 pub enum Call {
     OverlayShow(String, Value),
     OverlayHide(String),
-    CoverPulse,
+    /// How strong it is, from 0 to 1.
+    CoverPulse(f64),
     Toast(String),
     StorageSet(String, String),
     Log(String),
@@ -259,7 +269,7 @@ impl Call {
         Some(match name {
             "overlayShow" => Call::OverlayShow(arg(0), args[1].clone()),
             "overlayHide" => Call::OverlayHide(arg(0)),
-            "coverPulse" => Call::CoverPulse,
+            "coverPulse" => Call::CoverPulse(args[0].as_f64().unwrap_or(0.5).clamp(0.0, 1.0)),
             "toast" => Call::Toast(arg(0)),
             "storageSet" => Call::StorageSet(arg(0), arg(1)),
             "log" => Call::Log(arg(0)),
@@ -271,7 +281,7 @@ impl Call {
     fn permission(&self) -> Option<&'static str> {
         match self {
             Call::OverlayShow(..) | Call::OverlayHide(_) => Some("overlay"),
-            Call::CoverPulse => Some("cover"),
+            Call::CoverPulse(_) => Some("cover"),
             _ => None,
         }
     }
@@ -460,6 +470,14 @@ mod tests {
     use super::*;
     use std::io::Write;
 
+    #[test]
+    fn a_later_version_is_newer_and_an_older_one_is_not() {
+        assert!(is_newer("1.1.0", "1.0.9"));
+        assert!(is_newer("1.10.0", "1.9.0"));
+        assert!(!is_newer("1.0.0", "1.1.0"));
+        assert!(!is_newer("1.1.0", "1.1.0"));
+    }
+
     fn package(files: &[(&str, &str)]) -> Vec<u8> {
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         for (name, text) in files {
@@ -508,7 +526,8 @@ mod tests {
 
     #[test]
     fn calls_parse_by_name() {
-        assert_eq!(Call::parse(&json!(["coverPulse", []])), Some(Call::CoverPulse));
+        assert_eq!(Call::parse(&json!(["coverPulse", []])), Some(Call::CoverPulse(0.5)));
+        assert_eq!(Call::parse(&json!(["coverPulse", [2.0]])), Some(Call::CoverPulse(1.0)));
         assert_eq!(Call::parse(&json!(["toast", ["hi"]])), Some(Call::Toast("hi".into())));
         assert_eq!(Call::parse(&json!(["nope", []])), None);
     }
@@ -535,7 +554,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         // No `overlay` permission: the overlay is dropped.
-        assert_eq!(calls, vec![("t.p".into(), Call::CoverPulse), ("t.p".into(), Call::Toast(platform_name().into()))]);
+        assert_eq!(calls, vec![("t.p".into(), Call::CoverPulse(0.5)), ("t.p".into(), Call::Toast(platform_name().into()))]);
         let _ = std::fs::remove_dir_all(folder);
     }
 

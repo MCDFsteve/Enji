@@ -2,7 +2,10 @@
 //! plays while it downloads: reading waits for the bytes not here yet. The
 //! thread reports where the song is and when it has ended.
 
-use rodio::{OutputStream, Sink, Source};
+use crate::beats::{Beat, Beats};
+#[cfg(target_os = "tvos")]
+use crate::tv_audio::Output;
+use rodio::{Sink, Source};
 use symphonia::core::{
     audio::SampleBuffer,
     codecs::{Decoder as Codec, DecoderOptions},
@@ -15,7 +18,7 @@ use symphonia::core::{
 use std::{
     io::{Read, Seek, SeekFrom},
     sync::{
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc, Arc, Condvar, Mutex,
     },
     time::Duration,
@@ -27,10 +30,54 @@ use std::{
 static LEVEL: AtomicU32 = AtomicU32::new(0);
 static BASS: AtomicU32 = AtomicU32::new(0);
 
+/// Whether anything listens for the beat: finding it takes some work.
+static FOLLOW_BEAT: AtomicBool = AtomicBool::new(false);
+/// Beats told so far, and the last one's strength and tempo as the bits of
+/// an `f32`.
+static BEATS: AtomicU32 = AtomicU32::new(0);
+static BEAT_STRENGTH: AtomicU32 = AtomicU32::new(0);
+static BEAT_BPM: AtomicU32 = AtomicU32::new(0);
+/// How long before the beat lands it is told: for a pulse to rise to its
+/// peak on the beat, after the way through a plugin to the screen.
+const BEAT_LEAD: f64 = 0.12;
+
+/// Find the beat of what plays, or stop.
+pub fn follow_beat(on: bool) {
+    FOLLOW_BEAT.store(on, Ordering::Relaxed);
+}
+
+/// How many beats were told so far, and the last one.
+pub fn beat() -> (u32, Beat) {
+    let beat = Beat {
+        strength: f32::from_bits(BEAT_STRENGTH.load(Ordering::Relaxed)),
+        bpm: f32::from_bits(BEAT_BPM.load(Ordering::Relaxed)),
+    };
+    (BEATS.load(Ordering::Relaxed), beat)
+}
+
 /// The loudness of the music being played and of its low end, before the
 /// volume.
 pub fn levels() -> (f32, f32) {
     (f32::from_bits(LEVEL.load(Ordering::Relaxed)), f32::from_bits(BASS.load(Ordering::Relaxed)))
+}
+
+/// The system's audio output, as rodio plays through it.
+#[cfg(not(target_os = "tvos"))]
+struct Output {
+    _stream: rodio::OutputStream,
+    handle: rodio::OutputStreamHandle,
+}
+
+#[cfg(not(target_os = "tvos"))]
+impl Output {
+    fn open() -> Result<Output, String> {
+        let (_stream, handle) = rodio::OutputStream::try_default().map_err(|e| e.to_string())?;
+        Ok(Output { _stream, handle })
+    }
+
+    fn sink(&self) -> Result<Sink, String> {
+        Sink::try_new(&self.handle).map_err(|e| e.to_string())
+    }
 }
 
 /// A song as it downloads.
@@ -166,6 +213,8 @@ struct Decoded {
     skip: usize,
     /// The low-pass filter of the low end, as it was after the last sample.
     low: f32,
+    /// What follows the beat, while something listens for it.
+    beats: Option<Beats>,
 }
 
 impl Decoded {
@@ -197,6 +246,7 @@ impl Decoded {
             at: 0,
             skip: 0,
             low: 0.0,
+            beats: None,
         };
         // The first packet tells the real layout, which a stream may not
         // have said in its header.
@@ -213,12 +263,22 @@ impl Decoded {
             return;
         }
         let alpha = 1.0 - (-2.0 * std::f32::consts::PI * 150.0 / self.rate.max(1) as f32).exp();
+        if !FOLLOW_BEAT.load(Ordering::Relaxed) {
+            self.beats = None;
+        } else if self.beats.is_none() {
+            self.beats = Some(Beats::new(self.rate, BEAT_LEAD));
+        }
         let (mut all, mut low) = (0.0f32, 0.0f32);
         for frame in self.samples.chunks_exact(channels) {
             let mono = frame.iter().sum::<f32>() / channels as f32;
             self.low += alpha * (mono - self.low);
             all += mono * mono;
             low += self.low * self.low;
+            if let Some(beat) = self.beats.as_mut().and_then(|beats| beats.hear(mono)) {
+                BEAT_STRENGTH.store(beat.strength.to_bits(), Ordering::Relaxed);
+                BEAT_BPM.store(beat.bpm.to_bits(), Ordering::Relaxed);
+                BEATS.fetch_add(1, Ordering::Relaxed);
+            }
         }
         LEVEL.store((all / frames as f32).sqrt().to_bits(), Ordering::Relaxed);
         BASS.store((low / frames as f32).sqrt().to_bits(), Ordering::Relaxed);
@@ -295,6 +355,8 @@ impl Source for Decoded {
             .map_err(|e| rodio::source::SeekError::Other(Box::new(e)))?;
         self.codec.reset();
         self.samples.clear();
+        // The beat is found again from where it lands.
+        self.beats = None;
         self.at = 0;
         self.skip = seeked.required_ts.saturating_sub(seeked.actual_ts) as usize * usize::from(self.channels);
         Ok(())
@@ -367,7 +429,7 @@ impl Audio {
 
 fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume: f32) {
     let report = |f: &dyn Fn(&mut Status)| f(&mut status.lock().unwrap_or_else(|e| e.into_inner()));
-    let (_stream, output) = match OutputStream::try_default() {
+    let output = match Output::open() {
         Ok(found) => found,
         Err(e) => {
             let message = format!("没有可用的音频输出：{e}");
@@ -383,7 +445,7 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                 sink = None;
                 current = None;
                 match Decoded::open(&stream) {
-                    Ok(source) => match Sink::try_new(&output) {
+                    Ok(source) => match output.sink() {
                         Ok(next) => {
                             next.set_volume(volume);
                             next.append(source);

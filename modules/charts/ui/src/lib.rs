@@ -18,7 +18,7 @@ pub fn charts_page(app: enji::Client, charts: charts::Client) -> impl View {
                     if charts.loading {
                         Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
                     }
-                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                         ForEach(items: charts.charts, key: id, stagger: 0.03) |list| {
                             playlist_card(app: app, list: list)
                         }

@@ -37,6 +37,8 @@ pub struct MainDraft {
     pub new_name: String,
     /// Other words to find the NetEase song a local song is.
     pub match_words: String,
+    /// An invitation pasted to listen together.
+    pub together_link: String,
 }
 
 
@@ -68,16 +70,33 @@ pub fn account(app: enji::Client) -> impl View {
 #[component]
 pub fn sign_in(app: enji::Client) -> impl View {
     ui! {
-        Modal(width: 380) {
+        Modal(width: if window.tv { 720 } else if window.short { 640 } else { 380 }) {
             Stack(align: top_trailing) {
-                Column(gap: 20, padding_x: 32, padding_y: 32, align: center) {
-                    Image(source: "assets/mark.png", width: 44, height: 44, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
-                    Text(content: tr! { "zh-Hans" => "登录网易云音乐", "en" => "Sign In to NetEase Cloud Music" }, style: title2, bold: true)
-                    sign_in_code(app: app)
+                // On a phone on its side, the code beside the words.
+                if window.short && !window.tv {
+                    Row(gap: 28, padding_x: 28, padding_y: 24, align: center) {
+                        sign_in_picture(app: app)
+                        Column(gap: 16, align: leading) {
+                            Image(source: "assets/mark.png", width: 36, height: 36, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
+                            Text(content: tr! { "zh-Hans" => "登录网易云音乐", "en" => "Sign In to NetEase Cloud Music" }, style: title3, bold: true)
+                            sign_in_steps(app: app)
+                        }
+                    }
+                } else {
+                    Row(padding_x: if window.compact { 20 } else { 32 }, padding_y: 32) {
+                        Spacer
+                        Column(gap: 20, align: center) {
+                            Image(source: "assets/mark.png", width: 44, height: 44, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
+                            Text(content: tr! { "zh-Hans" => "登录网易云音乐", "en" => "Sign In to NetEase Cloud Music" }, style: title2, bold: true)
+                            sign_in_code(app: app)
+                        }
+                        Spacer
+                    }
                 }
                 Column(padding: 14) {
                     IconButton(id: close_sign_in, icon: "xmark", prominence: plain, label: tr! { "zh-Hans" => "关闭", "en" => "Close" }) => app.cancel_sign_in()
                 }
+                Shortcut(key: "escape") => app.cancel_sign_in()
             }
         }
     }
@@ -90,40 +109,58 @@ pub fn sign_in(app: enji::Client) -> impl View {
 pub fn sign_in_code(app: enji::Client) -> impl View {
     ui! {
         Column(gap: 20, align: center) {
-            Stack(variant: qr, appearance: light) {
-                Column(padding: 16) {
-                    match app.login {
-                        Login::Waiting => {
-                            Image(source: app.qr, width: 200, height: 200, label: tr! { "zh-Hans" => "登录二维码", "en" => "Sign-in code" }, appear: fade)
+            sign_in_picture(app: app)
+            sign_in_steps(app: app)
+        }
+    }
+}
+
+/// The code, or who scanned it, on its white card.
+#[component]
+pub fn sign_in_picture(app: enji::Client) -> impl View {
+    ui! {
+        Stack(variant: qr, appearance: light) {
+            Column(padding: 16) {
+                match app.login {
+                    Login::Waiting => {
+                        Image(source: app.qr, width: 200, height: 200, label: tr! { "zh-Hans" => "登录二维码", "en" => "Sign-in code" }, appear: fade)
+                    }
+                    Login::Scanned => {
+                        Column(gap: 10, width: 200, height: 200, align: center, appear: pop) {
+                            Spacer
+                            Image(source: app.scanner_avatar, width: 76, height: 76, fit: cover, corner: 38)
+                            Text(content: app.scanner, style: headline, lines: 1)
+                            Text(content: tr! { "zh-Hans" => "在手机上确认登录", "en" => "Confirm on your phone" }, style: caption, emphasis: secondary)
+                            Spacer
                         }
-                        Login::Scanned => {
-                            Column(gap: 10, width: 200, height: 200, align: center, appear: pop) {
-                                Spacer
-                                Image(source: app.scanner_avatar, width: 76, height: 76, fit: cover, corner: 38)
-                                Text(content: app.scanner, style: headline, lines: 1)
-                                Text(content: tr! { "zh-Hans" => "在手机上确认登录", "en" => "Confirm on your phone" }, style: caption, emphasis: secondary)
-                                Spacer
+                    }
+                    Login::Expired => {
+                        Stack {
+                            Image(source: app.qr, width: 200, height: 200, blur: 10)
+                            Column(gap: 12, align: center) {
+                                Text(content: tr! { "zh-Hans" => "二维码已失效", "en" => "The code has expired" }, style: headline)
+                                Button(id: refresh_code, label: tr! { "zh-Hans" => "刷新", "en" => "Refresh" }, icon: "arrow.clockwise", prominence: prominent) => app.sign_in()
                             }
                         }
-                        Login::Expired => {
-                            Stack {
-                                Image(source: app.qr, width: 200, height: 200, blur: 10)
-                                Column(gap: 12, align: center) {
-                                    Text(content: tr! { "zh-Hans" => "二维码已失效", "en" => "The code has expired" }, style: headline)
-                                    Button(id: refresh_code, label: tr! { "zh-Hans" => "刷新", "en" => "Refresh" }, icon: "arrow.clockwise", prominence: prominent) => app.sign_in()
-                                }
-                            }
-                        }
-                        _ => {
-                            Column(width: 200, height: 200, align: center) {
-                                Spacer
-                                Progress(label: tr! { "zh-Hans" => "正在获取二维码", "en" => "Getting the code" })
-                                Spacer
-                            }
+                    }
+                    _ => {
+                        Column(width: 200, height: 200, align: center) {
+                            Spacer
+                            Progress(label: tr! { "zh-Hans" => "正在获取二维码", "en" => "Getting the code" })
+                            Spacer
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/// How to scan the code.
+#[component]
+pub fn sign_in_steps(app: enji::Client) -> impl View {
+    ui! {
+        Column(gap: 0) {
             if app.saves_code {
                 Column(gap: 10, align: center) {
                     if app.code_saved {
@@ -150,11 +187,6 @@ pub fn sign_in_code(app: enji::Client) -> impl View {
     }
 }
 
-// MARK: - Pages
-
-
-
-
 /// The account's playlists, with a way to make another.
 #[component]
 pub fn library_page(app: enji::Client) -> impl View {
@@ -177,7 +209,7 @@ pub fn library_page(app: enji::Client) -> impl View {
                     if app.has_created {
                     Column(gap: 14, align: leading) {
                         Text(content: tr! { "zh-Hans" => "创建的歌单", "en" => "Your Playlists" }, style: title3, bold: true)
-                        Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: app.created, key: id, stagger: 0.03) |list| {
                                 playlist_card(app: app, list: list)
                             }
@@ -187,7 +219,7 @@ pub fn library_page(app: enji::Client) -> impl View {
                     if app.has_collected {
                     Column(gap: 14, align: leading) {
                         Text(content: tr! { "zh-Hans" => "收藏的歌单", "en" => "Saved Playlists" }, style: title3, bold: true)
-                        Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: app.collected, key: id, stagger: 0.03) |list| {
                                 playlist_card(app: app, list: list)
                             }
@@ -208,8 +240,20 @@ pub fn library_page(app: enji::Client) -> impl View {
 pub fn mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         match draft.shelf {
-            Shelf::Local => { local_page(app: app) }
-            Shelf::History => { history_page(app: app) }
+            Shelf::Local => {
+                Stack(align: top_leading) {
+                    local_page(app: app)
+                    shelf_back()
+                }
+                Shortcut(key: "escape") => draft.shelf.set(Shelf::Mine)
+            }
+            Shelf::History => {
+                Stack(align: top_leading) {
+                    history_page(app: app)
+                    shelf_back()
+                }
+                Shortcut(key: "escape") => draft.shelf.set(Shelf::Mine)
+            }
             Shelf::Mine => {
                 ScrollView {
                     Column(gap: 22, padding: 18) {
@@ -263,7 +307,7 @@ pub fn mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                                 if app.has_created {
                                 Column(gap: 14, align: leading) {
                         Text(content: tr! { "zh-Hans" => "创建的歌单", "en" => "Your Playlists" }, style: title3, bold: true)
-                        Grid(min_width: 150, gap: 18, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 150, gap: 18, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: app.created, key: id, stagger: 0.03) |list| {
                                 playlist_card(app: app, list: list)
                             }
@@ -273,7 +317,7 @@ pub fn mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                                 if app.has_collected {
                                 Column(gap: 14, align: leading) {
                         Text(content: tr! { "zh-Hans" => "收藏的歌单", "en" => "Saved Playlists" }, style: title3, bold: true)
-                        Grid(min_width: 150, gap: 18, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 150, gap: 18, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: app.collected, key: id, stagger: 0.03) |list| {
                                 playlist_card(app: app, list: list)
                             }
@@ -434,13 +478,23 @@ pub fn liked_card(app: enji::Client, list: enji::Playlist) -> impl View {
     }
 }
 
-/// On a phone, the way back from a list of its own tab.
+/// On a phone, the way back from a list of its own tab, over the list so
+/// that it stays however far the list went.
 #[component]
 pub fn shelf_back(#[session] draft: MainDraft) -> impl View {
     ui! {
-        if window.compact {
-            Row(padding_x: 4) {
-                IconButton(id: shelf_back, icon: "chevron.left", font_size: 17, prominence: plain, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => draft.shelf.set(Shelf::Mine)
+        Column(padding_x: 16, padding_y: 12) {
+            IconButton(id: shelf_back, icon: "chevron.left", height: 44, font_size: 19, variant: round, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => draft.shelf.set(Shelf::Mine)
+        }
+    }
+}
+
+/// On a phone, the room for that way back above a list.
+#[component]
+pub fn shelf_room() -> impl View {
+    ui! {
+        if window.compact || window.short && !window.tv {
+            Column(height: 52) {
                 Spacer
             }
         }
@@ -454,7 +508,7 @@ pub fn local_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         ScrollView {
             Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: if window.compact { 4 } else { 20 }) {
-                shelf_back()
+                shelf_room()
                 Row(gap: 12, padding_x: 8, padding_y: 12, align: center) {
                     Column(gap: 6, align: leading) {
                         Text(content: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, style: large_title)
@@ -494,7 +548,7 @@ pub fn local_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                 if app.has_local {
                     Row(gap: 10, padding_x: 8, padding_y: 8) {
                         Button(id: play_local, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36) => app.play(Source::Local, 0)
-                        if app.phone_folder == "" {
+                        if app.phone_folder == "" && !window.tv {
                             Button(id: add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", shape: capsule, height: 36, pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
                         }
                         Picker(id: local_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
@@ -534,7 +588,7 @@ pub fn history_page(app: enji::Client, #[session] draft: MainDraft) -> impl View
     ui! {
         ScrollView {
             Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: if window.compact { 4 } else { 20 }) {
-                shelf_back()
+                shelf_room()
                 Row(gap: 12, padding_x: 8, padding_y: 12, align: center) {
                     Text(content: tr! { "zh-Hans" => "播放记录", "en" => "History" }, style: large_title)
                     Spacer
@@ -640,48 +694,340 @@ pub fn artist_card(app: enji::Client, artist: enji::Artist) -> impl View {
     }
 }
 
-/// What is open over the page: the playlist, album or singer opened last.
+/// What is open over the page: the playlist, album or singer opened last,
+/// or the account, under the way back.
 #[component]
 pub fn detail_view(app: enji::Client) -> impl View {
     ui! {
-        // On a phone, Android's Back goes back from each, as its button does.
-        match app.detail {
-            Detail::Album => {
-                if let Some(album) = app.album {
-                    album_page(app: app, album: album)
+        Stack(align: top_leading) {
+            match app.detail {
+                Detail::Album => {
+                    if let Some(album) = app.album {
+                        album_page(app: app, album: album)
+                    }
                 }
-                if window.compact {
-                    Shortcut(key: "escape") => app.back()
+                Detail::Artist => {
+                    if let Some(artist) = app.artist {
+                        artist_page(app: app, artist: artist)
+                    }
                 }
+                Detail::Playlist => {
+                    if let Some(list) = app.opened {
+                        playlist_page(app: app, list: list)
+                    }
+                }
+                Detail::Account => {
+                    account_page(app: app)
+                }
+                Detail::Page => {}
             }
-            Detail::Artist => {
-                if let Some(artist) = app.artist {
-                    artist_page(app: app, artist: artist)
-                }
-                if window.compact {
-                    Shortcut(key: "escape") => app.back()
-                }
+            back_over(app: app)
+            // On a phone, Android's Back goes back from each, as its button does.
+            if window.compact || window.short || window.tv {
+                Shortcut(key: "escape") => app.back()
             }
-            Detail::Playlist => {
-                if let Some(list) = app.opened {
-                    playlist_page(app: app, list: list)
-                }
-                if window.compact {
-                    Shortcut(key: "escape") => app.back()
-                }
-            }
-            Detail::Page => {}
         }
     }
 }
 
-/// The way back to what was open before.
+/// The way back, over the page so that it stays however far a long list
+/// went. A TV has no pointer: its remote goes back, and the page has a
+/// button to focus (see `back_row`).
+#[component]
+pub fn back_over(app: enji::Client) -> impl View {
+    ui! {
+        // As large as the buttons beside it: the search button on a phone,
+        // the window's own elsewhere.
+        if window.compact || window.short {
+            if !window.tv {
+                Column(padding_x: 16, padding_y: 12) {
+                    IconButton(id: back, icon: "chevron.left", height: 44, font_size: 19, variant: round, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
+                }
+            }
+        } else if !window.tv {
+            Column(padding_x: 24, padding_y: 12) {
+                IconButton(id: back_small, icon: "chevron.left", height: 36, font_size: 15, variant: round, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
+            }
+        }
+    }
+}
+
+/// At the top of a page, the room for the way back over it; on a TV, the
+/// way back itself.
 #[component]
 pub fn back_row(app: enji::Client) -> impl View {
     ui! {
-        Row(padding_x: 4) {
-            IconButton(id: back, icon: "chevron.left", font_size: 17, prominence: plain, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
-            Spacer
+        if window.tv {
+            Row(padding_x: 4) {
+                IconButton(id: tv_back, icon: "chevron.left", font_size: 17, prominence: plain, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
+                Spacer
+            }
+        } else {
+            Column(height: if window.compact { 8 } else { 52 }) {
+                Spacer
+            }
+        }
+    }
+}
+
+/// The account's own: its picture blurred behind who it is, with its
+/// level, membership and the people around it.
+#[component]
+pub fn account_hero(app: enji::Client) -> impl View {
+    ui! {
+        Column(height: if window.compact { 330 } else { 290 }) {
+            Stack(variant: hero, appearance: dark) {
+                Image(source: app.avatar, fit: cover, blur: 60)
+                Canvas(label: app.nickname) {
+                    Shape(kind: rect, fill: surface.canvas, opacity: 0.6)
+                }
+                Column(gap: 10, padding_x: 24, align: center) {
+                    Spacer
+                    Image(source: app.avatar, width: 92, height: 92, fit: cover, corner: 46)
+                    Text(content: app.nickname, style: title2, bold: true, lines: 1)
+                    if let Some(profile) = app.profile {
+                        Row(gap: 8, align: center) {
+                            Stack(variant: level) {
+                                Column(padding_x: 8, padding_y: 2) {
+                                    Text(content: tr! { "zh-Hans" => "Lv.{level}", "en" => "Lv.{level}"; level: profile.level }, style: caption, bold: true)
+                                }
+                            }
+                            if profile.vip_until != "" {
+                                Image(source: profile.vip_badge, width: 44, height: 18, fit: contain, label: tr! { "zh-Hans" => "黑胶 VIP", "en" => "VIP" })
+                                Text(content: tr! { "zh-Hans" => "{date} 到期", "en" => "Until {date}"; date: profile.vip_until }, style: caption, emphasis: secondary, lines: 1)
+                            }
+                        }
+                        if profile.signature != "" {
+                            Text(content: profile.signature, style: subheadline, emphasis: secondary, lines: 2)
+                        }
+                        Row(gap: 20, align: center) {
+                            Text(content: tr! { "zh-Hans" => "{n} 关注", "en" => "{n} Following"; n: profile.follows }, style: footnote)
+                            Text(content: tr! { "zh-Hans" => "{n} 粉丝", "en" => "{n} Followers"; n: profile.fans }, style: footnote)
+                            Text(content: tr! { "zh-Hans" => "{n} 动态", "en" => "{n} Posts"; n: profile.events }, style: footnote)
+                        }
+                    }
+                    Spacer
+                }
+            }
+        }
+    }
+}
+
+/// One year of listening: how long, as a bar against the longest year.
+#[component]
+pub fn account_year(year: enji::ListenYear, opens: bool) -> impl View {
+    ui! {
+        Column(gap: 6, padding_x: 16, padding_y: 10) {
+            Row(gap: 8, align: center) {
+                Text(content: year.name, style: subheadline)
+                Spacer
+                Text(content: tr! { "zh-Hans" => "{n} 小时", "en" => "{n} h"; n: year.hours }, style: caption, emphasis: secondary, lines: 1)
+                if opens {
+                    Stack(variant: quiet) {
+                        Label(title: tr! { "zh-Hans" => "打开", "en" => "Open" }, icon: "chevron.right", display: icon, font_size: 13)
+                    }
+                }
+            }
+            Progress(value: year.share, total: 1)
+        }
+    }
+}
+
+/// The years of listening; those with an annual report open it.
+#[component]
+pub fn account_years(app: enji::Client) -> impl View {
+    ui! {
+        Column(gap: 8) {
+            Column(padding_x: 16) {
+                Text(content: tr! { "zh-Hans" => "每年听歌", "en" => "Year by Year" }, style: footnote, bold: true, emphasis: secondary)
+            }
+            Stack(variant: card) {
+                Column(gap: 0) {
+                    ForEach(items: app.listen_years, key: year) |year| {
+                        if year.has_report && app.annual_report && !window.tv {
+                            Button(id: open_report, label: tr! { "zh-Hans" => "{year} 年度听歌报告", "en" => "{year} Annual Report"; year: year.name }, variant: row) {
+                                account_year(year: year, opens: true)
+                            } => app.open_report(year.year)
+                        } else {
+                            account_year(year: year, opens: false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// What the account listened to most, all time or this week.
+#[component]
+pub fn account_top(app: enji::Client) -> impl View {
+    ui! {
+        Column(gap: 8) {
+            Row(gap: 12, padding_x: 16, align: center) {
+                Text(content: tr! { "zh-Hans" => "最常听", "en" => "Most Played" }, style: footnote, bold: true, emphasis: secondary)
+                Spacer
+                Picker(id: top_range, label: tr! { "zh-Hans" => "范围", "en" => "Range" }, label_hidden: true, selected: app.top_range, style: segmented) => app.set_top_range(app.top_range)
+            }
+            Stack(variant: card) {
+                Column(gap: 0) {
+                    ForEach(items: app.top_songs, key: id) |song| {
+                        Button(id: top_song, label: song.name, variant: row) {
+                            Row(gap: 12, padding_x: 12, padding_y: 8, align: center) {
+                                Column(width: 20, align: center) {
+                                    Text(content: tr! { "zh-Hans" => "{n}", "en" => "{n}"; n: song.rank }, style: caption, emphasis: secondary)
+                                }
+                                Image(source: song.cover, width: 42, height: 42, fit: cover, corner: 6)
+                                Column(gap: 1, align: leading) {
+                                    Text(content: song.name, style: subheadline, lines: 1)
+                                    Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+                                }
+                                Spacer
+                                Text(content: tr! { "zh-Hans" => "{n} 次", "en" => "{n}×"; n: song.plays }, style: caption, emphasis: secondary, lines: 1)
+                            }
+                        } => app.play(Source::Top, song.index)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The signed-in account: who it is, what NetEase counted of it, its years
+/// of listening with their annual reports, and what it played most.
+#[component]
+pub fn account_page(app: enji::Client) -> impl View {
+    ui! {
+        ScrollView {
+            Column(gap: 18, padding_x: if window.compact { 8 } else { 12 }) {
+                if window.tv {
+                    back_row(app: app)
+                }
+                account_hero(app: app)
+                if let Some(profile) = app.profile {
+                    Column(gap: 10) {
+                        Row(gap: 10) {
+                            Stack(variant: card) {
+                                Row(padding_x: 14, padding_y: 12) {
+                                    Column(gap: 2, align: leading) {
+                                        Row(gap: 3, align: baseline) {
+                                            Text(content: profile.hours, style: title2, bold: true, lines: 1)
+                                            Text(content: tr! { "zh-Hans" => "小时", "en" => "h" }, style: caption, emphasis: secondary, lines: 1)
+                                        }
+                                        Text(content: tr! { "zh-Hans" => "听歌时长", "en" => "Time Listened" }, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                    Spacer
+                                }
+                            }
+                            Stack(variant: card) {
+                                Row(padding_x: 14, padding_y: 12) {
+                                    Column(gap: 2, align: leading) {
+                                        Row(gap: 3, align: baseline) {
+                                            Text(content: profile.songs, style: title2, bold: true, lines: 1)
+                                            Text(content: tr! { "zh-Hans" => "首", "en" => "" }, style: caption, emphasis: secondary, lines: 1)
+                                        }
+                                        Text(content: tr! { "zh-Hans" => "累计听歌", "en" => "Songs Listened" }, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                    Spacer
+                                }
+                            }
+                            Stack(variant: card) {
+                                Row(padding_x: 14, padding_y: 12) {
+                                    Column(gap: 2, align: leading) {
+                                        Row(gap: 3, align: baseline) {
+                                            Text(content: profile.years, style: title2, bold: true, lines: 1)
+                                            Text(content: tr! { "zh-Hans" => "年", "en" => "yr" }, style: caption, emphasis: secondary, lines: 1)
+                                        }
+                                        Text(content: tr! { "zh-Hans" => "注册", "en" => "Member For" }, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                    Spacer
+                                }
+                            }
+                        }
+                        Row(gap: 10) {
+                            Stack(variant: card) {
+                                Row(padding_x: 14, padding_y: 12) {
+                                    Column(gap: 2, align: leading) {
+                                        Row(gap: 3, align: baseline) {
+                                            Text(content: profile.own_playlists, style: title2, bold: true, lines: 1)
+                                        }
+                                        Text(content: tr! { "zh-Hans" => "创建的歌单", "en" => "Own Playlists" }, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                    Spacer
+                                }
+                            }
+                            Stack(variant: card) {
+                                Row(padding_x: 14, padding_y: 12) {
+                                    Column(gap: 2, align: leading) {
+                                        Row(gap: 3, align: baseline) {
+                                            Text(content: profile.saved_playlists, style: title2, bold: true, lines: 1)
+                                        }
+                                        Text(content: tr! { "zh-Hans" => "收藏的歌单", "en" => "Saved Playlists" }, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                    Spacer
+                                }
+                            }
+                            Stack(variant: card) {
+                                Row(padding_x: 14, padding_y: 12) {
+                                    Column(gap: 2, align: leading) {
+                                        Row(gap: 3, align: baseline) {
+                                            Text(content: profile.artists, style: title2, bold: true, lines: 1)
+                                        }
+                                        Text(content: tr! { "zh-Hans" => "收藏的歌手", "en" => "Saved Artists" }, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                    Spacer
+                                }
+                            }
+                        }
+                    }
+                    if profile.level_goal != "0" {
+                        Stack(variant: card) {
+                            Column(gap: 8, padding_x: 16, padding_y: 14) {
+                                Row(gap: 8, align: center) {
+                                    Text(content: tr! { "zh-Hans" => "Lv.{level}", "en" => "Lv.{level}"; level: profile.level }, style: subheadline, bold: true)
+                                    Spacer
+                                    Text(content: tr! { "zh-Hans" => "{now} / {goal} 首", "en" => "{now} / {goal} songs"; now: profile.level_songs, goal: profile.level_goal }, style: caption, emphasis: secondary)
+                                }
+                                Progress(value: profile.level_progress, total: 1)
+                            }
+                        }
+                    }
+                }
+                Grid(min_width: 340, gap: 18) {
+                    if app.has_listen_years {
+                        account_years(app: app)
+                    }
+                    if app.has_top_songs {
+                        account_top(app: app)
+                    }
+                }
+                if app.has_medals {
+                    Column(gap: 8) {
+                        Row(gap: 8, padding_x: 16, align: center) {
+                            Text(content: tr! { "zh-Hans" => "勋章", "en" => "Medals" }, style: footnote, bold: true, emphasis: secondary)
+                            Spacer
+                            Text(content: tr! { "zh-Hans" => "{n}", "en" => "{n}"; n: app.medal_count }, style: footnote, emphasis: secondary)
+                        }
+                        ScrollView(axis: horizontal, indicators: hidden) {
+                            Row(gap: 10, padding_x: 8) {
+                                ForEach(items: app.medals, key: id) |medal| {
+                                    Image(source: medal.picture, width: 64, height: 64, fit: contain, label: medal.name)
+                                }
+                            }
+                        }
+                    }
+                }
+                Column(padding_y: 8) {
+                    Stack(variant: card) {
+                        Button(id: settings_sign_out, label: tr! { "zh-Hans" => "退出登录", "en" => "Sign Out" }, variant: row) {
+                            Row(padding_x: 16, padding_y: 13) {
+                                Spacer
+                                Text(content: tr! { "zh-Hans" => "退出登录", "en" => "Sign Out" }, color: accent)
+                                Spacer
+                            }
+                        } => app.sign_out()
+                    }
+                }
+            }
         }
     }
 }
@@ -753,7 +1099,11 @@ pub fn album_singer(app: enji::Client, album: enji::Album) -> impl View {
 pub fn album_actions(app: enji::Client) -> impl View {
     ui! {
         Row(gap: 10) {
-            Button(id: play_album, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.album_loading) => app.play(Source::Album, 0)
+            if window.tv {
+                Button(id: tv_play_album, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.album_loading, default_focus: true) => app.play(Source::Album, 0)
+            } else {
+                Button(id: play_album, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.album_loading) => app.play(Source::Album, 0)
+            }
             Button(id: shuffle_album, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", shape: capsule, height: 36, enabled: !app.album_loading) => app.shuffle(Source::Album)
         }
     }
@@ -810,7 +1160,7 @@ pub fn artist_page(app: enji::Client, artist: enji::Artist) -> impl View {
                         Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: title3, bold: true)
                     }
                     Column(padding_x: 12, padding_y: 4) {
-                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: 58) {
+                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                             ForEach(items: app.artist_albums, key: id, stagger: 0.02) |album| {
                                 album_card(app: app, album: album)
                             }
@@ -826,7 +1176,11 @@ pub fn artist_page(app: enji::Client, artist: enji::Artist) -> impl View {
 pub fn artist_actions(app: enji::Client) -> impl View {
     ui! {
         Row(gap: 10) {
-            Button(id: play_artist, label: tr! { "zh-Hans" => "播放热门歌曲", "en" => "Play Top Songs" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.artist_loading) => app.play(Source::Artist, 0)
+            if window.tv {
+                Button(id: tv_play_artist, label: tr! { "zh-Hans" => "播放热门歌曲", "en" => "Play Top Songs" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.artist_loading, default_focus: true) => app.play(Source::Artist, 0)
+            } else {
+                Button(id: play_artist, label: tr! { "zh-Hans" => "播放热门歌曲", "en" => "Play Top Songs" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.artist_loading) => app.play(Source::Artist, 0)
+            }
             Button(id: shuffle_artist, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", shape: capsule, height: 36, enabled: !app.artist_loading) => app.shuffle(Source::Artist)
         }
     }
@@ -839,10 +1193,7 @@ pub fn playlist_page(app: enji::Client, list: enji::Playlist) -> impl View {
     ui! {
         ScrollView {
             Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: if window.compact { 4 } else { 12 }) {
-                Row(padding_x: 4) {
-                    IconButton(id: back, icon: "chevron.left", font_size: 17, prominence: plain, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
-                    Spacer
-                }
+                back_row(app: app)
                 if window.compact {
                     Row(padding_x: 10, padding_y: 10) {
                         Spacer
@@ -910,7 +1261,11 @@ pub fn playlist_owner(app: enji::Client) -> impl View {
 pub fn playlist_actions(app: enji::Client, list: enji::Playlist) -> impl View {
     ui! {
         Row(gap: 10, align: center) {
-            Button(id: play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.opened_loading) => app.play(Source::Playlist, 0)
+            if window.tv {
+                Button(id: tv_play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.opened_loading, default_focus: true) => app.play(Source::Playlist, 0)
+            } else {
+                Button(id: play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36, enabled: !app.opened_loading) => app.play(Source::Playlist, 0)
+            }
             Button(id: shuffle_all, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", shape: capsule, height: 36, enabled: !app.opened_loading) => app.shuffle(Source::Playlist)
             Picker(id: playlist_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
             if app.login == Login::In && app.opened_is_default {
@@ -933,7 +1288,11 @@ pub fn phone_playlist_actions(app: enji::Client, list: enji::Playlist) -> impl V
     ui! {
         Column(gap: 12) {
             Row(gap: 12, align: center) {
-                Button(id: play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 44, width: fill, enabled: !app.opened_loading) => app.play(Source::Playlist, 0)
+                if window.tv {
+                    Button(id: tv_play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 44, width: fill, enabled: !app.opened_loading, default_focus: true) => app.play(Source::Playlist, 0)
+                } else {
+                    Button(id: play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 44, width: fill, enabled: !app.opened_loading) => app.play(Source::Playlist, 0)
+                }
                 Button(id: shuffle_all, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", shape: capsule, height: 44, width: fill, enabled: !app.opened_loading) => app.shuffle(Source::Playlist)
             }
             Row(gap: 10, align: center) {
@@ -1087,7 +1446,7 @@ pub fn song_line(app: enji::Client, song: enji::Song, full: bool, marked: bool) 
             }
             // How many times it was played, where the list counts them.
             if full && app.show_plays {
-                Column(width: if window.compact { 36 } else { 52 }, align: trailing) {
+                Column(width: if window.compact { 36 } else if window.tv { 104 } else { 52 }, align: trailing) {
                     if song.plays > 0 {
                         Text(content: tr! { "zh-Hans" => "{n}", "en" => "{n}"; n: song.plays }, style: caption, emphasis: secondary)
                     } else {
@@ -1095,7 +1454,7 @@ pub fn song_line(app: enji::Client, song: enji::Song, full: bool, marked: bool) 
                     }
                 }
             }
-            Column(width: 44, align: trailing) {
+            Column(width: if window.tv { 104 } else { 44 }, align: trailing) {
                 Text(content: song.duration, style: caption, emphasis: tertiary)
             }
         }
@@ -1118,11 +1477,11 @@ pub fn song_header(app: enji::Client) -> impl View {
                         Text(content: tr! { "zh-Hans" => "专辑", "en" => "Album" }, style: caption, emphasis: tertiary)
                     }
                     if app.show_plays {
-                        Column(width: 52, align: trailing) {
+                        Column(width: if window.tv { 104 } else { 52 }, align: trailing) {
                             Text(content: tr! { "zh-Hans" => "播放", "en" => "Plays" }, style: caption, emphasis: tertiary)
                         }
                     }
-                    Column(width: 44, align: trailing) {
+                    Column(width: if window.tv { 104 } else { 44 }, align: trailing) {
                         Text(content: tr! { "zh-Hans" => "时长", "en" => "Time" }, style: caption, emphasis: tertiary)
                     }
                 }
@@ -1200,6 +1559,7 @@ pub fn player_bar(app: enji::Client, #[session] draft: MainDraft) -> impl View {
         Row(gap: 24, padding_x: 20, padding_y: 10, align: center) {
             Row(gap: 16, align: center) {
                 mode_button(app: app)
+                together_button(app: app)
                 IconButton(id: bar_previous, icon: "backward.fill", font_size: 17, prominence: plain, enabled: app.current_id != 0, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
                 if app.playing {
                     IconButton(id: bar_pause, icon: "pause.fill", font_size: 26, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
@@ -1307,6 +1667,144 @@ pub fn mini_player(app: enji::Client, #[session] draft: MainDraft) -> impl View 
     }
 }
 
+/// What plays on a phone: where it is, the way through the queue, and the
+/// switches between what shows in place of the cover.
+#[component]
+pub fn phone_controls(app: enji::Client, song: enji::Song) -> impl View {
+    ui! {
+        Column(gap: 14, padding_x: 28, padding_y: 18) {
+            Column(gap: 2) {
+                Slider(id: phone_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
+                Row {
+                    Text(content: app.elapsed, style: caption, emphasis: secondary)
+                    Spacer
+                    Text(content: app.total, style: caption, emphasis: secondary)
+                }
+            }
+            Row(gap: 0, align: center) {
+                Spacer
+                IconButton(id: phone_previous, icon: "backward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
+                Spacer
+                if app.playing {
+                    IconButton(id: phone_pause, icon: "pause.fill", font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
+                } else {
+                    IconButton(id: phone_play, icon: "play.fill", font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
+                }
+                Spacer
+                IconButton(id: phone_next, icon: "forward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
+                Spacer
+            }
+            // What follows, and what shows in place of the cover.
+            Row(gap: 0, align: center) {
+                mode_button(app: app)
+                together_button(app: app)
+                Spacer
+                if app.panel_open && app.panel == Panel::Lyrics {
+                    IconButton(id: phone_lyrics_on, icon: "quote.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
+                } else {
+                    IconButton(id: phone_lyrics_off, icon: "quote.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
+                }
+                if app.current_id > 0 {
+                    Spacer
+                    if app.panel_open && app.panel == Panel::Comments {
+                        IconButton(id: phone_comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
+                    } else {
+                        IconButton(id: phone_comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
+                    }
+                    Spacer
+                    if app.panel_open && app.panel == Panel::Details {
+                        IconButton(id: phone_details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
+                    } else {
+                        IconButton(id: phone_details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
+                    }
+                    if song.file == "" {
+                        Spacer
+                        // How far it is, over the symbol's own circle.
+                        Stack {
+                            IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                            if app.current_downloading {
+                                Progress(value: app.current_download, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" }, style: ring, width: 19.3, stroke_width: 3)
+                            }
+                        }
+                    }
+                }
+                Spacer
+                PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
+                    queue_list(app: app)
+                }
+            }
+        }
+    }
+}
+
+/// The playing song on a phone on its side: the cover, or the lyrics,
+/// comments or details in its place, beside the song and its controls.
+#[component]
+pub fn side_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+    ui! {
+        Stack(appearance: dark) {
+            if let Some(song) = app.current {
+                Stack(under_bars: true) {
+                    Canvas(label: song.name) {
+                        Shape(kind: rect, fill: surface.canvas)
+                        Shape(kind: rect, fill_from: song.cover)
+                    }
+                    Image(source: song.cover, fit: cover, blur: 70)
+                    Canvas(label: song.name) {
+                        Shape(kind: rect, fill: surface.canvas, opacity: 0.4)
+                    }
+                }
+                Row(gap: 8, padding_x: 12) {
+                    Column(gap: 0, width: if app.panel_open { 400 } else { 340 }) {
+                        if app.panel_open {
+                            match app.panel {
+                                Panel::Lyrics => { lyrics(app: app) }
+                                Panel::Comments => { comments_panel(app: app) }
+                                Panel::Details => { details_panel(app: app) }
+                            }
+                        } else {
+                            Spacer
+                            Row {
+                                Spacer
+                                Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                                    Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                        Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                                            Image(source: "assets/cover-place.png", width: 280, height: 280, fit: cover, corner: 18)
+                                            if song.artwork.url != "" {
+                                                Progress
+                                            }
+                                            Image(source: song.cover, width: 280, height: 280, fit: cover, corner: 18)
+                                            Image(source: song.artwork, width: 280, height: 280, fit: cover, corner: 18, glow: 1.05, glow_opacity: 0.22)
+                                        }
+                                    }
+                                }
+                                Spacer
+                            }
+                            Spacer
+                        }
+                    }
+                    Column(gap: 0) {
+                        Row(gap: 10, padding_x: 28, padding_y: 8, align: center) {
+                            Column(gap: 2, align: leading) {
+                                Text(content: song.name, style: headline, lines: 1)
+                                Text(content: song.artists, style: subheadline, emphasis: secondary, lines: 1)
+                            }
+                            Spacer
+                            like_button(app: app)
+                            IconButton(id: side_close_now, icon: "chevron.down", font_size: 20, prominence: plain, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => draft.now.set(false)
+                        }
+                        Spacer
+                        phone_controls(app: app, song: song)
+                    }
+                }
+                Watch(value: app.scroll_tick) => draft.line.set(app.scroll_to)
+            }
+            // Android's Back closes it, as the button beside the song does.
+            Shortcut(key: "escape") => draft.now.set(false)
+        }
+    }
+}
+
 /// The playing song filling a phone: the cover large, or in its place the
 /// lyrics, comments or details under a small one; the controls below, the
 /// switches between them at the bottom.
@@ -1352,8 +1850,11 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             Panel::Details => { details_panel(app: app) }
                         }
                     } else {
-                        Spacer
-                        Column(padding_x: 28) {
+                        // What the song and the controls leave, the cover in
+                        // its middle: it gives way on a short screen, so
+                        // nothing under it moves or is pressed together.
+                        Column(padding_x: 28, align: center) {
+                            Spacer
                             // A spinner on the cover's place until a picture of
                             // it comes, the small one first, then the sharp one.
                             // The place is a square picture as the cover is: on
@@ -1362,109 +1863,58 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             // narrower than the column, and so is its place.
                             // The empty canvas spans the column, so both stand
                             // in its middle.
-                            // A plugin's pulses give it a little nudge each.
-                            Stack(nudge_key: app.cover_pulse, nudge_scale: 1.04) {
-                                Canvas {}
-                                Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
-                                // Only while a picture is coming: a song
-                                // without one keeps the place.
-                                if song.artwork.url != "" {
-                                    Progress
+                            // A plugin's pulses give it a nudge each, as strong as they are.
+                            Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                                Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                    Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                                        Canvas {}
+                                        Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
+                                        // Only while a picture is coming: a song
+                                        // without one keeps the place.
+                                        if song.artwork.url != "" {
+                                            Progress
+                                        }
+                                        Image(source: song.cover, aspect: 1, fit: cover, corner: 18)
+                                        Image(source: song.artwork, aspect: 1, fit: cover, corner: 18, glow: 1.05, glow_opacity: 0.22)
+                                    }
                                 }
-                                Image(source: song.cover, aspect: 1, fit: cover, corner: 18)
-                                Image(source: song.artwork, aspect: 1, fit: cover, corner: 18, glow: 1.05, glow_opacity: 0.22)
                             }
+                            Spacer
                         }
-                        Spacer
                         Column(gap: 4, padding_x: 28, align: leading) {
-                            if app.preview {
-                                Text(content: tr! { "zh-Hans" => "试听片段 · 完整版需要黑胶会员", "en" => "Preview · the full song is for members" }, style: caption, color: accent)
-                            }
                             Row(gap: 10, align: center) {
                                 Text(content: song.name, style: title2, bold: true, lines: 1)
                                 Spacer
                                 like_button(app: app)
                             }
                             Text(content: song.artists, style: headline, emphasis: secondary, lines: 1)
-                            if app.show_format && app.format != "" {
-                                Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
+                            // What arrives once the song has loaded has its
+                            // place from the start, so the cover stays put.
+                            Column(height: 18) {
+                                if app.preview {
+                                    Text(content: tr! { "zh-Hans" => "试听片段 · 完整版需要黑胶会员", "en" => "Preview · the full song is for members" }, style: caption, color: accent, lines: 1)
+                                } else if app.show_format && app.format != "" {
+                                    Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
+                                }
                             }
                             // The sung line, its translation and the next,
                             // while the cover shows in place of the lyrics.
-                            if app.cover_lyrics && app.lyric_now != "" {
-                                Column(gap: 3, padding_y: 8, align: leading) {
-                                    Text(content: app.lyric_now, style: callout, bold: true, lines: 2)
-                                    if app.show_translation && app.lyric_now_translation != "" {
-                                        Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
-                                    }
-                                    if app.lyric_next != "" {
-                                        Text(content: app.lyric_next, style: footnote, emphasis: tertiary, lines: 1)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Column(gap: 14, padding_x: 28, padding_y: 18) {
-                        Column(gap: 2) {
-                            Slider(id: phone_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
-                            Row {
-                                Text(content: app.elapsed, style: caption, emphasis: secondary)
-                                Spacer
-                                Text(content: app.total, style: caption, emphasis: secondary)
-                            }
-                        }
-                        Row(gap: 0, align: center) {
-                            Spacer
-                            IconButton(id: phone_previous, icon: "backward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
-                            Spacer
-                            if app.playing {
-                                IconButton(id: phone_pause, icon: "pause.fill", font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
-                            } else {
-                                IconButton(id: phone_play, icon: "play.fill", font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
-                            }
-                            Spacer
-                            IconButton(id: phone_next, icon: "forward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
-                            Spacer
-                        }
-                        // What follows, and what shows in place of the cover.
-                        Row(gap: 0, align: center) {
-                            mode_button(app: app)
-                            Spacer
-                            if app.panel_open && app.panel == Panel::Lyrics {
-                                IconButton(id: phone_lyrics_on, icon: "quote.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
-                            } else {
-                                IconButton(id: phone_lyrics_off, icon: "quote.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
-                            }
-                            if app.current_id > 0 {
-                                Spacer
-                                if app.panel_open && app.panel == Panel::Comments {
-                                    IconButton(id: phone_comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
-                                } else {
-                                    IconButton(id: phone_comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
-                                }
-                                Spacer
-                                if app.panel_open && app.panel == Panel::Details {
-                                    IconButton(id: phone_details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
-                                } else {
-                                    IconButton(id: phone_details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
-                                }
-                                if song.file == "" {
-                                    Spacer
-                                    // How far it is, over the symbol's own circle.
-                                    Stack {
-                                        IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
-                                        if app.current_downloading {
-                                            Progress(value: app.current_download, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" }, style: ring, width: 19.3, stroke_width: 3)
+                            if app.cover_lyrics {
+                                Column(gap: 3, padding_y: 8, height: 100, align: leading) {
+                                    if app.lyric_now != "" {
+                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2)
+                                        if app.show_translation && app.lyric_now_translation != "" {
+                                            Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
+                                        }
+                                        if app.lyric_next != "" {
+                                            Text(content: app.lyric_next, style: footnote, emphasis: tertiary, lines: 1)
                                         }
                                     }
                                 }
                             }
-                            Spacer
-                            PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
-                                queue_list(app: app)
-                            }
                         }
                     }
+                    phone_controls(app: app, song: song)
                 }
                 Watch(value: app.scroll_tick) => draft.line.set(app.scroll_to)
             }
@@ -1499,20 +1949,24 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                         // A spinner on the cover's place until a picture of it
                         // comes: the small cover, often loaded already for the
                         // lists and the player bar, then the sharp one over it.
-                        // A plugin's pulses give it a little nudge each.
-                        Stack(nudge_key: app.cover_pulse, nudge_scale: 1.04) {
-                            Canvas(width: 400, height: 400) {
-                                Shape(kind: rounded, corner: 20, fill: fill.subtle)
+                        // A plugin's pulses give it a nudge each, as strong as they are.
+                        Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                            Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                                    Canvas(width: 400, height: 400) {
+                                        Shape(kind: rounded, corner: 20, fill: fill.subtle)
+                                    }
+                                    // Only while a picture is coming: a song without
+                                    // one keeps the place.
+                                    if song.artwork.url != "" {
+                                        Progress
+                                    } else {
+                                        Image(source: "assets/cover-place.png", width: 400, height: 400, fit: cover, corner: 20)
+                                    }
+                                    Image(source: song.cover, width: 400, height: 400, fit: cover, corner: 20)
+                                    Image(source: song.artwork, width: 400, height: 400, fit: cover, corner: 20, glow: 1.05, glow_opacity: 0.22)
+                                }
                             }
-                            // Only while a picture is coming: a song without
-                            // one keeps the place.
-                            if song.artwork.url != "" {
-                                Progress
-                            } else {
-                                Image(source: "assets/cover-place.png", width: 400, height: 400, fit: cover, corner: 20)
-                            }
-                            Image(source: song.cover, width: 400, height: 400, fit: cover, corner: 20)
-                            Image(source: song.artwork, width: 400, height: 400, fit: cover, corner: 20, glow: 1.05, glow_opacity: 0.22)
                         }
                         Column(gap: 4, align: leading) {
                             if app.preview {
@@ -1548,6 +2002,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                         Row(gap: 26, align: center) {
                             Spacer
                             mode_button(app: app)
+                            together_button(app: app)
                             if app.panel == Panel::Lyrics {
                                 IconButton(id: lyrics_on, icon: "quote.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.show_panel(Panel::Lyrics)
                             } else {
@@ -1649,8 +2104,8 @@ pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
         } else {
             // As wide as the lyrics would be, so the cover beside it stays
             // where it is.
-            Row(gap: 0) {
-                Column(gap: 0, padding_y: 88) {
+            Column(gap: 0, padding_y: 88) {
+                Row(gap: 0) {
                     Column(gap: 4, padding_x: 14, padding_y: 10) {
                         Text(content: tr! { "zh-Hans" => "暂无歌词", "en" => "No Lyrics" }, style: title2, font_size: 32, bold: true)
                     }
@@ -1735,6 +2190,244 @@ pub fn mode_button(app: enji::Client) -> impl View {
             PlayMode::Shuffle => {
                 IconButton(id: shuffle, icon: "shuffle", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }) => app.next_mode()
             }
+            PlayMode::Heart => {
+                Stack(variant: tint) {
+                    IconButton(id: heart, icon: "heart.fill", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }) => app.next_mode()
+                }
+            }
+        }
+    }
+}
+
+/// The play mode on a TV: a control as large as those beside it.
+#[component]
+pub fn tv_mode_button(app: enji::Client) -> impl View {
+    ui! {
+        match app.mode {
+            PlayMode::RepeatAll => {
+                IconButton(id: tv_repeat_all, icon: "repeat", font_size: 30, height: 84, label: tr! { "zh-Hans" => "列表循环", "en" => "Repeat All" }) => app.next_mode()
+            }
+            PlayMode::RepeatOne => {
+                IconButton(id: tv_repeat_one, icon: "repeat.1", font_size: 30, height: 84, label: tr! { "zh-Hans" => "单曲循环", "en" => "Repeat One" }) => app.next_mode()
+            }
+            PlayMode::Shuffle => {
+                IconButton(id: tv_shuffle, icon: "shuffle", font_size: 30, height: 84, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }) => app.next_mode()
+            }
+            PlayMode::Heart => {
+                Stack(variant: tint) {
+                    IconButton(id: tv_heart, icon: "heart.fill", font_size: 30, height: 84, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }) => app.next_mode()
+                }
+            }
+        }
+    }
+}
+
+/// The same on a TV that counts half as many points across, as Android TV.
+#[component]
+pub fn tv_small_mode_button(app: enji::Client) -> impl View {
+    ui! {
+        match app.mode {
+            PlayMode::RepeatAll => {
+                IconButton(id: tv_repeat_all_small, icon: "repeat", font_size: 18, height: 44, label: tr! { "zh-Hans" => "列表循环", "en" => "Repeat All" }) => app.next_mode()
+            }
+            PlayMode::RepeatOne => {
+                IconButton(id: tv_repeat_one_small, icon: "repeat.1", font_size: 18, height: 44, label: tr! { "zh-Hans" => "单曲循环", "en" => "Repeat One" }) => app.next_mode()
+            }
+            PlayMode::Shuffle => {
+                IconButton(id: tv_shuffle_small, icon: "shuffle", font_size: 18, height: 44, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }) => app.next_mode()
+            }
+            PlayMode::Heart => {
+                Stack(variant: tint) {
+                    IconButton(id: tv_heart_small, icon: "heart.fill", font_size: 18, height: 44, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }) => app.next_mode()
+                }
+            }
+        }
+    }
+}
+
+/// What a TV's remote plays with, the same size all along.
+#[component]
+pub fn tv_controls(app: enji::Client) -> impl View {
+    ui! {
+        Row(gap: 16, align: center) {
+            tv_mode_button(app: app)
+            IconButton(id: tv_previous, icon: "backward.end.fill", font_size: 30, height: 84, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
+            if app.playing {
+                IconButton(id: tv_pause, icon: "pause.fill", font_size: 30, height: 84, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }, default_focus: true) => app.toggle()
+            } else {
+                IconButton(id: tv_play, icon: "play.fill", font_size: 30, height: 84, label: tr! { "zh-Hans" => "播放", "en" => "Play" }, default_focus: true) => app.toggle()
+            }
+            IconButton(id: tv_next, icon: "forward.end.fill", font_size: 30, height: 84, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
+            if app.login == Login::In {
+                if app.current_liked {
+                    Stack(variant: tint) {
+                        IconButton(id: tv_unlike, icon: "heart.fill", font_size: 30, height: 84, label: tr! { "zh-Hans" => "取消喜欢", "en" => "Unlike" }) => app.toggle_like()
+                    }
+                } else {
+                    IconButton(id: tv_like, icon: "heart", font_size: 30, height: 84, label: tr! { "zh-Hans" => "喜欢", "en" => "Like" }) => app.toggle_like()
+                }
+                if app.together {
+                    IconButton(id: tv_together, icon: "headphones", font_size: 30, height: 84, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }) => app.open_together()
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn tv_small_controls(app: enji::Client) -> impl View {
+    ui! {
+        Row(gap: 8, align: center) {
+            tv_small_mode_button(app: app)
+            IconButton(id: tv_previous_small, icon: "backward.end.fill", font_size: 18, height: 44, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
+            if app.playing {
+                IconButton(id: tv_pause_small, icon: "pause.fill", font_size: 18, height: 44, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }, default_focus: true) => app.toggle()
+            } else {
+                IconButton(id: tv_play_small, icon: "play.fill", font_size: 18, height: 44, label: tr! { "zh-Hans" => "播放", "en" => "Play" }, default_focus: true) => app.toggle()
+            }
+            IconButton(id: tv_next_small, icon: "forward.end.fill", font_size: 18, height: 44, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
+            if app.login == Login::In {
+                if app.current_liked {
+                    Stack(variant: tint) {
+                        IconButton(id: tv_unlike_small, icon: "heart.fill", font_size: 18, height: 44, label: tr! { "zh-Hans" => "取消喜欢", "en" => "Unlike" }) => app.toggle_like()
+                    }
+                } else {
+                    IconButton(id: tv_like_small, icon: "heart", font_size: 18, height: 44, label: tr! { "zh-Hans" => "喜欢", "en" => "Like" }) => app.toggle_like()
+                }
+                if app.together {
+                    IconButton(id: tv_together_small, icon: "headphones", font_size: 18, height: 44, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }) => app.open_together()
+                }
+            }
+        }
+    }
+}
+
+/// The playing song on a TV, as a music app stands there: the cover, what
+/// plays, where it is and the controls down one side, and the lyrics large
+/// on the other, for reading across the room. Android TV counts 960 points
+/// across where Apple TV counts 1920.
+#[component]
+pub fn tv_now_playing(app: enji::Client) -> impl View {
+    ui! {
+        if let Some(song) = app.current {
+            Row(gap: if window.medium { 48 } else { 112 }, padding_x: if window.medium { 32 } else { 120 }, padding_y: 12, align: center) {
+                Column(gap: if window.medium { 8 } else { 18 }, width: if window.medium { 330 } else { 620 }, align: leading) {
+                    Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                        Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                            Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                                Image(source: song.artwork, width: if window.medium { 260 } else { 500 }, height: if window.medium { 260 } else { 500 }, fit: cover, corner: if window.medium { 12 } else { 20 }, label: song.name)
+                            }
+                        }
+                    }
+                    Column(gap: 2, align: leading) {
+                        Text(content: song.name, style: title3, bold: true, lines: 1)
+                        Text(content: song.artists, style: callout, emphasis: secondary, lines: 1)
+                    }
+                    Column(gap: 4) {
+                        Slider(id: tv_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
+                        Row {
+                            Text(content: app.elapsed, style: caption, emphasis: secondary)
+                            Spacer
+                            Text(content: app.total, style: caption, emphasis: secondary)
+                        }
+                    }
+                    if window.medium {
+                        tv_small_controls(app: app)
+                    } else {
+                        tv_controls(app: app)
+                    }
+                }
+                Column(gap: if window.medium { 14 } else { 30 }, align: leading) {
+                    ForEach(items: app.lyrics_near, key: key) |line| {
+                        if line.current {
+                            Column(gap: 8, align: leading) {
+                                Text(content: line.text, style: large_title, bold: true, lines: 2)
+                                if line.translation != "" {
+                                    Text(content: line.translation, style: title3, emphasis: secondary, lines: 2)
+                                }
+                            }
+                        } else {
+                            Text(content: line.text, style: title2, emphasis: tertiary, lines: 1)
+                        }
+                    }
+                }
+                Spacer
+            }
+        } else {
+            Column(align: center, padding_y: 240) {
+                Text(content: tr! { "zh-Hans" => "还没有在播放的歌", "en" => "Nothing is playing" }, emphasis: secondary)
+            }
+        }
+    }
+}
+
+/// NetEase's annual report, the page its app shows: made for a phone's
+/// shape, told it is in the app, and closed by the button it draws.
+#[component]
+pub fn report_dialog(app: enji::Client) -> impl View {
+    ui! {
+        Modal(width: 430, height: 720) {
+            WebPage(url: app.report_url, cookies_file: app.cookie_file, cookie_domain: app.cookie_domain, user_agent: app.report_agent, close_on: app.report_close, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }) => app.close_report()
+            Shortcut(key: "escape") => app.close_report()
+        }
+    }
+}
+
+/// Listening together, in the accent while in a room.
+#[component]
+pub fn together_button(app: enji::Client) -> impl View {
+    ui! {
+        if app.together && app.login == Login::In {
+            if app.together_room != "" {
+                Stack(variant: tint) {
+                    IconButton(id: in_together, icon: "headphones", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "一起听中", "en" => "Listening Together" }) => app.open_together()
+                }
+            } else {
+                IconButton(id: open_together, icon: "headphones", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }) => app.open_together()
+            }
+        }
+    }
+}
+
+/// Starting a room or joining one, and who is in it.
+#[component]
+pub fn together_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+    ui! {
+        Modal(width: if window.tv { 860 } else { 420 }) {
+            Column(gap: 16, padding: 22) {
+                Text(content: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, style: title3, bold: true)
+                if app.together_room != "" {
+                    Row(gap: 12, align: center) {
+                        ForEach(items: app.together_users, key: id) |user| {
+                            Column(gap: 6, align: center) {
+                                Image(source: user.avatar, width: 52, height: 52, fit: cover, corner: 26, label: user.name)
+                                Text(content: user.name, style: caption, lines: 1)
+                            }
+                        }
+                    }
+                    if app.together_struggling {
+                        Text(content: tr! { "zh-Hans" => "连接中断，正在重试", "en" => "Reconnecting" }, style: callout, emphasis: secondary)
+                    } else if app.together_alone {
+                        Text(content: tr! { "zh-Hans" => "把邀请链接发给对方，在网易云音乐里打开就能加入", "en" => "Send the link: it opens in NetEase Cloud Music" }, style: callout, emphasis: secondary)
+                    }
+                    Row(gap: 10) {
+                        Button(id: copy_together_link, label: tr! { "zh-Hans" => "复制邀请链接", "en" => "Copy Invite Link" }, icon: "link") => app.copy_together_link()
+                        Spacer
+                        Button(id: leave_together, label: tr! { "zh-Hans" => "退出", "en" => "Leave" }, role: destructive) => app.leave_together()
+                    }
+                } else {
+                    Button(id: create_together, label: tr! { "zh-Hans" => "创建房间", "en" => "Start a Room" }, prominence: prominent, enabled: !app.together_busy) => app.create_together()
+                    Row(gap: 10, align: center) {
+                        TextInput(id: together_link, label: tr! { "zh-Hans" => "邀请链接", "en" => "Invite Link" }, label_hidden: true, value: draft.together_link, prompt: tr! { "zh-Hans" => "粘贴邀请链接", "en" => "Paste an invite link" })
+                        Button(id: join_together, label: tr! { "zh-Hans" => "加入", "en" => "Join" }, enabled: draft.together_link != "" && !app.together_busy, clears: draft.together_link) => app.join_together(draft.together_link)
+                    }
+                }
+                Row(gap: 10) {
+                    Spacer
+                    Button(id: close_together, label: tr! { "zh-Hans" => "完成", "en" => "Done" }) => app.close_together()
+                }
+            }
+            Shortcut(key: "escape") => app.close_together()
         }
     }
 }
@@ -1755,7 +2448,11 @@ pub fn queue_list(app: enji::Client) -> impl View {
                                     Image(source: song.cover, width: 40, height: 40, fit: cover, corner: 6)
                                 }
                                 Column(gap: 2, align: leading) {
-                                    Text(content: song.name, lines: 1, bold: song.index == app.queue_at)
+                                    if song.index == app.queue_at {
+                                        Text(content: song.name, lines: 1, bold: true)
+                                    } else {
+                                        Text(content: song.name, lines: 1)
+                                    }
                                     Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
                                 }
                                 Spacer
@@ -1889,6 +2586,77 @@ pub fn naming_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
     }
 }
 
+/// The installed plugins and what the market lists, over the settings.
+#[component]
+pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+    ui! {
+        Modal(width: if window.tv { 1000 } else { 560 }) {
+            Column(gap: 14, padding: 22) {
+                Text(content: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, style: title3, bold: true)
+                Column {
+                    ScrollView {
+                        Column(gap: 18) {
+                            if app.has_plugins {
+                                Column(gap: 0) {
+                                    ForEach(items: app.plugins, key: id) |plugin| {
+                                        Row(gap: 12, padding_y: 8, align: center) {
+                                            Column(gap: 2, align: leading) {
+                                                Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: plugin.name, version: plugin.version })
+                                                Text(content: plugin.description, style: caption, emphasis: secondary, lines: 2)
+                                                if !plugin.fits {
+                                                    Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: plugin.platforms }, style: caption, emphasis: tertiary)
+                                                }
+                                            }
+                                            Spacer
+                                            Switch(id: plugin_enabled, label: plugin.name, label_hidden: true, checked: plugin.enabled, style: switch) => app.set_plugin_enabled(plugin.id, plugin.enabled)
+                                            IconButton(id: remove_plugin, icon: "trash", font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "删除插件", "en" => "Remove Plugin" }) => app.remove_plugin(plugin.id)
+                                        }
+                                    }
+                                }
+                            }
+                            Column(gap: 6) {
+                                Text(content: tr! { "zh-Hans" => "插件商店", "en" => "Plugin Market" }, style: footnote, bold: true, emphasis: secondary)
+                                if app.offers_loading {
+                                    Column(padding_y: 24, align: center) {
+                                        Progress(label: tr! { "zh-Hans" => "正在读取插件商店", "en" => "Reading the market" })
+                                    }
+                                }
+                                ForEach(items: app.offers, key: id) |offer| {
+                                    Row(gap: 12, padding_y: 8, align: center) {
+                                        Column(gap: 2, align: leading) {
+                                            Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
+                                            Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
+                                            if !offer.fits {
+                                                Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
+                                            }
+                                        }
+                                        Spacer
+                                        if offer.installed && !offer.newer {
+                                            Text(content: tr! { "zh-Hans" => "已安装", "en" => "Installed" }, style: caption, emphasis: secondary)
+                                        } else if offer.newer {
+                                            Button(id: update_plugin, label: tr! { "zh-Hans" => "更新", "en" => "Update" }, shape: capsule) => app.install_plugin(offer.id)
+                                        } else {
+                                            Button(id: install_plugin, label: tr! { "zh-Hans" => "安装", "en" => "Install" }, shape: capsule, prominence: prominent) => app.install_plugin(offer.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(gap: 10) {
+                    if !window.tv {
+                        Button(id: import_plugin, label: tr! { "zh-Hans" => "导入插件…", "en" => "Import Plugin…" }, icon: "plus", pick: draft.plugin_file, files: ".enj") => app.import_plugin(draft.plugin_file)
+                    }
+                    Spacer
+                    Button(id: close_plugins, label: tr! { "zh-Hans" => "完成", "en" => "Done" }, prominence: prominent) => app.close_plugins()
+                }
+            }
+            Shortcut(key: "escape") => app.close_plugins()
+        }
+    }
+}
+
 /// Deleting one of the account's playlists, which cannot be undone.
 #[component]
 pub fn delete_dialog(app: enji::Client, list: enji::Playlist) -> impl View {
@@ -1989,7 +2757,7 @@ pub fn settings_page(app: enji::Client) -> impl View {
             } else {
                 Row(padding_x: 32, padding_y: 28) {
                     Spacer
-                    Column(width: 620) {
+                    Column(width: if window.tv { 1040 } else { 620 }) {
                         settings_list(app: app)
                     }
                     Spacer
@@ -2007,15 +2775,19 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
             if app.netease {
                 Stack(variant: card) {
                     if app.login == Login::In {
-                        Row(gap: 14, padding: 16, align: center) {
-                            Image(source: app.avatar, width: 52, height: 52, fit: cover, corner: 26)
-                            Column(gap: 2, align: leading) {
-                                Text(content: app.nickname, style: title3, bold: true, lines: 1)
-                                Text(content: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, style: caption, emphasis: secondary)
+                        Button(id: open_account, label: tr! { "zh-Hans" => "账号", "en" => "Account" }, variant: row) {
+                            Row(gap: 14, padding: 16, align: center) {
+                                Image(source: app.avatar, width: 52, height: 52, fit: cover, corner: 26)
+                                Column(gap: 2, align: leading) {
+                                    Text(content: app.nickname, style: title3, bold: true, lines: 1)
+                                    Text(content: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, style: caption, emphasis: secondary, lines: 1)
+                                }
+                                Spacer
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "打开", "en" => "Open" }, icon: "chevron.right", display: icon, font_size: 13)
+                                }
                             }
-                            Spacer
-                            Button(id: settings_sign_out, label: tr! { "zh-Hans" => "退出登录", "en" => "Sign Out" }, shape: capsule) => app.sign_out()
-                        }
+                        } => app.open_account()
                     } else {
                         Row(gap: 14, padding: 16, align: center) {
                             Image(source: "assets/mark.png", width: 44, height: 44, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
@@ -2055,53 +2827,92 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                 Switch(id: online_info, label: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" }, label_hidden: true, checked: app.online_info, style: switch) => app.set_online_info(app.online_info)
                             }
                         }
+                        if app.netease {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }, icon: "heart", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" })
+                                Spacer
+                                Switch(id: heart_mode, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }, label_hidden: true, checked: app.heart_mode, style: switch) => app.set_heart_mode(app.heart_mode)
+                            }
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, icon: "headphones", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" })
+                                Spacer
+                                Switch(id: together, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, label_hidden: true, checked: app.together, style: switch) => app.set_together(app.together)
+                            }
+                            if !window.tv {
+                                Column(padding_x: 16) { Divider }
+                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                    Column(width: 22, align: center) {
+                                        Stack(variant: quiet) {
+                                            Label(title: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, icon: "calendar", display: icon, font_size: 15)
+                                        }
+                                    }
+                                    Text(content: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" })
+                                    Spacer
+                                    Switch(id: annual_report, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, label_hidden: true, checked: app.annual_report, style: switch) => app.set_annual_report(app.annual_report)
+                                }
+                            }
+                        }
                         // The switches of the modules that can be turned off.
                         Slot(id: feature_switches)
                     }
                 }
             }
-            Column(gap: 8) {
-                Column(padding_x: 16) {
-                    Text(content: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, style: footnote, bold: true, emphasis: secondary)
-                }
-                Stack(variant: card) {
-                    Column(gap: 0) {
-                        if app.phone_folder != "" {
-                            Row(gap: 12, padding_x: 16, padding_y: 12, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "文件夹", "en" => "Folder" }, icon: "folder", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "「文件」App 中的 Enji", "en" => "Enji in the Files App" })
-                                Spacer
-                                Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: app.local_count }, emphasis: secondary)
-                            }
-                        } else {
-                            ForEach(items: app.folders, key: key) |folder| {
-                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+            if !window.tv {
+                Column(gap: 8) {
+                    Column(padding_x: 16) {
+                        Text(content: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, style: footnote, bold: true, emphasis: secondary)
+                    }
+                    Stack(variant: card) {
+                        Column(gap: 0) {
+                            if app.phone_folder != "" {
+                                Row(gap: 12, padding_x: 16, padding_y: 12, align: center) {
                                     Column(width: 22, align: center) {
                                         Stack(variant: quiet) {
-                                            Label(title: folder.name, icon: "folder", display: icon, font_size: 15)
+                                            Label(title: tr! { "zh-Hans" => "文件夹", "en" => "Folder" }, icon: "folder", display: icon, font_size: 15)
                                         }
                                     }
-                                    Column(gap: 2, align: leading) {
-                                        Text(content: folder.name, lines: 1)
-                                        if folder.path != "" {
-                                            Text(content: folder.path, style: caption, emphasis: secondary, lines: 1)
-                                        }
-                                    }
+                                    Text(content: tr! { "zh-Hans" => "「文件」App 中的 Enji", "en" => "Enji in the Files App" })
                                     Spacer
-                                    Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: folder.count }, emphasis: secondary)
-                                    IconButton(id: remove_folder, icon: "xmark", font_size: 13, prominence: plain, label: tr! { "zh-Hans" => "移除文件夹", "en" => "Remove Folder" }) => app.remove_folder(folder.key)
+                                    Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: app.local_count }, emphasis: secondary)
                                 }
-                                Column(padding_x: 16) { Divider }
-                            }
-                            Row(gap: 10, padding_x: 16, padding_y: 10, align: center) {
-                                Button(id: settings_add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", shape: capsule, pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
-                                Spacer
-                                if app.has_folders {
-                                    Button(id: settings_rescan, label: tr! { "zh-Hans" => "重新扫描", "en" => "Scan Again" }, icon: "arrow.clockwise", prominence: plain) => app.rescan()
+                            } else {
+                                ForEach(items: app.folders, key: key) |folder| {
+                                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                        Column(width: 22, align: center) {
+                                            Stack(variant: quiet) {
+                                                Label(title: folder.name, icon: "folder", display: icon, font_size: 15)
+                                            }
+                                        }
+                                        Column(gap: 2, align: leading) {
+                                            Text(content: folder.name, lines: 1)
+                                            if folder.path != "" {
+                                                Text(content: folder.path, style: caption, emphasis: secondary, lines: 1)
+                                            }
+                                        }
+                                        Spacer
+                                        Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: folder.count }, emphasis: secondary)
+                                        IconButton(id: remove_folder, icon: "xmark", font_size: 13, prominence: plain, label: tr! { "zh-Hans" => "移除文件夹", "en" => "Remove Folder" }) => app.remove_folder(folder.key)
+                                    }
+                                    Column(padding_x: 16) { Divider }
+                                }
+                                Row(gap: 10, padding_x: 16, padding_y: 10, align: center) {
+                                    Button(id: settings_add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", shape: capsule, pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
+                                    Spacer
+                                    if app.has_folders {
+                                        Button(id: settings_rescan, label: tr! { "zh-Hans" => "重新扫描", "en" => "Scan Again" }, icon: "arrow.clockwise", prominence: plain) => app.rescan()
+                                    }
                                 }
                             }
                         }
@@ -2114,6 +2925,19 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                 }
                 Stack(variant: card) {
                     Column(gap: 0) {
+                        if app.desktop {
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" }, icon: "xmark", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" })
+                                Spacer
+                                Picker(id: on_close, label: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" }, label_hidden: true, selected: app.on_close, style: menu) => app.set_on_close(app.on_close)
+                            }
+                            Column(padding_x: 16) { Divider }
+                        }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
                             Column(width: 22, align: center) {
                                 Stack(variant: quiet) {
@@ -2197,62 +3021,37 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Spacer
                             Switch(id: play_counts, label: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" }, label_hidden: true, checked: app.show_plays, style: switch) => app.set_show_plays(app.show_plays)
                         }
+                        if app.netease {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" }, icon: "clock.arrow.circlepath", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" })
+                                Spacer
+                                Switch(id: report_listening, label: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" }, label_hidden: true, checked: app.report_listening, style: switch) => app.set_report_listening(app.report_listening)
+                            }
+                        }
                     }
                 }
             }
-            Column(gap: 8) {
-                Column(padding_x: 16) {
-                    Text(content: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, style: footnote, bold: true, emphasis: secondary)
-                }
-                Stack(variant: card) {
-                    Column(gap: 0) {
-                        ForEach(items: app.plugins, key: id) |plugin| {
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(gap: 2, align: leading) {
-                                    Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: plugin.name, version: plugin.version })
-                                    Text(content: plugin.description, style: caption, emphasis: secondary, lines: 2)
-                                    if !plugin.fits {
-                                        Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: plugin.platforms }, style: caption, emphasis: tertiary)
-                                    }
-                                }
-                                Spacer
-                                Switch(id: plugin_enabled, label: plugin.name, label_hidden: true, checked: plugin.enabled, style: switch) => app.set_plugin_enabled(plugin.id, plugin.enabled)
-                                IconButton(id: remove_plugin, icon: "trash", font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "删除插件", "en" => "Remove Plugin" }) => app.remove_plugin(plugin.id)
-                            }
-                            Column(padding_x: 16) { Divider }
-                        }
-                        Row(gap: 10, padding_x: 16, padding_y: 10, align: center) {
-                            Button(id: import_plugin, label: tr! { "zh-Hans" => "导入插件…", "en" => "Import Plugin…" }, icon: "plus", shape: capsule, pick: draft.plugin_file, files: ".enj") => app.import_plugin(draft.plugin_file)
-                            Button(id: plugin_market, label: tr! { "zh-Hans" => "插件商店", "en" => "Plugin Market" }, icon: "square.grid.2x2", shape: capsule) => app.load_offers()
-                            Spacer
-                            if app.offers_loading {
-                                Progress(label: tr! { "zh-Hans" => "正在读取插件商店", "en" => "Reading the market" })
+            Stack(variant: card) {
+                Button(id: open_plugins, label: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, variant: row) {
+                    Row(gap: 12, padding_x: 16, padding_y: 12, align: center) {
+                        Column(width: 22, align: center) {
+                            Stack(variant: quiet) {
+                                Label(title: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, icon: "puzzlepiece.extension", display: icon, font_size: 15)
                             }
                         }
-                        if app.has_offers {
-                            Column(padding_x: 16) { Divider }
-                            ForEach(items: app.offers, key: id) |offer| {
-                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                    Column(gap: 2, align: leading) {
-                                        Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
-                                        Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
-                                        if !offer.fits {
-                                            Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
-                                        }
-                                    }
-                                    Spacer
-                                    if offer.installed && !offer.newer {
-                                        Text(content: tr! { "zh-Hans" => "已安装", "en" => "Installed" }, style: caption, emphasis: secondary)
-                                    } else if offer.newer {
-                                        Button(id: update_plugin, label: tr! { "zh-Hans" => "更新", "en" => "Update" }, shape: capsule) => app.install_plugin(offer.id)
-                                    } else {
-                                        Button(id: install_plugin, label: tr! { "zh-Hans" => "安装", "en" => "Install" }, shape: capsule, prominence: prominent) => app.install_plugin(offer.id)
-                                    }
-                                }
-                            }
+                        Text(content: tr! { "zh-Hans" => "插件", "en" => "Plugins" })
+                        Spacer
+                        Stack(variant: quiet) {
+                            Label(title: tr! { "zh-Hans" => "打开", "en" => "Open" }, icon: "chevron.right", display: icon, font_size: 13)
                         }
                     }
-                }
+                } => app.open_plugins()
             }
             Column(gap: 8) {
                 Column(padding_x: 16) {
