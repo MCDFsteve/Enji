@@ -75,18 +75,22 @@ expanded_below = 1440
 
 [targets.macos]
 platform = "macos"
+javascript = true
 channels = ["ipc"]
 
 [targets.ios]
 platform = "ios"
+javascript = true
 channels = ["ipc"]
 
 [targets.tvos]
 platform = "tvos"
+javascript = true
 channels = ["ipc"]
 
 [targets.android]
 platform = "android"
+javascript = true
 channels = ["ipc"]
 android = { audio_settings = true }
 # One APK for each, in a release.
@@ -94,8 +98,10 @@ abis = ["arm64-v8a", "armeabi-v7a", "x86_64"]
 
 [targets.windows]
 platform = "windows"
+javascript = true
 channels = ["ipc"]
 
 [targets.linux]
 platform = "linux"
+javascript = true
 channels = ["ipc"]

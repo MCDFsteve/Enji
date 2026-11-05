@@ -32,6 +32,8 @@ pub struct SearchEngine {
     ask: u64,
     /// The core's state was read once, as the engine started.
     started: bool,
+    /// The settings want the most searched words.
+    wants_hot: bool,
     /// The local copies and play counts the songs found show.
     dressed: u64,
 }
@@ -62,6 +64,7 @@ impl Default for SearchEngine {
             inbox: Arc::default(),
             ask: 0,
             started: false,
+            wants_hot: true,
             dressed: enji_kit::dressing(),
         }
     }
@@ -118,6 +121,19 @@ impl SearchEngine {
                 waker.wake();
             }
         });
+    }
+
+    /// The most searched words, if they are wanted and not here yet.
+    fn follow_hot(&mut self) {
+        if self.state.netease && self.wants_hot && !self.state.has_hot && !self.state.loading {
+            self.load_hot();
+        }
+    }
+
+    fn drop_hot(&mut self) {
+        self.state.hot.clear();
+        self.state.has_hot = false;
+        self.state.loading = false;
     }
 
     fn load_hot(&mut self) {
@@ -212,14 +228,10 @@ impl search::Commands for SearchEngine {
     fn netease_changed(&mut self, on: bool) -> Result<(), CommandError> {
         self.state.netease = on;
         if on {
-            if !self.state.has_hot {
-                self.load_hot();
-            }
+            self.follow_hot();
         } else {
             self.ask += 1;
-            self.state.hot.clear();
-            self.state.has_hot = false;
-            self.state.loading = false;
+            self.drop_hot();
             self.state.searching = false;
             self.state.no_results = false;
             self.state.kind = SearchKind::Songs;
@@ -227,6 +239,16 @@ impl search::Commands for SearchEngine {
             self.state.artist_results.clear();
             self.state.playlist_results.clear();
             self.set_results(Vec::new());
+        }
+        Ok(())
+    }
+
+    fn hot_search_changed(&mut self, on: bool) -> Result<(), CommandError> {
+        self.wants_hot = on;
+        if on {
+            self.follow_hot();
+        } else {
+            self.drop_hot();
         }
         Ok(())
     }
@@ -240,10 +262,11 @@ impl search::Engine for SearchEngine {
     fn wake(&mut self) {
         if !self.started {
             self.started = true;
-            self.state.netease = enji::current_state().is_some_and(|core| core.netease);
-            if self.state.netease {
-                self.load_hot();
+            if let Some(core) = enji::current_state() {
+                self.state.netease = core.netease;
+                self.wants_hot = core.hot_search;
             }
+            self.follow_hot();
         }
         let arrived: Vec<Answer> = {
             let mut inbox = self.inbox.lock().unwrap_or_else(|e| e.into_inner());
@@ -257,8 +280,8 @@ impl search::Engine for SearchEngine {
             match answer {
                 Answer::Hot(words) => {
                     self.state.loading = false;
-                    // NetEase turned off meanwhile: its words are not shown.
-                    if self.state.netease {
+                    // Turned off meanwhile: its words are not shown.
+                    if self.state.netease && self.wants_hot {
                         self.state.has_hot = !words.is_empty();
                         self.state.hot = words;
                     }

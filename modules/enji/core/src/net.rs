@@ -62,6 +62,7 @@ pub enum Job {
     SetTogether(bool),
     SetUsbExclusive(bool),
     SetWordLyrics(bool),
+    SetHotSearch(bool),
     PlayFm,
     FmSongs(Vec<Song>),
     FmDislike,
@@ -366,6 +367,7 @@ pub fn initial_state() -> State {
         show_format: saved["show_format"].as_bool().unwrap_or(true),
         cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
         word_lyrics: saved["word_lyrics"].as_bool().unwrap_or(true),
+        hot_search: saved["hot_search"].as_bool().unwrap_or(true),
         lyric_lit: -1,
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
@@ -399,6 +401,7 @@ fn save_settings(state: &State) {
         "show_format": state.show_format,
         "cover_lyrics": state.cover_lyrics,
         "word_lyrics": state.word_lyrics,
+        "hot_search": state.hot_search,
         "desktop_lyrics": state.desktop_lyrics,
         "desktop_lyrics_locked": state.desktop_lyrics_locked,
         "plugins": state.plugins.iter().filter(|plugin| plugin.enabled).map(|plugin| plugin.id.clone()).collect::<Vec<_>>(),
@@ -994,6 +997,10 @@ impl Worker {
             Job::FmDislike => self.fm_dislike(),
             Job::SetFmOnStart(on) => self.shared.update(|s| {
                 s.fm_on_start = on;
+                save_settings(s);
+            }),
+            Job::SetHotSearch(on) => self.shared.update(|s| {
+                s.hot_search = on;
                 save_settings(s);
             }),
             Job::SetWordLyrics(on) => {

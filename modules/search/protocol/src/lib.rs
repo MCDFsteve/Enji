@@ -78,5 +78,8 @@ pub mod search {
         /// NetEase was switched on or off.
         #[on(enji::netease_changed)]
         fn netease_changed(&mut self, on: bool) -> Result<(), CommandError>;
+        /// The list of what is searched most was switched on or off.
+        #[on(enji::hot_search_changed)]
+        fn hot_search_changed(&mut self, on: bool) -> Result<(), CommandError>;
     }
 }

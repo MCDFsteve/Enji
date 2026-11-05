@@ -231,5 +231,5 @@ USB exclusive output has not been tried with a real USB DAC yet, and word-by-wor
 - [ncm-api-rs](https://github.com/SPlayer-Dev/ncm-api-rs): the NetEase Cloud Music API
 - [Misuzu Music](https://github.com/AimesSoft/MisuzuMusic): how shuffle, local song matching and the cover glow work
 - [symphonia](https://github.com/pdeljanov/Symphonia), [rodio](https://github.com/RustAudio/rodio), [lofty](https://github.com/Serial-ATA/lofty-rs): decoding, playback and tags
-- [Boa](https://github.com/boa-dev/boa): the JavaScript engine plugins run in; the plugin format follows NipaPlay Next's
+- [Boa](https://github.com/boa-dev/boa): the JavaScript engine plugins run in on Apple TV, where the system has none to lend; the plugin format follows NipaPlay Next's
 - [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons): the equalizer in the icon

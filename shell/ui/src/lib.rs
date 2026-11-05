@@ -463,6 +463,19 @@ pub fn module_switches(app: enji::Client, shell: shell::Client) -> impl View {
                     Spacer
                     Switch(id: module_search, label: tr! { "zh-Hans" => "搜索", "en" => "Search" }, label_hidden: true, checked: shell.modules.search, style: switch) => shell.set_module("search", shell.modules.search)
                 }
+                if shell.modules.search && app.netease {
+                    Column(padding_x: 16) { Divider }
+                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                        Column(width: 22, align: center) {
+                            Stack(variant: quiet) {
+                                Label(title: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, icon: "list.bullet", display: icon, font_size: 15)
+                            }
+                        }
+                        Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" })
+                        Spacer
+                        Switch(id: hot_search, label: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, label_hidden: true, checked: app.hot_search, style: switch) => app.set_hot_search(app.hot_search)
+                    }
+                }
             }
         }
     }

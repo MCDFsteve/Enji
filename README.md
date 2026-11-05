@@ -231,5 +231,5 @@ USB 独占输出还没有接真的 USB 解码器试过；Linux 版的逐字歌�
 - [ncm-api-rs](https://github.com/SPlayer-Dev/ncm-api-rs)：网易云音乐接口
 - [Misuzu Music](https://github.com/AimesSoft/MisuzuMusic)：随机播放、本地歌曲识别和封面光效的做法
 - [symphonia](https://github.com/pdeljanov/Symphonia)、[rodio](https://github.com/RustAudio/rodio)、[lofty](https://github.com/Serial-ATA/lofty-rs)：解码、播放和标签
-- [Boa](https://github.com/boa-dev/boa)：运行插件的 JavaScript 引擎；插件的格式参照 NipaPlay Next
+- [Boa](https://github.com/boa-dev/boa)：Apple TV 上运行插件的 JavaScript 引擎，其他平台用系统自带的；插件的格式参照 NipaPlay Next
 - [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)：图标里的均衡器图形
