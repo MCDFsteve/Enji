@@ -2,7 +2,7 @@
 
 - **逐字歌词更细腻**：每个字从左到右逐渐亮起，歌词页、封面下的歌词和桌面歌词都一样。macOS 14、iOS 17 及更早的系统上，整个字淡入。
 - **热搜榜可以单独关闭**：在设置的可选功能里，关掉后搜索页只留搜索记录。
-- **Windows 安装程序**：换成简洁的单窗口界面，安装包从约 33 MB 缩小到约 8 MB，首次安装可以自己选位置。
+- **Windows 安装程序**：换成简洁的单窗口界面，安装包从约 33 MB 缩小到约 6 MB，首次安装可以自己选位置。
 - **Android 安装包小了很多**：从约 28 MB 缩小到约 7 MB。
 - **iOS 16**：iPhone 和 iPad 最低支持到 iOS 16，还是同一个 `-ios.ipa`。
 - **Mac 的磁盘映像**：打开后有背景，把应用拖进“应用程序”即可。
@@ -105,7 +105,7 @@ Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公
 
 - **Finer word-by-word lyrics**: each character lights from left to right as it is sung, on the lyrics page, under the cover and in desktop lyrics. On macOS 14, iOS 17 and earlier a character fades in whole.
 - **Trending searches can go on their own**: under the optional features in Settings. With them off, the search page keeps only your search history.
-- **Windows setup**: a clean single window, about 8 MB instead of 33 MB, and a first installation can pick its folder.
+- **Windows setup**: a clean single window, about 6 MB instead of 33 MB, and a first installation can pick its folder.
 - **A much smaller Android package**: about 7 MB instead of 28 MB.
 - **iOS 16**: iPhone and iPad now go down to iOS 16, in the same `-ios.ipa`.
 - **The Mac disk image** opens with a background: drag the app onto Applications.
