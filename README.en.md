@@ -58,36 +58,29 @@
 
 <p align="center"><a href="docs/screenshots/iphone-duo-inner-now-playing.png"><img src="docs/screenshots/iphone-duo-inner-now-playing.png" width="640" alt="Now playing on the unfolded iPhone Duo: the cover on the left half, lyrics on the right half, the hinge between them"></a><br><sub>iPhone Duo unfolded: the cover and the lyrics on either side of the hinge</sub></p>
 
-<table>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/ipad-charts.png"><img src="docs/screenshots/ipad-charts.png" alt="iPad charts"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/ipad-now-playing.png"><img src="docs/screenshots/ipad-now-playing.png" alt="iPad now playing"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>iPad</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/android-tablet-charts.png"><img src="docs/screenshots/android-tablet-charts.png" alt="Android tablet charts"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/android-tablet-now-playing.png"><img src="docs/screenshots/android-tablet-now-playing.png" alt="Android tablet now playing"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>Android tablet</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/apple-tv-charts.png"><img src="docs/screenshots/apple-tv-charts.png" alt="Apple TV charts"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/apple-tv-now-playing.png"><img src="docs/screenshots/apple-tv-now-playing.png" alt="Apple TV now playing"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>Apple TV</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/android-tv-charts.png"><img src="docs/screenshots/android-tv-charts.png" alt="Android TV charts"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/android-tv-now-playing.png"><img src="docs/screenshots/android-tv-now-playing.png" alt="Android TV now playing"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>Android TV</sub></td>
-</tr>
-</table>
+<p align="center">
+<a href="docs/screenshots/ipad-charts.png"><img src="docs/screenshots/ipad-charts.png" width="49%" alt="iPad charts"></a>
+<a href="docs/screenshots/ipad-now-playing.png"><img src="docs/screenshots/ipad-now-playing.png" width="49%" alt="iPad now playing"></a>
+<br><sub>iPad</sub>
+</p>
+
+<p align="center">
+<a href="docs/screenshots/android-tablet-charts.png"><img src="docs/screenshots/android-tablet-charts.png" width="49%" alt="Android tablet charts"></a>
+<a href="docs/screenshots/android-tablet-now-playing.png"><img src="docs/screenshots/android-tablet-now-playing.png" width="49%" alt="Android tablet now playing"></a>
+<br><sub>Android tablet</sub>
+</p>
+
+<p align="center">
+<a href="docs/screenshots/apple-tv-charts.png"><img src="docs/screenshots/apple-tv-charts.png" width="49%" alt="Apple TV charts"></a>
+<a href="docs/screenshots/apple-tv-now-playing.png"><img src="docs/screenshots/apple-tv-now-playing.png" width="49%" alt="Apple TV now playing"></a>
+<br><sub>Apple TV</sub>
+</p>
+
+<p align="center">
+<a href="docs/screenshots/android-tv-charts.png"><img src="docs/screenshots/android-tv-charts.png" width="49%" alt="Android TV charts"></a>
+<a href="docs/screenshots/android-tv-now-playing.png"><img src="docs/screenshots/android-tv-now-playing.png" width="49%" alt="Android TV now playing"></a>
+<br><sub>Android TV</sub>
+</p>
 
 ## Highlights
 

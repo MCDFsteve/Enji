@@ -58,36 +58,29 @@
 
 <p align="center"><a href="docs/screenshots/iphone-duo-inner-now-playing.png"><img src="docs/screenshots/iphone-duo-inner-now-playing.png" width="640" alt="iPhone Duo 展开后的内屏播放页：封面在左半屏，歌词在右半屏，中间隔着铰链"></a><br><sub>iPhone Duo 展开：封面和歌词分在铰链两侧</sub></p>
 
-<table>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/ipad-charts.png"><img src="docs/screenshots/ipad-charts.png" alt="iPad 排行榜"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/ipad-now-playing.png"><img src="docs/screenshots/ipad-now-playing.png" alt="iPad 播放页"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>iPad</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/android-tablet-charts.png"><img src="docs/screenshots/android-tablet-charts.png" alt="Android 平板 排行榜"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/android-tablet-now-playing.png"><img src="docs/screenshots/android-tablet-now-playing.png" alt="Android 平板 播放页"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>Android 平板</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/apple-tv-charts.png"><img src="docs/screenshots/apple-tv-charts.png" alt="Apple TV 排行榜"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/apple-tv-now-playing.png"><img src="docs/screenshots/apple-tv-now-playing.png" alt="Apple TV 播放页"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>Apple TV</sub></td>
-</tr>
-<tr>
-<td width="50%" align="center"><a href="docs/screenshots/android-tv-charts.png"><img src="docs/screenshots/android-tv-charts.png" alt="Android TV 排行榜"></a></td>
-<td width="50%" align="center"><a href="docs/screenshots/android-tv-now-playing.png"><img src="docs/screenshots/android-tv-now-playing.png" alt="Android TV 播放页"></a></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><sub>Android TV</sub></td>
-</tr>
-</table>
+<p align="center">
+<a href="docs/screenshots/ipad-charts.png"><img src="docs/screenshots/ipad-charts.png" width="49%" alt="iPad 排行榜"></a>
+<a href="docs/screenshots/ipad-now-playing.png"><img src="docs/screenshots/ipad-now-playing.png" width="49%" alt="iPad 播放页"></a>
+<br><sub>iPad</sub>
+</p>
+
+<p align="center">
+<a href="docs/screenshots/android-tablet-charts.png"><img src="docs/screenshots/android-tablet-charts.png" width="49%" alt="Android 平板 排行榜"></a>
+<a href="docs/screenshots/android-tablet-now-playing.png"><img src="docs/screenshots/android-tablet-now-playing.png" width="49%" alt="Android 平板 播放页"></a>
+<br><sub>Android 平板</sub>
+</p>
+
+<p align="center">
+<a href="docs/screenshots/apple-tv-charts.png"><img src="docs/screenshots/apple-tv-charts.png" width="49%" alt="Apple TV 排行榜"></a>
+<a href="docs/screenshots/apple-tv-now-playing.png"><img src="docs/screenshots/apple-tv-now-playing.png" width="49%" alt="Apple TV 播放页"></a>
+<br><sub>Apple TV</sub>
+</p>
+
+<p align="center">
+<a href="docs/screenshots/android-tv-charts.png"><img src="docs/screenshots/android-tv-charts.png" width="49%" alt="Android TV 排行榜"></a>
+<a href="docs/screenshots/android-tv-now-playing.png"><img src="docs/screenshots/android-tv-now-playing.png" width="49%" alt="Android TV 播放页"></a>
+<br><sub>Android TV</sub>
+</p>
 
 ## 特色
 
