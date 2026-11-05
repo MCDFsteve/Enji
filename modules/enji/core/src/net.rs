@@ -493,7 +493,9 @@ impl Shared {
     /// Change what moves many times a second. The core's state, with every
     /// list in it, stays out of this: it costs too much to send so often.
     fn live(&self, change: impl FnOnce(&mut enji_kit::live::Live)) {
-        enji_kit::live::update(change);
+        if !enji_kit::live::update(change) {
+            return;
+        }
         if let Some(waker) = &self.waker {
             waker.wake();
         }

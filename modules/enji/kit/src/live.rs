@@ -29,6 +29,10 @@ pub fn read<T>(look: impl FnOnce(&Live) -> T) -> T {
     look(&live())
 }
 
-pub fn update(change: impl FnOnce(&mut Live)) {
-    change(&mut live());
+/// Whether this changed anything.
+pub fn update(change: impl FnOnce(&mut Live)) -> bool {
+    let mut live = live();
+    let was = live.clone();
+    change(&mut live);
+    *live != was
 }
