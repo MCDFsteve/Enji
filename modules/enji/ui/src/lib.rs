@@ -3188,7 +3188,7 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                     Image(source: "assets/mark.png", width: 36, height: 36, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
                     Column(gap: 2, align: leading) {
                         Text(content: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, style: headline)
-                        Text(content: tr! { "zh-Hans" => "版本 0.2.0", "en" => "Version 0.2.0" }, style: caption, emphasis: secondary)
+                        Text(content: tr! { "zh-Hans" => "版本 {version}", "en" => "Version {version}"; version: window.app_version }, style: caption, emphasis: secondary)
                     }
                     Spacer
                 }
