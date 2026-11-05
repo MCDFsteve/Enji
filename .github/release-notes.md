@@ -1,3 +1,22 @@
+## 0.3.3 新增
+
+- **逐字歌词更细腻**：每个字从左到右逐渐亮起，歌词页、封面下的歌词和桌面歌词都一样。macOS 14、iOS 17 及更早的系统上，整个字淡入。
+- **热搜榜可以单独关闭**：在设置的可选功能里，关掉后搜索页只留搜索记录。
+- **Windows 安装程序**：换成简洁的单窗口界面，安装包从约 33 MB 缩小到约 8 MB，首次安装可以自己选位置。
+- **Android 安装包小了很多**：从约 28 MB 缩小到约 7 MB。
+- **Mac 的磁盘映像**：打开后有背景，把应用拖进“应用程序”即可。
+
+## 0.3.3 修正
+
+- **Windows 10 打不开**：不用另外安装运行时也能正常打开。
+- **语言恢复默认**：在应用里选的语言，重启后不再变回系统语言。
+- **版本号**：设置里一直显示 0.2.0，现在是真实版本。
+- **扫码登录**：弹窗里的二维码不再被切掉，底部按钮也不再被截断。
+- **取不到音源**：网易云偶尔拒绝取歌曲地址，放歌和“一起听”切歌时会报错。现在调整了请求方式，也会自动重试。
+- **封面**：下载失败或卡住时自动重试，不再一直空着。
+- **Windows**：播放页底部的按钮间距正常了；Windows 10 上的图标、空白网格和启动崩溃都已修复。
+- **手机**：播放列表的弹窗不再超出屏幕。
+
 ## 0.3.2 新增
 
 - **逐字歌词**：网易云给了逐字时间的歌，唱到哪个字亮到哪个字，歌词页、封面下的歌词和桌面歌词都一样。可以在设置里关掉。
@@ -80,6 +99,25 @@
 **Android**：如果装过自己构建的测试版，需要先卸载再安装；之后的版本都能直接覆盖更新。
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
+
+## What's new in 0.3.3
+
+- **Finer word-by-word lyrics**: each character lights from left to right as it is sung, on the lyrics page, under the cover and in desktop lyrics. On macOS 14, iOS 17 and earlier a character fades in whole.
+- **Trending searches can go on their own**: under the optional features in Settings. With them off, the search page keeps only your search history.
+- **Windows setup**: a clean single window, about 8 MB instead of 33 MB, and a first installation can pick its folder.
+- **A much smaller Android package**: about 7 MB instead of 28 MB.
+- **The Mac disk image** opens with a background: drag the app onto Applications.
+
+## What's fixed in 0.3.3
+
+- **Windows 10 not opening**: it opens without installing a runtime.
+- **The language going back**: the language chosen in the app stays through a restart.
+- **The version**: Settings always said 0.2.0, and now shows the real one.
+- **QR sign-in**: the code is no longer cut off in its dialog, nor the button below it.
+- **Songs that would not load**: NetEase sometimes refuses a song's address, which showed as an error when playing or skipping in Listen Together. Enji now asks differently and tries again.
+- **Covers** try again when a download fails or stalls, instead of staying blank.
+- **Windows**: the buttons at the bottom of the playing page are spaced properly, and on Windows 10 the icons, blank grids and a crash at startup are fixed.
+- **Phones**: the queue popover no longer runs off the screen.
 
 ## What's new in 0.3.2
 

@@ -95,8 +95,8 @@
 - **Sign in** by scanning a QR code with the NetEase Cloud Music app; on a phone, save the code to your photos and pick it from the album in that app. Your sign-in stays on your own device.
 - **Roaming**: signed in, start it from the home page. One song follows another with no end, and Dislike moves on. It can also open when the app starts.
 - **Your playlists**: liked songs, playlists you made or saved; create playlists, add songs to them, like a song.
-- **Search** NetEase and your own music at once, with trending searches and your search history.
-- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. On songs NetEase times word by word, the line lights up as it is sung, in desktop lyrics too. Holding a phone upright, the line being sung also shows under the cover.
+- **Search** NetEase and your own music at once, with your search history and trending searches, which Settings can turn off on their own.
+- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. On songs NetEase times word by word, each character lights from left to right as it is sung, in desktop lyrics too. Holding a phone upright, the line being sung also shows under the cover.
 - **Quality**: standard, higher, extreme, lossless or Hi-Res (above 320k needs NetEase VIP).
 - **USB exclusive output**: on Android 14 and later, a USB DAC plays each song at its own sample rate, without the system resampling it. It needs the phone's maker to allow it.
 - **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
@@ -182,7 +182,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```sh
-cargo binstall bern-cli@0.1.4
+cargo binstall bern-cli@0.1.5
 ```
 
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) downloads `bern` ready-built; `cargo install --locked bern-cli@0.1.2` compiles it instead.
