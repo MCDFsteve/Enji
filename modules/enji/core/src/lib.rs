@@ -37,6 +37,8 @@ pub struct EnjiEngine {
     /// The worker changed `shared`: `wake` wakes for other parts too, many
     /// times a second, and this state is too big to copy each time.
     changed: Arc<AtomicBool>,
+    /// The last `wake` found `shared` as it was.
+    quiet: bool,
     jobs: Option<mpsc::UnboundedSender<Job>>,
 }
 
@@ -46,6 +48,7 @@ impl Default for EnjiEngine {
         Self {
             shared: Arc::new(Mutex::new(state.clone())),
             changed: Arc::new(AtomicBool::new(true)),
+            quiet: false,
             state,
             jobs: None,
         }
@@ -84,7 +87,8 @@ impl enji::Engine for EnjiEngine {
 
     fn wake(&mut self) {
         self.start();
-        if !self.changed.swap(false, Ordering::Acquire) {
+        self.quiet = !self.changed.swap(false, Ordering::Acquire);
+        if self.quiet {
             return;
         }
         let (signed_in, netease, hot_search) = (self.state.login == Login::In, self.state.netease, self.state.hot_search);
@@ -99,6 +103,10 @@ impl enji::Engine for EnjiEngine {
         if self.state.hot_search != hot_search {
             enji::emit::hot_search_changed(self.state.hot_search);
         }
+    }
+
+    fn quiet(&self) -> bool {
+        self.quiet
     }
 }
 

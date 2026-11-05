@@ -30,6 +30,8 @@ pub struct RecommendEngine {
     started: bool,
     /// The local copies and play counts today's songs show.
     dressed: u64,
+    /// The last `wake` changed nothing.
+    quiet: bool,
 }
 
 impl Default for RecommendEngine {
@@ -48,6 +50,7 @@ impl Default for RecommendEngine {
             signed_in: false,
             started: false,
             dressed: enji_kit::dressing(),
+            quiet: false,
         }
     }
 }
@@ -137,7 +140,8 @@ impl recommend::Engine for RecommendEngine {
     }
 
     fn wake(&mut self) {
-        if !self.started {
+        let first = !self.started;
+        if first {
             self.started = true;
             if let Some(core) = enji::current_state() {
                 self.state.available = core.netease;
@@ -151,6 +155,7 @@ impl recommend::Engine for RecommendEngine {
             let mut inbox = self.inbox.lock().unwrap_or_else(|e| e.into_inner());
             inbox.drain(..).filter(|(load, _)| *load == self.load).map(|(_, one)| one).collect()
         };
+        self.quiet = !first && arrived.is_empty();
         if !arrived.is_empty() {
             self.state.loading = false;
         }
@@ -164,10 +169,15 @@ impl recommend::Engine for RecommendEngine {
         // A copy found or a song played since: shown, and played, so.
         if enji_kit::dressing() != self.dressed {
             self.dressed = enji_kit::dressing();
+            self.quiet = false;
             if self.state.has_daily {
                 let songs = std::mem::take(&mut self.state.daily);
                 self.set_daily(songs);
             }
         }
+    }
+
+    fn quiet(&self) -> bool {
+        self.quiet
     }
 }

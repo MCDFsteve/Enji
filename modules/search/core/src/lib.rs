@@ -34,6 +34,8 @@ pub struct SearchEngine {
     started: bool,
     /// The settings want the most searched words.
     wants_hot: bool,
+    /// The last `wake` changed nothing.
+    quiet: bool,
     /// The local copies and play counts the songs found show.
     dressed: u64,
 }
@@ -66,6 +68,7 @@ impl Default for SearchEngine {
             started: false,
             wants_hot: true,
             dressed: enji_kit::dressing(),
+            quiet: false,
         }
     }
 }
@@ -260,7 +263,8 @@ impl search::Engine for SearchEngine {
     }
 
     fn wake(&mut self) {
-        if !self.started {
+        let first = !self.started;
+        if first {
             self.started = true;
             if let Some(core) = enji::current_state() {
                 self.state.netease = core.netease;
@@ -276,6 +280,7 @@ impl search::Engine for SearchEngine {
                 .map(|(_, answer)| answer)
                 .collect()
         };
+        self.quiet = !first && arrived.is_empty();
         for answer in arrived {
             match answer {
                 Answer::Hot(words) => {
@@ -316,6 +321,7 @@ impl search::Engine for SearchEngine {
         // A copy found or a song played since: shown, and played, so.
         if enji_kit::dressing() != self.dressed {
             self.dressed = enji_kit::dressing();
+            self.quiet = false;
             if !self.state.results.is_empty() {
                 let songs = std::mem::take(&mut self.state.results);
                 self.set_results(songs);
@@ -325,5 +331,9 @@ impl search::Engine for SearchEngine {
                 self.set_local_results(songs);
             }
         }
+    }
+
+    fn quiet(&self) -> bool {
+        self.quiet
     }
 }

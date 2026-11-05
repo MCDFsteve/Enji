@@ -19,6 +19,8 @@ pub struct ChartsEngine {
     load: u64,
     /// The core's state was read once, as the engine started.
     started: bool,
+    /// The last `wake` changed nothing.
+    quiet: bool,
 }
 
 impl Default for ChartsEngine {
@@ -32,6 +34,7 @@ impl Default for ChartsEngine {
             inbox: Arc::default(),
             load: 0,
             started: false,
+            quiet: false,
         }
     }
 }
@@ -87,7 +90,8 @@ impl charts::Engine for ChartsEngine {
     }
 
     fn wake(&mut self) {
-        if !self.started {
+        let first = !self.started;
+        if first {
             self.started = true;
             self.state.available = enji::current_state().is_some_and(|core| core.netease);
             if self.state.available {
@@ -98,6 +102,7 @@ impl charts::Engine for ChartsEngine {
             let mut inbox = self.inbox.lock().unwrap_or_else(|e| e.into_inner());
             inbox.drain(..).filter(|(load, _)| *load == self.load).map(|(_, charts)| charts).collect()
         };
+        self.quiet = !first && arrived.is_empty();
         for charts in arrived {
             self.state.loading = false;
             match charts {
@@ -105,5 +110,9 @@ impl charts::Engine for ChartsEngine {
                 None => enji::calls::show_error("连不上网易云音乐，检查一下网络".into()),
             }
         }
+    }
+
+    fn quiet(&self) -> bool {
+        self.quiet
     }
 }
