@@ -82,6 +82,8 @@ channels = ["ipc"]
 platform = "ios"
 javascript = true
 channels = ["ipc"]
+# One package for iOS 16 and iOS 17 and later.
+frontends = ["swiftui", "swiftui-16"]
 
 [targets.tvos]
 platform = "tvos"
