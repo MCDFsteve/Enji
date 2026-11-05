@@ -709,9 +709,10 @@ pub mod enji {
         pub word_lyrics: bool,
         /// The search page shows what is searched most on NetEase.
         pub hot_search: bool,
-        /// How many characters of the sung line are lit; below zero when
-        /// the line is not timed by the word.
-        pub lyric_lit: i64,
+        /// How far through the sung line's characters the singing is, the
+        /// one being sung in part; below zero when the line is not timed by
+        /// the word.
+        pub lyric_lit: f64,
         /// The sung line floating over everything else on the screen.
         pub desktop_lyrics: bool,
         /// Clicks go through the desktop lyrics; unlocked, they can be moved.

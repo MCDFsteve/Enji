@@ -2083,7 +2083,7 @@ pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                     ForEach(items: app.lyrics, key: key) |line| {
                         Button(id: lyric, label: line.text, variant: lyric) {
                             Column(gap: 4, padding_x: 14, padding_y: 10, blur: line.blur, animate: smooth) {
-                                Text(content: line.text, lit: if line.current { app.lyric_lit } else { -1 }, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
+                                Text(content: line.text, lit: if line.current { app.lyric_lit } else { -1.0 }, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
                                 if line.translated && app.show_translation {
                                     Text(content: line.translation, font_size: if window.compact { 15 } else if line.current { 18 } else { 16 }, emphasis: secondary, animate: smooth)
                                 }

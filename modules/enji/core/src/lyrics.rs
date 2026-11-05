@@ -16,20 +16,27 @@ pub struct Line {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Word {
     pub time: f64,
+    /// How long it is sung, in seconds.
+    pub length: f64,
     /// How many characters of the line are sung once it is: those of the
     /// words before it and its own.
     pub end: usize,
 }
 
 impl Line {
-    /// How many of its characters are being sung or have been at `at`; none
-    /// for a line that does not know its words.
-    pub fn sung(&self, at: f64) -> Option<usize> {
+    /// How far through its characters the singing is at `at`, the word being
+    /// sung counted by how much of it has gone: 2.5 is half way through the
+    /// third. None for a line that does not know its words.
+    pub fn sung(&self, at: f64) -> Option<f64> {
         let (first, _) = self.words.split_first()?;
         if at < first.time {
-            return Some(0);
+            return Some(0.0);
         }
-        self.words.iter().rev().find(|word| word.time <= at).map(|word| word.end)
+        let now = self.words.iter().rposition(|word| word.time <= at)?;
+        let word = &self.words[now];
+        let before = now.checked_sub(1).map_or(0, |last| self.words[last].end);
+        let part = if word.length > 0.0 { ((at - word.time) / word.length).clamp(0.0, 1.0) } else { 1.0 };
+        Some(before as f64 + (word.end - before) as f64 * part)
     }
 }
 
@@ -69,12 +76,12 @@ fn word_timed(yrc: &str) -> Vec<Line> {
         let Some((head, body)) = raw.trim().strip_prefix('[').and_then(|rest| rest.split_once(']')) else { continue };
         let Some(start) = head.split(',').next().and_then(|start| start.parse::<f64>().ok()) else { continue };
         let (mut text, mut words, mut chars) = (String::new(), Vec::new(), 0);
-        for (at, word) in timed_words(body) {
+        for (at, length, word) in timed_words(body) {
             chars += word.chars().count();
             text.push_str(word);
             // Some songs count from the line's start.
             let at = if at < start { start + at } else { at };
-            words.push(Word { time: at / 1000.0, end: chars });
+            words.push(Word { time: at / 1000.0, length: length / 1000.0, end: chars });
         }
         let kept = text.trim_end().chars().count();
         words.iter_mut().for_each(|word| word.end = word.end.min(kept));
@@ -86,19 +93,20 @@ fn word_timed(yrc: &str) -> Vec<Line> {
     lines
 }
 
-/// Each word of a line's `body` with when it starts. A word may hold
-/// brackets of its own, so a tag is only what reads as one.
-fn timed_words(body: &str) -> Vec<(f64, &str)> {
+/// Each word of a line's `body` with when it starts and how long it is. A
+/// word may hold brackets of its own, so a tag is only what reads as one.
+fn timed_words(body: &str) -> Vec<(f64, f64, &str)> {
     let mut tags = Vec::new();
     for (open, _) in body.match_indices('(') {
         let Some(close) = body[open..].find(')').map(|close| open + close) else { break };
         let parts: Vec<&str> = body[open + 1..close].split(',').collect();
         if parts.len() == 3 && parts.iter().all(|part| !part.is_empty() && part.bytes().all(|digit| digit.is_ascii_digit())) {
-            tags.push((open, close, parts[0].parse::<f64>().unwrap_or(0.0)));
+            let number = |part: &str| part.parse::<f64>().unwrap_or(0.0);
+            tags.push((open, close, number(parts[0]), number(parts[1])));
         }
     }
     let ends = tags.iter().skip(1).map(|tag| tag.0).chain(std::iter::once(body.len()));
-    tags.iter().zip(ends).map(|(&(_, close, at), end)| (at, &body[close + 1..end])).collect()
+    tags.iter().zip(ends).map(|(&(_, close, at, length), end)| (at, length, &body[close + 1..end])).collect()
 }
 
 /// The sung lines of `lrc` in order, each with the line of `translation`
@@ -213,13 +221,22 @@ mod tests {
     }
 
     #[test]
-    fn a_line_is_lit_up_to_the_word_being_sung() {
+    fn a_line_is_lit_as_far_as_the_singing_has_gone() {
         let lines = super::of_answer(&answer(), true);
         let line = &lines[1];
-        assert_eq!(line.sung(4.9), Some(0));
-        assert_eq!(line.sung(5.0), Some(1));
-        assert_eq!(line.sung(5.6), Some(2));
-        assert_eq!(line.sung(9.0), Some(2));
+        assert_eq!(line.sung(4.9), Some(0.0));
+        assert_eq!(line.sung(5.0), Some(0.0));
+        assert_eq!(line.sung(5.25), Some(0.5));
+        assert_eq!(line.sung(5.5), Some(1.0));
+        assert_eq!(line.sung(5.75), Some(1.5));
+        assert_eq!(line.sung(9.0), Some(2.0));
+    }
+
+    #[test]
+    fn a_word_of_many_characters_lights_through_them_evenly() {
+        let lines = super::of_answer(&answer(), true);
+        // "(Rain " is six characters over half a second.
+        assert_eq!(lines[0].sung(1.25), Some(3.0));
     }
 
     #[test]

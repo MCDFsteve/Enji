@@ -368,7 +368,7 @@ pub fn initial_state() -> State {
         cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
         word_lyrics: saved["word_lyrics"].as_bool().unwrap_or(true),
         hot_search: saved["hot_search"].as_bool().unwrap_or(true),
-        lyric_lit: -1,
+        lyric_lit: -1.0,
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
@@ -1006,7 +1006,7 @@ impl Worker {
             Job::SetWordLyrics(on) => {
                 self.shared.update(|s| {
                     s.word_lyrics = on;
-                    s.lyric_lit = -1;
+                    s.lyric_lit = -1.0;
                     save_settings(s);
                 });
                 // The song's own lines as the setting has them now.
@@ -1940,7 +1940,7 @@ impl Worker {
             } else {
                 (s.lyric_now.clone(), s.lyric_next.clone())
             };
-            let lit = usize::try_from(s.lyric_lit).ok().filter(|_| !s.lyric_now.is_empty());
+            let lit = Some(s.lyric_lit).filter(|lit| *lit >= 0.0 && !s.lyric_now.is_empty());
             Some((first, second, lit, s.desktop_lyrics_locked, s.playing))
         });
         let Some((first, second, lit, locked, playing)) = shown else {
@@ -3023,7 +3023,7 @@ impl Worker {
             s.lyrics_near.clear();
             s.has_lyrics = false;
             s.line = 0;
-            s.lyric_lit = -1;
+            s.lyric_lit = -1.0;
             s.browsing = false;
             s.format.clear();
             sung(s);
@@ -3224,10 +3224,10 @@ impl Worker {
     // MARK: Word by word
 
     /// How much of line `line` is lit at `at`, as the state tells it.
-    fn lit_at(&self, line: i64, at: f64) -> i64 {
+    fn lit_at(&self, line: i64, at: f64) -> f64 {
         let on = self.shared.read(|s| s.word_lyrics);
         let sung = self.lines.get(line as usize).filter(|_| on).and_then(|line| line.sung(at));
-        sung.map_or(-1, |lit| lit as i64)
+        sung.unwrap_or(-1.0)
     }
 
     /// The sung line up to the word that plays now, more often than the
