@@ -258,9 +258,9 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bern"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63829a1b53b1826a7bb8ea149f43ec762e801cdfdb494d37691185c6f165e6e7"
+checksum = "5a4202bc6d1398063d3608081db5ab38964373b5e5f5e5b6cf30c0387188bc26"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -273,9 +273,9 @@ dependencies = [
 
 [[package]]
 name = "bern-command"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95e873dfffa6b204f148e6ebdbdd1b8929029a1af41ea6f45f108d91baa54961"
+checksum = "e37d5321f60b987efff005e481d2b2c390aa76288bb899f950acdaca2789e4ce"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -295,9 +295,9 @@ dependencies = [
 
 [[package]]
 name = "bern-ir"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cac5c1f2743a6155efb7c4dd9d5f366d12b333c0ab4b4e51e0b33213d8f9cb71"
+checksum = "f156f4852279ed5bb25ab10ad393d8680730e5fa240ee6c69cd070246ab0a1c7"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -306,9 +306,9 @@ dependencies = [
 
 [[package]]
 name = "bern-macros"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e688a3f8a9f5eb9c8069c48293149abb101ee0ad367ab0b7ce15694b3aba112"
+checksum = "c22b7a61f9c25b0553f8198c9ee2b201b68d59b63e3e6639d03c4912b0b02c97"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -321,18 +321,18 @@ dependencies = [
 
 [[package]]
 name = "bern-media"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b73a2e4175b1068d29c3370b4cef4623e208136d86ea547fc6e93e70632db48b"
+checksum = "580acc705d8d932ab09ef8e9c544d0982701a1e8ea014375799a3907ee75fc78"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-protocol"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52f6212e19be7b732f72b1fc97feafc1a45e05b1a343353f88c21d5b9c135dab"
+checksum = "d6cfc745e1215e5552d0756e878e9e67be6e6bd58d6e42bcc424b0d061ea2ff8"
 dependencies = [
  "serde",
  "serde_json",
@@ -340,18 +340,18 @@ dependencies = [
 
 [[package]]
 name = "bern-runtime"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b13948c647059a3bf581d2ee9d97c5e2a001f12985760afe77e7187a09327ea7"
+checksum = "5d39372d8f82cf586d5f6e62c583914000e28705e3ca3d91c11e6b888b47cbaa"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-script"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c17bbfa9c06ebede929582f97dc6d0cceb7cbc960e90cd736613b84da87a870"
+checksum = "a336f4dd9fbfc8f6c724f842d71b4ae619cbed86f2cab31fc2d18fcb119915d4"
 dependencies = [
  "boa_engine",
  "serde",
@@ -360,9 +360,9 @@ dependencies = [
 
 [[package]]
 name = "bern-syntax"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d391d4af10a82ed6b9d7381579f39232177c8c1231cba4953fb50f9b3c023cc"
+checksum = "625c12a5536ef39a04f136629b56667156786e514a41a4080f3e413e6514b85e"
 dependencies = [
  "bern-media",
  "bern-protocol",
