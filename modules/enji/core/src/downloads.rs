@@ -182,10 +182,7 @@ pub async fn fetch(
     progress: impl Fn(f64),
 ) -> Result<PathBuf, String> {
     let id = song.id.to_string();
-    let response = client
-        .song_url_v1(&Query::new().param("id", &id).param("level", level))
-        .await
-        .map_err(|e| format!("取不到《{}》的音源：{e}", song.name))?;
+    let response = crate::net::song_url(client, &song.name, &id, level).await?;
     let data = &response.body["data"][0];
     let url = data["url"].as_str().filter(|url| !url.is_empty()).ok_or_else(|| format!("《{}》暂时不能下载", song.name))?;
     if !data["freeTrialInfo"].is_null() {

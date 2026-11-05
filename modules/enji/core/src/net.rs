@@ -17,7 +17,7 @@ use enji_protocol::enji::{
     Appearance, Detail, Download, Folder, Login, Offer, Plugin, LyricLine, Panel, PlayMode, Played, Playlist, Quality, Song,
     CloseAction, ListenYear, Medal, Profile, SongOrder, Source, State, TogetherUser, TopRange,
 };
-use ncm_api_rs::{ApiClient, CryptoType, NcmError, Query, RequestOption};
+use ncm_api_rs::{ApiClient, ApiResponse, CryptoType, NcmError, Query, RequestOption, util::config::choose_user_agent};
 use rand::Rng;
 use serde_json::{json, Value};
 use std::{
@@ -416,6 +416,49 @@ fn save_settings(state: &State) {
         "show_plays": state.show_plays,
         "default_playlist": state.default_playlist,
     }));
+}
+
+/// How long to wait before each new try at a song's address, all told a
+/// few seconds, as long as a refusal has been seen to last.
+const SONG_URL_WAITS: [Duration; 9] = [
+    Duration::from_millis(200),
+    Duration::from_millis(300),
+    Duration::from_millis(500),
+    Duration::from_millis(700),
+    Duration::from_millis(1000),
+    Duration::from_millis(1000),
+    Duration::from_millis(1500),
+    Duration::from_millis(1500),
+    Duration::from_millis(2000),
+];
+
+/// `call` until it is not refused, waiting `waits` between tries. NetEase
+/// can answer a call for a song's address with code -460, "your network
+/// looks risky", and give the address on another try; the client reports
+/// any such code as an invalid parameter, which these calls, with their
+/// fixed parameters, never have.
+async fn retried<T, F: Future<Output = Result<T, NcmError>>>(waits: &[Duration], mut call: impl FnMut() -> F) -> Result<T, NcmError> {
+    for wait in waits {
+        match call().await {
+            Err(NcmError::InvalidParam(_)) => tokio::time::sleep(*wait).await,
+            answer => return answer,
+        }
+    }
+    call().await
+}
+
+/// The answer to where the song `name` plays from, or what to tell the
+/// listener: a refusal is tried again, and shown only if it lasts.
+pub(crate) async fn song_url(client: &ApiClient, name: &str, id: &str, level: &str) -> Result<ApiResponse, String> {
+    let mut query = Query::new().param("id", id).param("level", level);
+    // The client's cookies call it a Windows PC, on every system. Beside
+    // them its default user agent, an iPhone's, gets half of these calls
+    // refused; this one none in thirty.
+    query.ua = Some(choose_user_agent("api", "pc").to_string());
+    retried(&SONG_URL_WAITS, || client.song_url_v1(&query)).await.map_err(|e| match e {
+        NcmError::InvalidParam(_) => format!("网易云暂时取不到《{name}》的音源，请稍后再试"),
+        e => format!("取不到《{name}》的音源：{e}"),
+    })
 }
 
 /// The level `song_url_v1` takes for `quality`.
@@ -2995,10 +3038,7 @@ impl Worker {
         tokio::spawn(async move {
             let id = param(song.id);
             let url = async {
-                let r = client
-                    .song_url_v1(&Query::new().param("id", &id).param("level", level(quality)))
-                    .await
-                    .map_err(|e| format!("取不到《{}》的音源：{e}", song.name))?;
+                let r = song_url(&client, &song.name, &id, level(quality)).await?;
                 let data = &r.body["data"][0];
                 let url = data["url"]
                     .as_str()
@@ -4604,5 +4644,54 @@ mod tests {
         arrange(&mut songs, &SongOrder::Default);
         assert_eq!(names(&songs), ["b", "A", "c"]);
         assert_eq!(songs[2].rank, 3);
+    }
+}
+
+#[cfg(test)]
+mod song_url_tests {
+    use super::retried;
+    use ncm_api_rs::NcmError;
+    use std::{cell::Cell, time::Duration};
+
+    const WAITS: [Duration; 3] = [Duration::ZERO; 3];
+
+    fn refused() -> NcmError {
+        NcmError::InvalidParam("Unknown error".into())
+    }
+
+    #[tokio::test]
+    async fn a_refusal_is_tried_again_until_it_passes() {
+        let calls = Cell::new(0);
+        let answer = retried(&WAITS, || {
+            calls.set(calls.get() + 1);
+            let call = calls.get();
+            async move { if call < 3 { Err(refused()) } else { Ok(call) } }
+        })
+        .await;
+        assert_eq!(answer.unwrap(), 3);
+    }
+
+    #[tokio::test]
+    async fn a_refusal_that_lasts_comes_back_after_every_try() {
+        let calls = Cell::new(0);
+        let answer: Result<(), _> = retried(&WAITS, || {
+            calls.set(calls.get() + 1);
+            async { Err(refused()) }
+        })
+        .await;
+        assert!(matches!(answer, Err(NcmError::InvalidParam(_))));
+        assert_eq!(calls.get(), WAITS.len() + 1);
+    }
+
+    #[tokio::test]
+    async fn other_failures_are_not_tried_again() {
+        let calls = Cell::new(0);
+        let answer: Result<(), _> = retried(&WAITS, || {
+            calls.set(calls.get() + 1);
+            async { Err(NcmError::Timeout("slow".into())) }
+        })
+        .await;
+        assert!(matches!(answer, Err(NcmError::Timeout(_))));
+        assert_eq!(calls.get(), 1);
     }
 }
