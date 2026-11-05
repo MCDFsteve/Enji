@@ -1568,7 +1568,7 @@ pub fn player_bar(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                 }
                 IconButton(id: bar_next, icon: "forward.fill", font_size: 17, prominence: plain, enabled: app.current_id != 0, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
                 PopoverButton(id: bar_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 16, prominence: plain) {
-                    queue_list(app: app)
+                    queue_list(app: app, width: 380.0)
                 }
             }
             Row(gap: 12, align: center) {
@@ -1729,8 +1729,10 @@ pub fn phone_controls(app: enji::Client, song: enji::Song) -> impl View {
                     }
                 }
                 Spacer
+                // iPhone keeps a popover 19 from each side of the screen and
+                // Bern pads it by 16, which leaves 305 on the narrowest, 375 wide.
                 PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
-                    queue_list(app: app)
+                    queue_list(app: app, width: 300.0)
                 }
             }
         }
@@ -2036,7 +2038,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                 }
                             }
                             PopoverButton(id: now_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
-                                queue_list(app: app)
+                                queue_list(app: app, width: 380.0)
                             }
                             Spacer
                         }
@@ -2470,9 +2472,9 @@ pub fn together_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl V
 
 /// The songs played in turn, the playing one bold; a press plays one.
 #[component]
-pub fn queue_list(app: enji::Client) -> impl View {
+pub fn queue_list(app: enji::Client, width: f64) -> impl View {
     ui! {
-        Column(gap: 8, padding: 12, width: 380, height: 480) {
+        Column(gap: 8, padding: 12, width: width, height: 480) {
             Text(content: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, style: headline)
             ScrollView {
                 Column(gap: 2) {
