@@ -30,8 +30,9 @@ var enji = {
   platform: __enji.config.platform,
   hostVersion: __enji.config.hostVersion,
   // `song`, `lyric`, `playback` and, with the `audio` permission, `audio`:
-  // `{ level, bass, beat, bpm, position }`, `beat` the strength of a beat
-  // about to land, from 0 to 1, and 0 between beats.
+  // `{ level, bass, beat, bpm, position }`, ten times a second and on each
+  // beat; `beat` the strength of a beat about to land, from 0 to 1, and 0
+  // between beats.
   on: function (event, handler) {
     (__enji.handlers[event] = __enji.handlers[event] || []).push(handler);
   },

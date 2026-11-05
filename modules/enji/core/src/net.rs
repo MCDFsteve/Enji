@@ -583,6 +583,8 @@ struct Worker {
     plugin_overlays: std::collections::HashSet<String>,
     /// How many beats the plugins heard of.
     beats_told: u32,
+    /// When the plugins last heard the music.
+    plugins_heard: Instant,
     /// What was played, the latest first.
     history: Vec<Entry>,
     /// What was listened to, for the account's record on NetEase.
@@ -758,6 +760,7 @@ pub async fn run(
         listings: Vec::new(),
         plugin_overlays: std::collections::HashSet::new(),
         beats_told: 0,
+        plugins_heard: Instant::now(),
         history: Vec::new(),
         listens: listens::Listens::load(),
         top_all: Vec::new(),
@@ -821,6 +824,19 @@ pub async fn run(
             _ = quick.tick(), if !worker.plugins.is_empty() => worker.plugin_tick(),
             _ = words.tick(), if worker.lines.iter().any(|line| !line.words.is_empty()) => worker.word_tick(),
         }
+    }
+}
+
+/// How often plugins hear the music's loudness between beats.
+const HEARD_EVERY: Duration = Duration::from_millis(100);
+
+/// How far through a song `position` is, in steps a slider shows: a finer
+/// change would only have the screen laid out again.
+fn progress_at(position: f64, length: f64) -> f64 {
+    if length > 0.0 {
+        ((position / length).clamp(0.0, 1.0) * 500.0).round() / 500.0
+    } else {
+        0.0
     }
 }
 
@@ -2079,13 +2095,18 @@ impl Worker {
         let hearing = self.plugins.wants_audio();
         audio::follow_beat(hearing);
         if playing && hearing {
-            let (level, bass) = audio::levels();
-            let position = self.position;
             // Only a beat told since the last time; two would not be seen apart.
             let (told, beat) = audio::beat();
             let strength = if told != self.beats_told { beat.strength } else { 0.0 };
             self.beats_told = told;
-            self.send_plugins("audio", json!({ "level": level, "bass": bass, "beat": strength, "bpm": beat.bpm, "position": position }));
+            // A beat goes at once. Between beats the loudness goes less
+            // often: each event crosses over to the plugin on the UI thread.
+            if strength > 0.0 || self.plugins_heard.elapsed() >= HEARD_EVERY {
+                self.plugins_heard = Instant::now();
+                let (level, bass) = audio::levels();
+                let position = self.position;
+                self.send_plugins("audio", json!({ "level": level, "bass": bass, "beat": strength, "bpm": beat.bpm, "position": position }));
+            }
         }
         for (plugin, call) in self.plugins.calls() {
             match call {
@@ -2962,7 +2983,7 @@ impl Worker {
         self.resume.place(self.at, position);
         let length = self.shared.read(|s| s.current.as_ref().map_or(0.0, |song| song.seconds));
         self.shared.live(|live| {
-            live.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
+            live.progress = progress_at(position, length);
             live.elapsed = convert::clock(position);
         });
     }
@@ -4052,7 +4073,7 @@ impl Worker {
             self.shared.read(|s| (s.current.as_ref().map_or(0.0, |song| song.seconds), s.line != line));
         let lit = self.lit_at(line, position);
         self.shared.live(|live| {
-            live.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
+            live.progress = progress_at(position, length);
             live.elapsed = convert::clock(position);
             if line_changed {
                 live.lit = lit;
