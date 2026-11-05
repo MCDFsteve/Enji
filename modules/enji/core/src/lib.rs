@@ -77,7 +77,7 @@ impl enji::Engine for EnjiEngine {
 
     fn wake(&mut self) {
         self.start();
-        let (signed_in, netease) = (self.state.login == Login::In, self.state.netease);
+        let (signed_in, netease, hot_search) = (self.state.login == Login::In, self.state.netease, self.state.hot_search);
         self.state = self.shared.lock().unwrap_or_else(|e| e.into_inner()).clone();
         // The modules follow the account and the NetEase switch.
         if (self.state.login == Login::In) != signed_in {
@@ -85,6 +85,9 @@ impl enji::Engine for EnjiEngine {
         }
         if self.state.netease != netease {
             enji::emit::netease_changed(self.state.netease);
+        }
+        if self.state.hot_search != hot_search {
+            enji::emit::hot_search_changed(self.state.hot_search);
         }
     }
 }
@@ -356,6 +359,10 @@ impl enji::Commands for EnjiEngine {
     }
     fn set_word_lyrics(&mut self, on: bool) -> Result<(), CommandError> {
         self.submit(Job::SetWordLyrics(on))
+    }
+
+    fn set_hot_search(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetHotSearch(on))
     }
     fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetCoverLyrics(shown))

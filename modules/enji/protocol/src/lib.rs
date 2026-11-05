@@ -705,6 +705,8 @@ pub mod enji {
         pub cover_lyrics: bool,
         /// Lines timed word by word light up word by word.
         pub word_lyrics: bool,
+        /// The search page shows what is searched most on NetEase.
+        pub hot_search: bool,
         /// How many characters of the sung line are lit; below zero when
         /// the line is not timed by the word.
         pub lyric_lit: i64,
@@ -889,6 +891,7 @@ pub mod enji {
         fn import_plugin(&mut self, file: MediaSource) -> Result<(), CommandError>;
         fn set_cover_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_word_lyrics(&mut self, on: bool) -> Result<(), CommandError>;
+        fn set_hot_search(&mut self, on: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;
@@ -908,5 +911,7 @@ pub mod enji {
         fn account_changed(&self, signed_in: bool);
         /// NetEase was switched on or off.
         fn netease_changed(&self, on: bool);
+        /// The list of what is searched most was switched on or off.
+        fn hot_search_changed(&self, on: bool);
     }
 }
