@@ -340,6 +340,7 @@ pub fn initial_state() -> State {
         fm_on_start: saved["fm_on_start"].as_bool().unwrap_or(false),
         fm_opened: 0,
         android: cfg!(target_os = "android"),
+        windows: cfg!(target_os = "windows"),
         usb_exclusive: saved["usb_exclusive"].as_bool().unwrap_or(false),
         usb_available: crate::audio::exclusive_available(),
         usb_plugged: false,

@@ -669,6 +669,8 @@ pub mod enji {
         pub fm_opened: i64,
         /// This is Android, whose tablets have a bar across the bottom.
         pub android: bool,
+        /// This is Windows, whose icon buttons keep room around the icon.
+        pub windows: bool,
         /// A USB DAC plays each song alone, at the song's own rate.
         pub usb_exclusive: bool,
         /// Whether this system can do that.

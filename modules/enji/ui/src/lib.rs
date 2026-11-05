@@ -2001,7 +2001,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                             Spacer
                         }
                         // What follows, and what shows beside the cover.
-                        Row(gap: if app.android { 0 } else { 26 }, align: center) {
+                        Row(gap: if app.android { 0 } else if app.windows { 6 } else { 26 }, align: center) {
                             Spacer
                             mode_button(app: app)
                             together_button(app: app)
