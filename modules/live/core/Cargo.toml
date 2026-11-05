@@ -1,0 +1,13 @@
+[package]
+name = "live-core"
+description = "Enji Music: the engine of what changes many times a second"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-kit.workspace = true
+live-protocol = { path = "../protocol" }

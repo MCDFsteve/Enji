@@ -1,0 +1,11 @@
+[package]
+name = "pulse-protocol"
+description = "Enji Music: the protocol of the cover's pulses"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true

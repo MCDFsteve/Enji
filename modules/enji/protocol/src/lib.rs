@@ -594,11 +594,6 @@ pub mod enji {
         pub offers: Vec<Offer>,
         pub has_offers: bool,
         pub offers_loading: bool,
-        /// Each pulse a plugin gives the playing cover adds one, by how
-        /// strong it is.
-        pub cover_pulse_soft: i64,
-        pub cover_pulse: i64,
-        pub cover_pulse_strong: i64,
         /// The songs being downloaded, the first started first.
         pub downloads: Vec<Download>,
         pub has_downloads: bool,
@@ -617,10 +612,6 @@ pub mod enji {
         pub lyric_now_translation: String,
         #[content]
         pub lyric_next: String,
-        /// How far the song is, from 0 to 1.
-        pub progress: f64,
-        #[content]
-        pub elapsed: String,
         #[content]
         pub total: String,
         pub volume: f64,
@@ -709,10 +700,6 @@ pub mod enji {
         pub word_lyrics: bool,
         /// The search page shows what is searched most on NetEase.
         pub hot_search: bool,
-        /// How far through the sung line's characters the singing is, the
-        /// one being sung in part; below zero when the line is not timed by
-        /// the word.
-        pub lyric_lit: f64,
         /// The sung line floating over everything else on the screen.
         pub desktop_lyrics: bool,
         /// Clicks go through the desktop lyrics; unlocked, they can be moved.

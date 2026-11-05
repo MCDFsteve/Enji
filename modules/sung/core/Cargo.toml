@@ -1,0 +1,13 @@
+[package]
+name = "sung-core"
+description = "Enji Music: the engine of how far the sung line has gone"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true
+enji-kit.workspace = true
+sung-protocol = { path = "../protocol" }

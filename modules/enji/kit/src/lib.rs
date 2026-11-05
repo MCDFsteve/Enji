@@ -5,6 +5,7 @@
 
 pub mod convert;
 pub mod copies;
+pub mod live;
 pub mod plays;
 pub mod store;
 

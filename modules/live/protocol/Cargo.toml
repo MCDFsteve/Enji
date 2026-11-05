@@ -1,0 +1,11 @@
+[package]
+name = "live-protocol"
+description = "Enji Music: the protocol of what changes many times a second"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bern.workspace = true

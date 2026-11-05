@@ -6,6 +6,9 @@
 
 use bern::prelude::*;
 use enji_protocol::enji::{self, Detail, Login, Panel, PlayMode, Source};
+use live_protocol::live;
+use pulse_protocol::pulse;
+use sung_protocol::sung;
 
 /// What a phone's own tab shows: its overview, or one of the lists it
 /// leads to.
@@ -1553,8 +1556,64 @@ pub fn song_skeleton() -> impl View {
 /// The bar under the pages, there with or without a song: the controls at
 /// the leading end, the song with its progress filling the room beside
 /// them, the volume at the trailing end.
+// The song's place, each in a view of its own: it moves several times a
+// second, and only what reads it draws again.
+
 #[component]
-pub fn player_bar(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+pub fn bar_time(app: enji::Client, live: live::Client) -> impl View {
+    ui! {
+        Text(content: tr! { "zh-Hans" => "{elapsed} / {total}", "en" => "{elapsed} / {total}"; elapsed: live.elapsed, total: app.total }, style: caption, emphasis: secondary)
+    }
+}
+
+#[component]
+pub fn bar_slider(app: enji::Client, live: live::Client) -> impl View {
+    ui! {
+        Slider(id: bar_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
+    }
+}
+
+#[component]
+pub fn phone_progress(app: enji::Client, live: live::Client) -> impl View {
+    ui! {
+        Column(gap: 2) {
+            Slider(id: phone_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
+            Row {
+                Text(content: live.elapsed, style: caption, emphasis: secondary)
+                Spacer
+                Text(content: app.total, style: caption, emphasis: secondary)
+            }
+        }
+    }
+}
+
+#[component]
+pub fn now_progress(app: enji::Client, live: live::Client) -> impl View {
+    ui! {
+        Row(gap: 10, align: center) {
+            Text(content: live.elapsed, style: caption, emphasis: secondary)
+            Slider(id: now_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
+            Text(content: app.total, style: caption, emphasis: secondary)
+        }
+    }
+}
+
+#[component]
+pub fn tv_progress(app: enji::Client, live: live::Client) -> impl View {
+    ui! {
+        Column(gap: 4) {
+            Slider(id: tv_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
+            Row {
+                Text(content: live.elapsed, style: caption, emphasis: secondary)
+                Spacer
+                Text(content: app.total, style: caption, emphasis: secondary)
+            }
+        }
+    }
+}
+
+#[component]
+pub fn player_bar(app: enji::Client, live: live::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         Row(gap: 24, padding_x: 20, padding_y: 10, align: center) {
             Row(gap: 16, align: center) {
@@ -1597,9 +1656,9 @@ pub fn player_bar(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                         if app.current_id != 0 {
                             like_button(app: app)
                         }
-                        Text(content: tr! { "zh-Hans" => "{elapsed} / {total}", "en" => "{elapsed} / {total}"; elapsed: app.elapsed, total: app.total }, style: caption, emphasis: secondary)
+                        bar_time(app: app, live: live)
                     }
-                    Slider(id: bar_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
+                    bar_slider(app: app, live: live)
                 }
             }
             // A medium window, such as the unfolded iPhone Duo, leaves the
@@ -1670,17 +1729,10 @@ pub fn mini_player(app: enji::Client, #[session] draft: MainDraft) -> impl View 
 /// What plays on a phone: where it is, the way through the queue, and the
 /// switches between what shows in place of the cover.
 #[component]
-pub fn phone_controls(app: enji::Client, song: enji::Song) -> impl View {
+pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -> impl View {
     ui! {
         Column(gap: 14, padding_x: 28, padding_y: 18) {
-            Column(gap: 2) {
-                Slider(id: phone_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
-                Row {
-                    Text(content: app.elapsed, style: caption, emphasis: secondary)
-                    Spacer
-                    Text(content: app.total, style: caption, emphasis: secondary)
-                }
-            }
+            phone_progress(app: app, live: live)
             Row(gap: 0, align: center) {
                 Spacer
                 IconButton(id: phone_previous, icon: "backward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
@@ -1742,7 +1794,7 @@ pub fn phone_controls(app: enji::Client, song: enji::Song) -> impl View {
 /// The playing song on a phone on its side: the cover, or the lyrics,
 /// comments or details in its place, beside the song and its controls.
 #[component]
-pub fn side_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+pub fn side_now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         Stack(appearance: dark) {
             if let Some(song) = app.current {
@@ -1760,7 +1812,7 @@ pub fn side_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl 
                     Column(gap: 0, width: if app.panel_open { 400 } else { 340 }) {
                         if app.panel_open {
                             match app.panel {
-                                Panel::Lyrics => { lyrics(app: app) }
+                                Panel::Lyrics => { lyrics(app: app, sung: sung) }
                                 Panel::Comments => { comments_panel(app: app) }
                                 Panel::Details => { details_panel(app: app) }
                             }
@@ -1768,9 +1820,9 @@ pub fn side_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl 
                             Spacer
                             Row {
                                 Spacer
-                                Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
-                                    Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
-                                        Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                                Stack(nudge_key: pulse.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                                    Stack(nudge_key: pulse.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                        Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
                                             Image(source: "assets/cover-place.png", width: 280, height: 280, fit: cover, corner: 18)
                                             if song.artwork.url != "" {
                                                 Progress
@@ -1796,7 +1848,7 @@ pub fn side_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl 
                             IconButton(id: side_close_now, icon: "chevron.down", font_size: 20, prominence: plain, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => draft.now.set(false)
                         }
                         Spacer
-                        phone_controls(app: app, song: song)
+                        phone_controls(app: app, live: live, song: song)
                     }
                 }
                 Watch(value: app.scroll_tick) => draft.line.set(app.scroll_to)
@@ -1811,7 +1863,7 @@ pub fn side_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl 
 /// lyrics, comments or details under a small one; the controls below, the
 /// switches between them at the bottom.
 #[component]
-pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+pub fn phone_now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         Stack(appearance: dark) {
             if let Some(song) = app.current {
@@ -1847,7 +1899,7 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                         // The rest of the height, between the song and the
                         // controls.
                         match app.panel {
-                            Panel::Lyrics => { lyrics(app: app) }
+                            Panel::Lyrics => { lyrics(app: app, sung: sung) }
                             Panel::Comments => { comments_panel(app: app) }
                             Panel::Details => { details_panel(app: app) }
                         }
@@ -1866,9 +1918,9 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             // The empty canvas spans the column, so both stand
                             // in its middle.
                             // A plugin's pulses give it a nudge each, as strong as they are.
-                            Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
-                                Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
-                                    Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                            Stack(nudge_key: pulse.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                                Stack(nudge_key: pulse.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                    Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
                                         Canvas {}
                                         Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
                                         // Only while a picture is coming: a song
@@ -1904,7 +1956,7 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             if app.cover_lyrics {
                                 Column(gap: 3, padding_y: 8, height: 100, align: leading) {
                                     if app.lyric_now != "" {
-                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2, lit: app.lyric_lit)
+                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2, lit: sung.lyric_lit)
                                         if app.show_translation && app.lyric_now_translation != "" {
                                             Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
                                         }
@@ -1916,7 +1968,7 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
                             }
                         }
                     }
-                    phone_controls(app: app, song: song)
+                    phone_controls(app: app, live: live, song: song)
                 }
                 Watch(value: app.scroll_tick) => draft.line.set(app.scroll_to)
             }
@@ -1929,7 +1981,7 @@ pub fn phone_now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl
 /// The playing song over the window: its cover lit under the pointer, the
 /// controls under it, and the lyrics beside it standing at the sung line.
 #[component]
-pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+pub fn now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         Stack(appearance: dark, under_bars: true) {
             if let Some(song) = app.current {
@@ -1952,9 +2004,9 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                         // comes: the small cover, often loaded already for the
                         // lists and the player bar, then the sharp one over it.
                         // A plugin's pulses give it a nudge each, as strong as they are.
-                        Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
-                            Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
-                                Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                        Stack(nudge_key: pulse.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                            Stack(nudge_key: pulse.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
                                     Canvas(width: if app.android { 340 } else { 400 }, height: if app.android { 340 } else { 400 }) {
                                         Shape(kind: rounded, corner: 20, fill: fill.subtle)
                                     }
@@ -1984,11 +2036,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                                 Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
                             }
                         }
-                        Row(gap: 10, align: center) {
-                            Text(content: app.elapsed, style: caption, emphasis: secondary)
-                            Slider(id: now_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
-                            Text(content: app.total, style: caption, emphasis: secondary)
-                        }
+                        now_progress(app: app, live: live)
                         Row(gap: 32, align: center) {
                             Spacer
                             IconButton(id: now_previous, icon: "backward.fill", font_size: 24, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
@@ -2048,7 +2096,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
                     // the window, so lines leave it only at its edges.
                     Column {
                         match app.panel {
-                            Panel::Lyrics => { lyrics(app: app) }
+                            Panel::Lyrics => { lyrics(app: app, sung: sung) }
                             Panel::Comments => { comments_panel(app: app) }
                             Panel::Details => { details_panel(app: app) }
                         }
@@ -2075,7 +2123,7 @@ pub fn now_playing(app: enji::Client, #[session] draft: MainDraft) -> impl View 
 /// little blurred, towards the edges more; scrolled by hand, none is, until
 /// the engine brings them back.
 #[component]
-pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+pub fn lyrics(app: enji::Client, sung: sung::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         if app.has_lyrics {
             ScrollView(position: draft.line, anchor: 0.35, browsing: draft.browsing, indicators: hidden) {
@@ -2083,7 +2131,7 @@ pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                     ForEach(items: app.lyrics, key: key) |line| {
                         Button(id: lyric, label: line.text, variant: lyric) {
                             Column(gap: 4, padding_x: 14, padding_y: 10, blur: line.blur, animate: smooth) {
-                                Text(content: line.text, lit: if line.current { app.lyric_lit } else { -1.0 }, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
+                                Text(content: line.text, lit: if line.current { sung.lyric_lit } else { -1.0 }, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
                                 if line.translated && app.show_translation {
                                     Text(content: line.translation, font_size: if window.compact { 15 } else if line.current { 18 } else { 16 }, emphasis: secondary, animate: smooth)
                                 }
@@ -2345,14 +2393,14 @@ pub fn tv_small_controls(app: enji::Client) -> impl View {
 /// on the other, for reading across the room. Android TV counts 960 points
 /// across where Apple TV counts 1920.
 #[component]
-pub fn tv_now_playing(app: enji::Client) -> impl View {
+pub fn tv_now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client) -> impl View {
     ui! {
         if let Some(song) = app.current {
             Row(gap: if window.medium { 48 } else { 112 }, padding_x: if window.medium { 32 } else { 120 }, padding_y: 12, align: center) {
                 Column(gap: if window.medium { 8 } else { 18 }, width: if window.medium { 330 } else { 620 }, align: leading) {
-                    Stack(nudge_key: app.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
-                        Stack(nudge_key: app.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
-                            Stack(nudge_key: app.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                    Stack(nudge_key: pulse.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                        Stack(nudge_key: pulse.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                            Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
                                 Image(source: song.artwork, width: if window.medium { 260 } else { 500 }, height: if window.medium { 260 } else { 500 }, fit: cover, corner: if window.medium { 12 } else { 20 }, label: song.name)
                             }
                         }
@@ -2361,14 +2409,7 @@ pub fn tv_now_playing(app: enji::Client) -> impl View {
                         Text(content: song.name, style: title3, bold: true, lines: 1)
                         Text(content: song.artists, style: callout, emphasis: secondary, lines: 1)
                     }
-                    Column(gap: 4) {
-                        Slider(id: tv_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: app.progress, min: 0, max: 1) => app.seek(app.progress)
-                        Row {
-                            Text(content: app.elapsed, style: caption, emphasis: secondary)
-                            Spacer
-                            Text(content: app.total, style: caption, emphasis: secondary)
-                        }
-                    }
+                    tv_progress(app: app, live: live)
                     if window.medium {
                         tv_small_controls(app: app)
                     } else {
@@ -2379,7 +2420,7 @@ pub fn tv_now_playing(app: enji::Client) -> impl View {
                     ForEach(items: app.lyrics_near, key: key) |line| {
                         if line.current {
                             Column(gap: 8, align: leading) {
-                                Text(content: line.text, style: large_title, bold: true, lines: 2, lit: app.lyric_lit)
+                                Text(content: line.text, style: large_title, bold: true, lines: 2, lit: sung.lyric_lit)
                                 if line.translation != "" {
                                     Text(content: line.translation, style: title3, emphasis: secondary, lines: 2)
                                 }

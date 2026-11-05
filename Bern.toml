@@ -56,6 +56,15 @@ root = "app"
 path = "modules/enji"
 
 [[modules]]
+path = "modules/live"
+
+[[modules]]
+path = "modules/sung"
+
+[[modules]]
+path = "modules/pulse"
+
+[[modules]]
 path = "modules/recommend"
 
 [[modules]]

@@ -1,0 +1,19 @@
+# How far the sung line has gone, which moves 25 times a second. Only the
+# text being sung reads it: whatever reads it draws again each time.
+
+[module]
+id = "sung"
+name = { "zh-Hans" = "歌词进度", "en" = "Sung Line" }
+
+[module.protocol]
+package = "sung-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "sung-core"
+type = "sung_core::SungEngine"
+path = "core"
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"

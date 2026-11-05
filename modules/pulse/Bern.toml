@@ -1,0 +1,19 @@
+# The pulses a plugin gives the playing cover, apart from what moves on its
+# own, so the pages around the cover draw again only on a pulse.
+
+[module]
+id = "pulse"
+name = { "zh-Hans" = "封面律动", "en" = "Cover Pulse" }
+
+[module.protocol]
+package = "pulse-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "pulse-core"
+type = "pulse_core::PulseEngine"
+path = "core"
+
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"

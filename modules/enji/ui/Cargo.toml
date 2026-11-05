@@ -10,3 +10,6 @@ publish = false
 [dependencies]
 bern.workspace = true
 enji-protocol.workspace = true
+live-protocol.workspace = true
+sung-protocol.workspace = true
+pulse-protocol.workspace = true

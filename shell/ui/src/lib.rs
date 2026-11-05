@@ -7,6 +7,9 @@
 
 use bern::prelude::*;
 use enji_protocol::enji::{self, CloseAction, Detail, Login};
+use live_protocol::live;
+use pulse_protocol::pulse;
+use sung_protocol::sung;
 use enji_shell_protocol::shell;
 use enji_ui::*;
 
@@ -171,7 +174,7 @@ pub struct ShellDraft {
 }
 
 #[component]
-pub fn app(app: enji::Client, windows: AppWindows) -> impl View {
+pub fn app(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, windows: AppWindows) -> impl View {
     ui! {
         WindowSet(handle: AppWindows, primary: main, accent: Accent::Enji, appearance: app.appearance) {
             MenuBar {
@@ -192,14 +195,14 @@ pub fn app(app: enji::Client, windows: AppWindows) -> impl View {
                 CommandItem(id: tray_next, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
             }
             Window(id: main, title: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, initial: open, chrome: unified, width: 1200, height: 780, min_width: 960, min_height: 700) {
-                main_window(app: app)
+                main_window(app: app, live: live, sung: sung, pulse: pulse)
             }
         }
     }
 }
 
 #[component]
-pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] draft: MainDraft) -> impl View {
+pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft, #[session] draft: MainDraft) -> impl View {
     ui! {
         Stack(align: bottom) {
             // While a song plays, its cover blurred behind the whole window,
@@ -220,16 +223,16 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
             }
             // Tabs and a small player on a phone, a sidebar and a bar elsewhere.
             Adaptive(id: shell) {
-                Layout(size: compact) { phone_shell(app: app) }
+                Layout(size: compact) { phone_shell(app: app, live: live, sung: sung, pulse: pulse) }
                 // A phone on its side is wide but has no height to spare.
                 Layout(size: expanded) {
                     if window.short {
-                        phone_shell(app: app)
+                        phone_shell(app: app, live: live, sung: sung, pulse: pulse)
                     } else {
-                        desktop_shell(app: app)
+                        desktop_shell(app: app, live: live, sung: sung, pulse: pulse)
                     }
                 }
-                Layout(size: tv) { tv_shell(app: app) }
+                Layout(size: tv) { tv_shell(app: app, live: live, sung: sung, pulse: pulse) }
             }
             // What modules show over the pages, such as search on a phone.
             Slot(id: overlays)
@@ -239,15 +242,15 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
             if draft.now && !window.tv && (window.compact || window.short) {
                 Stack(appear: sheet, disappear: sheet) {
                     if window.compact {
-                        phone_now_playing(app: app)
+                        phone_now_playing(app: app, live: live, sung: sung, pulse: pulse)
                     } else {
-                        side_now_playing(app: app)
+                        side_now_playing(app: app, live: live, sung: sung, pulse: pulse)
                     }
                 }
             }
             if draft.now && !window.short && !window.compact && !window.tv {
                 Stack(under_bars: true, appear: sheet, disappear: sheet) {
-                    now_playing(app: app)
+                    now_playing(app: app, live: live, sung: sung, pulse: pulse)
                 }
             }
             if app.login != Login::Out && app.login != Login::In {
@@ -297,7 +300,7 @@ pub fn main_window(app: enji::Client, #[session] nav: ShellDraft, #[session] dra
 
 /// A sidebar of pages, the chosen one beside it over the player bar.
 #[component]
-pub fn desktop_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
+pub fn desktop_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft) -> impl View {
     ui! {
         SplitView {
             Sidebar(id: pages, selection: nav.page, fallback: Page::Local) {
@@ -332,7 +335,7 @@ pub fn desktop_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View
                         }
                     }
                     Divider
-                    player_bar(app: app)
+                    player_bar(app: app, live: live)
                 }
             }
         }
@@ -342,7 +345,7 @@ pub fn desktop_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View
 /// The pages in tabs, the playing song in a small player over them, and
 /// what modules put at the top trailing corner, such as search.
 #[component]
-pub fn phone_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
+pub fn phone_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft) -> impl View {
     ui! {
         Stack(align: top_trailing) {
             Tabs(id: phone_tabs, selection: nav.page, fallback: Page::Library, bar: floating) {
@@ -367,7 +370,7 @@ pub fn phone_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
 /// The pages in tabs across the top, for a remote: the playing song is one
 /// of them, and the rest stand under it.
 #[component]
-pub fn tv_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
+pub fn tv_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft) -> impl View {
     ui! {
         Tabs(id: tv_tabs, selection: nav.page, fallback: Page::Library) {
             Pages(slot: main, all: true)
@@ -375,7 +378,7 @@ pub fn tv_shell(app: enji::Client, #[session] nav: ShellDraft) -> impl View {
                 page_view(app: app, page: Page::Library)
             }
             Tab(value: Page::Playing, label: tr! { "zh-Hans" => "正在播放", "en" => "Now Playing" }, icon: "play.fill") {
-                tv_now_playing(app: app)
+                tv_now_playing(app: app, live: live, sung: sung, pulse: pulse)
             }
             Tab(value: Page::Settings, label: tr! { "zh-Hans" => "设置", "en" => "Settings" }, icon: "gearshape") {
                 page_view(app: app, page: Page::Settings)

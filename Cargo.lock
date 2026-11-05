@@ -1238,6 +1238,9 @@ dependencies = [
  "enji-protocol",
  "enji-shell-protocol",
  "enji-ui",
+ "live-protocol",
+ "pulse-protocol",
+ "sung-protocol",
 ]
 
 [[package]]
@@ -1246,6 +1249,9 @@ version = "0.3.3"
 dependencies = [
  "bern",
  "enji-protocol",
+ "live-protocol",
+ "pulse-protocol",
+ "sung-protocol",
 ]
 
 [[package]]
@@ -2025,6 +2031,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
+name = "live-core"
+version = "0.3.3"
+dependencies = [
+ "bern",
+ "enji-kit",
+ "live-protocol",
+]
+
+[[package]]
+name = "live-protocol"
+version = "0.3.3"
+dependencies = [
+ "bern",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2784,6 +2806,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulse-core"
+version = "0.3.3"
+dependencies = [
+ "bern",
+ "enji-kit",
+ "pulse-protocol",
+]
+
+[[package]]
+name = "pulse-protocol"
+version = "0.3.3"
+dependencies = [
+ "bern",
+]
+
+[[package]]
 name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3502,6 +3540,22 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "sung-core"
+version = "0.3.3"
+dependencies = [
+ "bern",
+ "enji-kit",
+ "sung-protocol",
+]
+
+[[package]]
+name = "sung-protocol"
+version = "0.3.3"
+dependencies = [
+ "bern",
+]
 
 [[package]]
 name = "symphonia"

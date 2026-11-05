@@ -11,4 +11,7 @@ publish = false
 bern.workspace = true
 enji-shell-protocol = { path = "../protocol" }
 enji-protocol.workspace = true
+live-protocol.workspace = true
+sung-protocol.workspace = true
+pulse-protocol.workspace = true
 enji-ui.workspace = true

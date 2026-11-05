@@ -10,6 +10,12 @@ members = [
     "modules/enji/core",
     "modules/enji/ui",
     "modules/enji/kit",
+    "modules/live/protocol",
+    "modules/live/core",
+    "modules/sung/protocol",
+    "modules/sung/core",
+    "modules/pulse/protocol",
+    "modules/pulse/core",
     "modules/recommend/protocol",
     "modules/recommend/core",
     "modules/recommend/ui",
@@ -40,6 +46,9 @@ bern = "=0.1.7"
 bern-script = "=0.1.7"
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
+live-protocol = { path = "modules/live/protocol" }
+sung-protocol = { path = "modules/sung/protocol" }
+pulse-protocol = { path = "modules/pulse/protocol" }
 enji-ui = { path = "modules/enji/ui" }
 ncm-api-rs = "0.1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }

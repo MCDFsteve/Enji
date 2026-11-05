@@ -25,12 +25,18 @@ use bern::{media::MediaSource, CommandError};
 use enji_kit::{convert, plays};
 use enji_protocol::enji::{self, Appearance, CloseAction, Login, Panel, TopRange, Playlist, Quality, Song, SongOrder, Source, State};
 use net::Job;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use tokio::sync::mpsc;
 
 pub struct EnjiEngine {
     state: State,
     shared: Arc<Mutex<State>>,
+    /// The worker changed `shared`: `wake` wakes for other parts too, many
+    /// times a second, and this state is too big to copy each time.
+    changed: Arc<AtomicBool>,
     jobs: Option<mpsc::UnboundedSender<Job>>,
 }
 
@@ -39,6 +45,7 @@ impl Default for EnjiEngine {
         let state = net::initial_state();
         Self {
             shared: Arc::new(Mutex::new(state.clone())),
+            changed: Arc::new(AtomicBool::new(true)),
             state,
             jobs: None,
         }
@@ -51,10 +58,10 @@ impl EnjiEngine {
             return;
         }
         let (jobs, receive) = mpsc::unbounded_channel();
-        let (shared, waker, own) = (self.shared.clone(), bern::wake::waker(), jobs.clone());
+        let (shared, changed, waker, own) = (self.shared.clone(), self.changed.clone(), bern::wake::waker(), jobs.clone());
         let started = std::thread::Builder::new()
             .name("enji-worker".into())
-            .spawn(move || enji_kit::runtime().block_on(net::run(receive, own, shared, waker)));
+            .spawn(move || enji_kit::runtime().block_on(net::run(receive, own, shared, changed, waker)));
         if started.is_ok() {
             self.jobs = Some(jobs);
         }
@@ -77,6 +84,9 @@ impl enji::Engine for EnjiEngine {
 
     fn wake(&mut self) {
         self.start();
+        if !self.changed.swap(false, Ordering::Acquire) {
+            return;
+        }
         let (signed_in, netease, hot_search) = (self.state.login == Login::In, self.state.netease, self.state.hot_search);
         self.state = self.shared.lock().unwrap_or_else(|e| e.into_inner()).clone();
         // The modules follow the account and the NetEase switch.

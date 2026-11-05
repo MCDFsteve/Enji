@@ -24,7 +24,10 @@ use std::{
     collections::HashMap,
     io::Read,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::{Duration, Instant},
 };
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -303,9 +306,6 @@ pub fn initial_state() -> State {
         offers: Vec::new(),
         has_offers: false,
         offers_loading: false,
-        cover_pulse_soft: 0,
-        cover_pulse: 0,
-        cover_pulse_strong: 0,
         downloads: Vec::new(),
         has_downloads: false,
         current_downloading: false,
@@ -314,8 +314,6 @@ pub fn initial_state() -> State {
         lyric_now: String::new(),
         lyric_now_translation: String::new(),
         lyric_next: String::new(),
-        progress: 0.0,
-        elapsed: "0:00".into(),
         total: "0:00".into(),
         volume: saved["volume"].as_f64().unwrap_or(0.8),
         lyrics: Vec::new(),
@@ -368,7 +366,6 @@ pub fn initial_state() -> State {
         cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
         word_lyrics: saved["word_lyrics"].as_bool().unwrap_or(true),
         hot_search: saved["hot_search"].as_bool().unwrap_or(true),
-        lyric_lit: -1.0,
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
@@ -480,11 +477,23 @@ fn level(quality: Quality) -> &'static str {
 struct Shared {
     state: Arc<Mutex<State>>,
     waker: Option<Waker>,
+    /// The state changed since the engine last took it in.
+    changed: Arc<AtomicBool>,
 }
 
 impl Shared {
     fn update(&self, change: impl FnOnce(&mut State)) {
         change(&mut self.state.lock().unwrap_or_else(|e| e.into_inner()));
+        self.changed.store(true, Ordering::Release);
+        if let Some(waker) = &self.waker {
+            waker.wake();
+        }
+    }
+
+    /// Change what moves many times a second. The core's state, with every
+    /// list in it, stays out of this: it costs too much to send so often.
+    fn live(&self, change: impl FnOnce(&mut enji_kit::live::Live)) {
+        enji_kit::live::update(change);
         if let Some(waker) = &self.waker {
             waker.wake();
         }
@@ -702,9 +711,10 @@ pub async fn run(
     mut receive: mpsc::UnboundedReceiver<Job>,
     jobs: mpsc::UnboundedSender<Job>,
     state: Arc<Mutex<State>>,
+    changed: Arc<AtomicBool>,
     waker: Option<Waker>,
 ) {
-    let shared = Shared { state, waker };
+    let shared = Shared { state, waker, changed };
     let (volume, exclusive) = shared.read(|s| (s.volume as f32, s.usb_exclusive));
     let cookie = store::cookie();
     let mut worker = Worker {
@@ -1006,9 +1016,9 @@ impl Worker {
             Job::SetWordLyrics(on) => {
                 self.shared.update(|s| {
                     s.word_lyrics = on;
-                    s.lyric_lit = -1.0;
                     save_settings(s);
                 });
+                self.shared.live(|live| live.lit = -1.0);
                 // The song's own lines as the setting has them now.
                 if let Some(song) = self.queue.get(self.at).filter(|song| song.file.is_empty()).cloned() {
                     self.lines.clear();
@@ -1940,7 +1950,7 @@ impl Worker {
             } else {
                 (s.lyric_now.clone(), s.lyric_next.clone())
             };
-            let lit = Some(s.lyric_lit).filter(|lit| *lit >= 0.0 && !s.lyric_now.is_empty());
+            let lit = Some(enji_kit::live::read(|live| live.lit)).filter(|lit| *lit >= 0.0 && !s.lyric_now.is_empty());
             Some((first, second, lit, s.desktop_lyrics_locked, s.playing))
         });
         let Some((first, second, lit, locked, playing)) = shown else {
@@ -2087,13 +2097,13 @@ impl Worker {
                     bern::overlay::hide(&id);
                     self.plugin_overlays.remove(&id);
                 }
-                plugins::Call::CoverPulse(strength) => self.shared.update(|s| {
+                plugins::Call::CoverPulse(strength) => self.shared.live(|live| {
                     if strength < 0.34 {
-                        s.cover_pulse_soft += 1;
+                        live.pulse_soft += 1;
                     } else if strength < 0.67 {
-                        s.cover_pulse += 1;
+                        live.pulse += 1;
                     } else {
-                        s.cover_pulse_strong += 1;
+                        live.pulse_strong += 1;
                     }
                 }),
                 plugins::Call::Toast(message) => self.shared.tell(message),
@@ -2948,10 +2958,10 @@ impl Worker {
         self.left_at = Some(position);
         self.position = position;
         self.resume.place(self.at, position);
-        self.shared.update(|s| {
-            let length = s.current.as_ref().map_or(0.0, |song| song.seconds);
-            s.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
-            s.elapsed = convert::clock(position);
+        let length = self.shared.read(|s| s.current.as_ref().map_or(0.0, |song| song.seconds));
+        self.shared.live(|live| {
+            live.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
+            live.elapsed = convert::clock(position);
         });
     }
 
@@ -3016,17 +3026,19 @@ impl Worker {
             s.preview = false;
             s.playing = false;
             s.buffering = true;
-            s.progress = 0.0;
-            s.elapsed = "0:00".into();
             s.total = song.duration.clone();
             s.lyrics.clear();
             s.lyrics_near.clear();
             s.has_lyrics = false;
             s.line = 0;
-            s.lyric_lit = -1.0;
             s.browsing = false;
             s.format.clear();
             sung(s);
+        });
+        self.shared.live(|live| {
+            live.progress = 0.0;
+            live.elapsed = "0:00".into();
+            live.lit = -1.0;
         });
         self.show_now_playing(Some(0.0));
         self.desktop_lyrics();
@@ -3227,16 +3239,19 @@ impl Worker {
     fn lit_at(&self, line: i64, at: f64) -> f64 {
         let on = self.shared.read(|s| s.word_lyrics);
         let sung = self.lines.get(line as usize).filter(|_| on).and_then(|line| line.sung(at));
-        sung.unwrap_or(-1.0)
+        // An eighth of a character at a time: finer shows no more, and each
+        // step draws the line again.
+        sung.map_or(-1.0, |lit| (lit * 8.0).floor() / 8.0)
     }
 
     /// The sung line up to the word that plays now, more often than the
     /// song's place shows.
     fn word_tick(&mut self) {
-        let (line, was, desktop) = self.shared.read(|s| (s.line, s.lyric_lit, s.desktop_lyrics));
+        let (line, desktop) = self.shared.read(|s| (s.line, s.desktop_lyrics));
+        let was = enji_kit::live::read(|live| live.lit);
         let lit = self.lit_at(line, self.audio.position());
         if lit != was {
-            self.shared.update(|s| s.lyric_lit = lit);
+            self.shared.live(|live| live.lit = lit);
             if desktop {
                 self.show_desktop_lyrics();
             }
@@ -4031,15 +4046,19 @@ impl Worker {
             crate::plays::played(id);
             self.show_counts();
         }
-        let line_changed = self.shared.read(|s| s.line != line);
+        let (length, line_changed) =
+            self.shared.read(|s| (s.current.as_ref().map_or(0.0, |song| song.seconds), s.line != line));
         let lit = self.lit_at(line, position);
-        self.shared.update(|s| {
-            let length = s.current.as_ref().map_or(0.0, |song| song.seconds);
-            s.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
-            s.elapsed = convert::clock(position);
-            if s.line != line {
+        self.shared.live(|live| {
+            live.progress = if length > 0.0 { (position / length).clamp(0.0, 1.0) } else { 0.0 };
+            live.elapsed = convert::clock(position);
+            if line_changed {
+                live.lit = lit;
+            }
+        });
+        if line_changed {
+            self.shared.update(|s| {
                 s.line = line;
-                s.lyric_lit = lit;
                 dress(&mut s.lyrics, line, s.browsing);
                 sung(s);
                 // Browsed lyrics stay where the person put them.
@@ -4047,9 +4066,7 @@ impl Worker {
                     s.scroll_to = line;
                     s.scroll_tick += 1;
                 }
-            }
-        });
-        if line_changed {
+            });
             self.desktop_lyrics();
         }
     }

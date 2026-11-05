@@ -1,0 +1,19 @@
+# How far the song is. A module's state travels whole, so this stays apart
+# from the core's, which holds every list.
+
+[module]
+id = "live"
+name = { "zh-Hans" = "播放进度", "en" = "Progress" }
+
+[module.protocol]
+package = "live-protocol"
+source = "protocol/src/lib.rs"
+
+[module.engine]
+package = "live-core"
+type = "live_core::LiveEngine"
+path = "core"
+[languages]
+supported = ["zh-Hans", "en"]
+default = "zh-Hans"
+
