@@ -258,9 +258,9 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bern"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a4202bc6d1398063d3608081db5ab38964373b5e5f5e5b6cf30c0387188bc26"
+checksum = "1c567cde608625338b89ef31d80c33fd4f35c7c05ac8c02a540912d58c4a10c5"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -273,9 +273,9 @@ dependencies = [
 
 [[package]]
 name = "bern-command"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e37d5321f60b987efff005e481d2b2c390aa76288bb899f950acdaca2789e4ce"
+checksum = "1206e24326157d9a2d2a69b3ad8615cb13e77d50ec588264c0f6c107de4040e3"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -295,9 +295,9 @@ dependencies = [
 
 [[package]]
 name = "bern-ir"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f156f4852279ed5bb25ab10ad393d8680730e5fa240ee6c69cd070246ab0a1c7"
+checksum = "13ca9577e74786772612143edef1093ed3749b72e3e2e100f04fe5051ba6a201"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -306,9 +306,9 @@ dependencies = [
 
 [[package]]
 name = "bern-macros"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c22b7a61f9c25b0553f8198c9ee2b201b68d59b63e3e6639d03c4912b0b02c97"
+checksum = "a9c31e04565705d52c9e7bc85264244a0de2daf64582d9120f927ec0066e4757"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -321,18 +321,18 @@ dependencies = [
 
 [[package]]
 name = "bern-media"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "580acc705d8d932ab09ef8e9c544d0982701a1e8ea014375799a3907ee75fc78"
+checksum = "58b6fe593fb6bb79967e8ef8e0f4054e39aa5811335a9d0808f622d5c98266f1"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-protocol"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6cfc745e1215e5552d0756e878e9e67be6e6bd58d6e42bcc424b0d061ea2ff8"
+checksum = "d54c4b35f69726edae19d22d6757d44197520b3253d628f673f599babce5917b"
 dependencies = [
  "serde",
  "serde_json",
@@ -340,18 +340,18 @@ dependencies = [
 
 [[package]]
 name = "bern-runtime"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d39372d8f82cf586d5f6e62c583914000e28705e3ca3d91c11e6b888b47cbaa"
+checksum = "815a8a989ac480c98739cb8704aeb4b913563dd176c9e4e7eb38690d33083108"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-script"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a336f4dd9fbfc8f6c724f842d71b4ae619cbed86f2cab31fc2d18fcb119915d4"
+checksum = "7749fa7c6371e3adb14a518b388c537f707fd9d50951bd3256838ae140ae4fb2"
 dependencies = [
  "boa_engine",
  "serde",
@@ -360,9 +360,9 @@ dependencies = [
 
 [[package]]
 name = "bern-syntax"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "625c12a5536ef39a04f136629b56667156786e514a41a4080f3e413e6514b85e"
+checksum = "7685cb6582b7b14d62993fcb56fb5b78bd5a77a63d35e408ca5aed87c856ce4e"
 dependencies = [
  "bern-media",
  "bern-protocol",
@@ -697,7 +697,7 @@ dependencies = [
 
 [[package]]
 name = "charts-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "charts-protocol",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "charts-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -717,7 +717,7 @@ dependencies = [
 
 [[package]]
 name = "charts-ui"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "charts-protocol",
@@ -1158,7 +1158,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "enji-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "bern-script",
@@ -1185,7 +1185,7 @@ dependencies = [
 
 [[package]]
 name = "enji-kit"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "dirs",
@@ -1208,14 +1208,14 @@ dependencies = [
 
 [[package]]
 name = "enji-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
 ]
 
 [[package]]
 name = "enji-shell"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-kit",
@@ -1225,14 +1225,14 @@ dependencies = [
 
 [[package]]
 name = "enji-shell-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
 ]
 
 [[package]]
 name = "enji-shell-ui"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -1245,7 +1245,7 @@ dependencies = [
 
 [[package]]
 name = "enji-ui"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -2032,7 +2032,7 @@ checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
 name = "live-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-kit",
@@ -2041,7 +2041,7 @@ dependencies = [
 
 [[package]]
 name = "live-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
 ]
@@ -2807,7 +2807,7 @@ dependencies = [
 
 [[package]]
 name = "pulse-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-kit",
@@ -2816,7 +2816,7 @@ dependencies = [
 
 [[package]]
 name = "pulse-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
 ]
@@ -2962,7 +2962,7 @@ dependencies = [
 
 [[package]]
 name = "recommend-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "chrono",
@@ -2975,7 +2975,7 @@ dependencies = [
 
 [[package]]
 name = "recommend-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -2983,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "recommend-ui"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -3227,7 +3227,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "search-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-kit",
@@ -3239,7 +3239,7 @@ dependencies = [
 
 [[package]]
 name = "search-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -3247,7 +3247,7 @@ dependencies = [
 
 [[package]]
 name = "search-ui"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -3543,7 +3543,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "sung-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
  "enji-kit",
@@ -3552,7 +3552,7 @@ dependencies = [
 
 [[package]]
 name = "sung-protocol"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bern",
 ]
