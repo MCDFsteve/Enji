@@ -24,19 +24,21 @@ pub struct Word {
 }
 
 impl Line {
-    /// How far through its characters the singing is at `at`, the word being
-    /// sung counted by how much of it has gone: 2.5 is half way through the
-    /// third. None for a line that does not know its words.
-    pub fn sung(&self, at: f64) -> Option<f64> {
-        let (first, _) = self.words.split_first()?;
-        if at < first.time {
-            return Some(0.0);
+    /// How the words light up: for each, the second it starts and how many
+    /// characters stand lit then, and the same as it ends.
+    pub fn path(&self) -> String {
+        let mut before = 0;
+        let mut points = Vec::with_capacity(self.words.len());
+        for word in &self.words {
+            points.push(format!(
+                "{:.3} {before} {:.3} {}",
+                word.time,
+                word.time + word.length,
+                word.end
+            ));
+            before = word.end;
         }
-        let now = self.words.iter().rposition(|word| word.time <= at)?;
-        let word = &self.words[now];
-        let before = now.checked_sub(1).map_or(0, |last| self.words[last].end);
-        let part = if word.length > 0.0 { ((at - word.time) / word.length).clamp(0.0, 1.0) } else { 1.0 };
-        Some(before as f64 + (word.end - before) as f64 * part)
+        points.join(" ")
     }
 }
 
@@ -221,22 +223,11 @@ mod tests {
     }
 
     #[test]
-    fn a_line_is_lit_as_far_as_the_singing_has_gone() {
+    fn a_lines_path_goes_through_each_word() {
         let lines = super::of_answer(&answer(), true);
-        let line = &lines[1];
-        assert_eq!(line.sung(4.9), Some(0.0));
-        assert_eq!(line.sung(5.0), Some(0.0));
-        assert_eq!(line.sung(5.25), Some(0.5));
-        assert_eq!(line.sung(5.5), Some(1.0));
-        assert_eq!(line.sung(5.75), Some(1.5));
-        assert_eq!(line.sung(9.0), Some(2.0));
-    }
-
-    #[test]
-    fn a_word_of_many_characters_lights_through_them_evenly() {
-        let lines = super::of_answer(&answer(), true);
+        assert_eq!(lines[1].path(), "5.000 0 5.500 1 5.500 1 6.000 2");
         // "(Rain " is six characters over half a second.
-        assert_eq!(lines[0].sung(1.25), Some(3.0));
+        assert!(lines[0].path().starts_with("1.000 0 1.500 6 "));
     }
 
     #[test]
@@ -251,7 +242,7 @@ mod tests {
         let lines = super::of_answer(&answer(), false);
         assert_eq!(lines[0].text, "plain line");
         assert!(lines[0].words.is_empty());
-        assert_eq!(lines[0].sung(2.0), None);
+        assert_eq!(lines[0].path(), "");
         let mut none = answer();
         none["yrc"] = serde_json::json!({});
         assert_eq!(super::of_answer(&none, true)[0].text, "plain line");

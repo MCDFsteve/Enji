@@ -11,6 +11,8 @@ pub struct SungEngine {
 fn state(live: &Live) -> State {
     State {
         lyric_lit: live.lit,
+        lyric_clock: live.clock,
+        lyric_since: live.since,
     }
 }
 

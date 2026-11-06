@@ -1956,7 +1956,7 @@ pub fn phone_now_playing(app: enji::Client, live: live::Client, sung: sung::Clie
                             if app.cover_lyrics {
                                 Column(gap: 3, padding_y: 8, height: 100, align: leading) {
                                     if app.lyric_now != "" {
-                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2, lit: sung.lyric_lit)
+                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
                                         if app.show_translation && app.lyric_now_translation != "" {
                                             Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
                                         }
@@ -2131,7 +2131,7 @@ pub fn lyrics(app: enji::Client, sung: sung::Client, #[session] draft: MainDraft
                     ForEach(items: app.lyrics, key: key) |line| {
                         Button(id: lyric, label: line.text, variant: lyric) {
                             Column(gap: 4, padding_x: 14, padding_y: 10, blur: line.blur, animate: smooth) {
-                                Text(content: line.text, lit: if line.current { sung.lyric_lit } else { -1.0 }, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
+                                Text(content: line.text, lit: if line.current { sung.lyric_lit } else { -1.0 }, lit_path: line.word_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
                                 if line.translated && app.show_translation {
                                     Text(content: line.translation, font_size: if window.compact { 15 } else if line.current { 18 } else { 16 }, emphasis: secondary, animate: smooth)
                                 }
@@ -2420,7 +2420,7 @@ pub fn tv_now_playing(app: enji::Client, live: live::Client, sung: sung::Client,
                     ForEach(items: app.lyrics_near, key: key) |line| {
                         if line.current {
                             Column(gap: 8, align: leading) {
-                                Text(content: line.text, style: large_title, bold: true, lines: 2, lit: sung.lyric_lit)
+                                Text(content: line.text, style: large_title, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: line.word_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
                                 if line.translation != "" {
                                     Text(content: line.translation, style: title3, emphasis: secondary, lines: 2)
                                 }

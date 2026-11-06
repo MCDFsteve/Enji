@@ -553,6 +553,11 @@ impl Audio {
         self.status.lock().unwrap_or_else(|e| e.into_inner()).position
     }
 
+    /// A song plays now.
+    pub fn playing(&self) -> bool {
+        self.status.lock().unwrap_or_else(|e| e.into_inner()).playing
+    }
+
     /// What the thread last reported; an ended song is reported once.
     pub fn status(&self) -> Status {
         let mut status = self.status.lock().unwrap_or_else(|e| e.into_inner());

@@ -450,6 +450,7 @@ pub fn overlay(spec: &Value) -> bern::overlay::Overlay {
             bold: line["bold"].as_bool().unwrap_or(false),
             color: color(&line["color"]),
             lit: None,
+            route: None,
         })
         .take(4)
         .collect();

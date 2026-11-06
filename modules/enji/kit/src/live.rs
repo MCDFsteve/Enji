@@ -8,9 +8,14 @@ pub struct Live {
     /// How far the song is, from 0 to 1.
     pub progress: f64,
     pub elapsed: String,
-    /// How far through the sung line's characters the singing is; below
-    /// zero when the line is not timed by the word.
+    /// Zero while the sung line lights up word by word; below zero when it
+    /// is not timed by the word.
     pub lit: f64,
+    /// The second of the song the words were last set by.
+    pub clock: f64,
+    /// When that was, in seconds since the Unix epoch; zero while the song
+    /// stands still.
+    pub since: f64,
     pub pulse_soft: i64,
     pub pulse: i64,
     pub pulse_strong: i64,
@@ -19,7 +24,7 @@ pub struct Live {
 fn live() -> MutexGuard<'static, Live> {
     static LIVE: OnceLock<Mutex<Live>> = OnceLock::new();
     LIVE.get_or_init(|| {
-        Mutex::new(Live { progress: 0.0, elapsed: "0:00".into(), lit: -1.0, pulse_soft: 0, pulse: 0, pulse_strong: 0 })
+        Mutex::new(Live { progress: 0.0, elapsed: "0:00".into(), lit: -1.0, clock: 0.0, since: 0.0, pulse_soft: 0, pulse: 0, pulse_strong: 0 })
     })
     .lock()
     .unwrap_or_else(|e| e.into_inner())

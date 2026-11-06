@@ -313,6 +313,7 @@ pub fn initial_state() -> State {
         format: String::new(),
         lyric_now: String::new(),
         lyric_now_translation: String::new(),
+        lyric_now_path: String::new(),
         lyric_next: String::new(),
         total: "0:00".into(),
         volume: saved["volume"].as_f64().unwrap_or(0.8),
@@ -825,6 +826,16 @@ pub async fn run(
             _ = words.tick(), if worker.lines.iter().any(|line| !line.words.is_empty()) => worker.word_tick(),
         }
     }
+}
+
+/// How far the song's place may stray from the clock of the sung words
+/// before they are told: the place itself only moves every few hundredths.
+const CLOCK_SLACK: f64 = 0.15;
+
+fn unix_seconds() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0.0, |since| since.as_secs_f64())
 }
 
 /// How often plugins hear the music's loudness between beats.
@@ -1968,10 +1979,12 @@ impl Worker {
             } else {
                 (s.lyric_now.clone(), s.lyric_next.clone())
             };
-            let lit = Some(enji_kit::live::read(|live| live.lit)).filter(|lit| *lit >= 0.0 && !s.lyric_now.is_empty());
-            Some((first, second, lit, s.desktop_lyrics_locked, s.playing))
+            let (lit, clock, since) = enji_kit::live::read(|live| (live.lit, live.clock, live.since));
+            let route = (lit >= 0.0 && !s.lyric_now.is_empty())
+                .then(|| bern::overlay::Route::new(&s.lyric_now_path, clock, since));
+            Some((first, second, route, s.desktop_lyrics_locked, s.playing))
         });
-        let Some((first, second, lit, locked, playing)) = shown else {
+        let Some((first, second, route, locked, playing)) = shown else {
             return bern::overlay::hide("lyrics");
         };
         // Phones show it smaller, over another app.
@@ -1981,8 +1994,8 @@ impl Worker {
             "lyrics",
             &Overlay {
                 lines: vec![
-                    Line { text: first, size: large, bold: true, color: [255, 255, 255, 255], lit },
-                    Line { text: second, size: small, bold: false, color: [255, 255, 255, 215], lit: None },
+                    Line { text: first, size: large, bold: true, color: [255, 255, 255, 255], lit: None, route },
+                    Line { text: second, size: small, bold: false, color: [255, 255, 255, 215], lit: None, route: None },
                 ],
                 place: bern::overlay::Place::Free,
                 locked,
@@ -3259,25 +3272,36 @@ impl Worker {
     // MARK: Word by word
 
     /// How much of line `line` is lit at `at`, as the state tells it.
-    fn lit_at(&self, line: i64, at: f64) -> f64 {
+    /// Zero while the line `line` lights up word by word, else below zero.
+    fn lit_of(&self, line: i64) -> f64 {
         let on = self.shared.read(|s| s.word_lyrics);
-        let sung = self.lines.get(line as usize).filter(|_| on).and_then(|line| line.sung(at));
-        // An eighth of a character at a time: finer shows no more, and each
-        // step draws the line again.
-        sung.map_or(-1.0, |lit| (lit * 8.0).floor() / 8.0)
+        let timed = self.lines.get(line as usize).is_some_and(|line| !line.words.is_empty());
+        if on && timed { 0.0 } else { -1.0 }
     }
 
-    /// The sung line up to the word that plays now, more often than the
-    /// song's place shows.
+    /// What shows the words moves them by itself along their route, on a
+    /// clock of its own: this only tells it when the song's place leaves
+    /// that clock, as when it stops, starts or jumps.
     fn word_tick(&mut self) {
         let (line, desktop) = self.shared.read(|s| (s.line, s.desktop_lyrics));
-        let was = enji_kit::live::read(|live| live.lit);
-        let lit = self.lit_at(line, self.audio.position());
-        if lit != was {
-            self.shared.live(|live| live.lit = lit);
-            if desktop {
-                self.show_desktop_lyrics();
+        let (position, playing) = (self.audio.position(), self.audio.playing());
+        let now = unix_seconds();
+        let lit = self.lit_of(line);
+        let (was, clock, since) = enji_kit::live::read(|live| (live.lit, live.clock, live.since));
+        let shows = if since > 0.0 { clock + now - since } else { clock };
+        let left = playing != (since > 0.0) || (shows - position).abs() > CLOCK_SLACK;
+        if lit == was && !left {
+            return;
+        }
+        self.shared.live(|live| {
+            live.lit = lit;
+            if left {
+                live.clock = position;
+                live.since = if playing { now } else { 0.0 };
             }
+        });
+        if desktop {
+            self.show_desktop_lyrics();
         }
     }
 
@@ -4071,12 +4095,15 @@ impl Worker {
         }
         let (length, line_changed) =
             self.shared.read(|s| (s.current.as_ref().map_or(0.0, |song| song.seconds), s.line != line));
-        let lit = self.lit_at(line, position);
+        let lit = self.lit_of(line);
+        let (playing, now) = (status.playing, unix_seconds());
         self.shared.live(|live| {
             live.progress = progress_at(position, length);
             live.elapsed = convert::clock(position);
             if line_changed {
                 live.lit = lit;
+                live.clock = position;
+                live.since = if playing { now } else { 0.0 };
             }
         });
         if line_changed {
@@ -4212,6 +4239,7 @@ fn sung(s: &mut State) {
     let next = at.and_then(|i| s.lyrics[i + 1..].iter().find(|line| !line.text.trim().is_empty()));
     let (text, translation) = now.map_or_else(Default::default, |line| (line.text.clone(), line.translation.clone()));
     let next = next.map(|line| line.text.clone()).unwrap_or_default();
+    s.lyric_now_path = now.map_or_else(String::new, |line| line.word_path.clone());
     s.lyric_now = text;
     s.lyric_now_translation = translation;
     s.lyric_next = next;
@@ -4248,6 +4276,7 @@ fn shown_lines(lines: &[lyrics::Line]) -> Vec<LyricLine> {
             text: line.text.clone(),
             translation: line.translation.clone().unwrap_or_default(),
             translated: line.translation.is_some(),
+            word_path: line.path(),
             current: false,
             blur: 0.0,
         })

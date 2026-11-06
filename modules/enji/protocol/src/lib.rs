@@ -245,6 +245,10 @@ pub mod enji {
         pub translated: bool,
         /// It is the line being sung.
         pub current: bool,
+        /// How its words light up, as `Text(lit_path:)` takes it; empty when
+        /// they are not timed.
+        #[content]
+        pub word_path: String,
         /// How blurred it is: none for the sung line, a little for those
         /// beside it, more towards the edges, none while the lyrics are
         /// browsed.
@@ -608,6 +612,9 @@ pub mod enji {
         /// the cover on a phone; empty without lyrics.
         #[content]
         pub lyric_now: String,
+        /// How the words of `lyric_now` light up.
+        #[content]
+        pub lyric_now_path: String,
         #[content]
         pub lyric_now_translation: String,
         #[content]
