@@ -4,7 +4,9 @@ appearance.
 
 Writes next to this script:
   enji.svg           Windows and Linux: the glyph alone, no plate
-  plate.svg          Android and the rest: the glyph on the white plate
+  plate.svg          the rest: the glyph on the white plate
+  android/res        Android's adaptive icon, in vectors, with the one-colour
+                     layer the system tints from Android 13
   apple/Enji.icon    the Liquid Glass document macOS and iOS use (Bern
                      compiles it with actool: glass from macOS 26 and iOS
                      26, a flat picture drawn from it before)
@@ -94,11 +96,54 @@ def rgb(color):
     return "srgb:" + ",".join("%.5f" % (int(color[i:i + 2], 16) / 255) for i in (1, 3, 5)) + ",1.00000"
 
 
-for name in ("apple", "preview"):
+def vector(color):
+    """The glyph as an adaptive icon's layer: 108 dp square, of which the
+    middle 72 are the plate, the glyph as large on it as on plate.svg."""
+    k = 72 * SCALE / max(X1 - X0, Y1 - Y0)
+    tx = 54 - (X0 + X1) / 2 * k
+    ty = 54 - (Y0 + Y1) / 2 * k
+    return f"""<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="{tx:.3f}"
+        android:translateY="{ty:.3f}"
+        android:scaleX="{k:.5f}"
+        android:scaleY="{k:.5f}">
+        <path
+            android:fillColor="{color}"
+            android:pathData="{D}" />
+    </group>
+</vector>
+"""
+
+
+for name in ("android", "apple", "preview"):
     shutil.rmtree(os.path.join(HERE, name), ignore_errors=True)
 
 write(os.path.join(HERE, "enji.svg"), svg(glyph(0, 0, 1024, BARE_SCALE, ACCENT)))
 write(os.path.join(HERE, "plate.svg"), svg(f'<rect width="1024" height="1024" fill="{PLATE}"/>' + glyph(0, 0, 1024, SCALE, ACCENT)))
+
+# Android: the plate behind the glyph, and the glyph alone for the system to
+# tint with the wallpaper's colours.
+res = os.path.join(HERE, "android", "res")
+write(os.path.join(res, "mipmap-anydpi-v26", "ic_launcher.xml"), """<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
+""")
+write(os.path.join(res, "drawable", "ic_launcher_background.xml"), f"""<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="{PLATE}" />
+</shape>
+""")
+write(os.path.join(res, "drawable", "ic_launcher_foreground.xml"), vector(ACCENT))
+write(os.path.join(res, "drawable", "ic_launcher_monochrome.xml"), vector("#FFFFFF"))
 
 # Liquid Glass: one opaque glass layer over the white fill, the black fill
 # in the dark appearance; clear and tinted come from the system.

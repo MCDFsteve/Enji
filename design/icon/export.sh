@@ -1,8 +1,8 @@
 #!/bin/sh
 # Render the icon sources of build.py into the files Bern.toml declares:
 # assets/icon/Enji.icon (macOS and iOS, which Bern compiles with actool),
-# enji.ico (Windows), the hicolor theme (Linux) and enji.png (Android and
-# the rest). Needs rsvg-convert and ImageMagick.
+# enji.ico (Windows), the hicolor theme (Linux), android/res (Android) and
+# enji.png (the rest). Needs rsvg-convert and ImageMagick.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
@@ -32,6 +32,10 @@ done
 mkdir -p "$out/hicolor/scalable/apps"
 cp "$here/enji.svg" "$out/hicolor/scalable/apps/enji.svg"
 
-# Android and any other platform: the glyph on its plate, 1024 pixels.
+# Android: the adaptive icon as it is.
+mkdir -p "$out/android"
+cp -R "$here/android/res" "$out/android/res"
+
+# Any other platform: the glyph on its plate, 1024 pixels.
 rsvg-convert -w 1024 -h 1024 "$here/plate.svg" -o "$out/enji.png"
 echo "$out"

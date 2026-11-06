@@ -19,7 +19,8 @@ photos = true
 
 # The equalizer (Fluent's device eq, MIT) in the accent: on macOS and iOS a
 # Liquid Glass icon, white and black in the dark appearance; on Windows and
-# Linux the glyph alone; elsewhere on a white plate. Drawn by
+# Linux the glyph alone; on Android an adaptive icon the system can tint
+# with the wallpaper's colours; elsewhere on a white plate. Drawn by
 # design/icon/build.py and exported by design/icon/export.sh.
 [app.icon]
 default = "assets/icon/enji.png"
@@ -27,6 +28,7 @@ macos = "assets/icon/Enji.icon"
 ios = "assets/icon/Enji.icon"
 windows = "assets/icon/enji.ico"
 linux = "assets/icon/hicolor"
+android = "assets/icon/android/res"
 
 [resources]
 paths = ["assets/mark.png", "assets/cover-place.png", "assets/tray.svg"]
