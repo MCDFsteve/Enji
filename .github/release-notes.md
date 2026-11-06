@@ -1,3 +1,15 @@
+## 0.3.4 新增
+
+- **Android 图标跟随系统取色**：Android 13 及以上打开“图标匹配主题”后，Enji 的图标会跟随壁纸颜色。
+
+## 0.3.4 修正
+
+- **播放更省资源**：开着逐字歌词和桌面歌词时不再卡顿掉帧，Mac 上的 CPU 占用大幅下降，Windows 也一样。
+- **逐字歌词**：边缘改成硬切，不再是软边。
+- **Linux 播放页点不动**：进度条、暂停、上一首和下一首都能点了。
+- **Ubuntu 上的主题色**：开关、滑块和按钮不再显示系统的橙红色，而是 Enji 自己的红色。
+- **Windows 10 无法添加本地音乐文件夹**：点“添加文件夹”会打开选择窗口了。
+
 ## 0.3.3 新增
 
 - **逐字歌词更细腻**：每个字从左到右逐渐亮起，歌词页、封面下的歌词和桌面歌词都一样。macOS 14、iOS 17 及更早的系统上，整个字淡入。
@@ -100,6 +112,18 @@
 **Android**：如果装过自己构建的测试版，需要先卸载再安装；之后的版本都能直接覆盖更新。
 
 Enji 是第三方网易云音乐客户端，非网易官方出品，与网易公司无关，仅供学习交流。
+
+## What's new in 0.3.4
+
+- **The Android icon follows the system's colours**: on Android 13 and later, with themed icons on, Enji's icon takes the wallpaper's colours.
+
+## What's fixed in 0.3.4
+
+- **Lighter playback**: word-by-word lyrics and desktop lyrics no longer stutter, with much lower CPU use on the Mac and on Windows.
+- **Word-by-word lyrics**: the edge is a hard cut, no longer soft.
+- **Linux player page**: the progress bar, pause, previous and next respond to clicks again.
+- **Theme colour on Ubuntu**: switches, sliders and buttons show Enji's own red, no longer the system's orange.
+- **Adding a local music folder on Windows 10**: Add Folder opens the folder picker again.
 
 ## What's new in 0.3.3
 
