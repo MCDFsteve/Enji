@@ -8,6 +8,8 @@
 
 <p><sub>Not made by or affiliated with NetEase.</sub></p>
 
+<p><sub>Named after Ange Ushiromiya (右代宫缘寿) from <i>Umineko When They Cry</i>, and unrelated to any other work or character of the same name.</sub></p>
+
 <p>
 <img alt="Rust" src="https://img.shields.io/badge/Rust-1.99-CE422B?style=for-the-badge&logo=rust&logoColor=white">
 <a href="https://github.com/AimesSoft/Bern"><img alt="Built with Bern" src="https://img.shields.io/badge/Built%20with-Bern-222222?style=for-the-badge"></a>

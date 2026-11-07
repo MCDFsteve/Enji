@@ -8,6 +8,8 @@
 
 <p><sub>非网易云音乐官方出品，与网易公司无关。</sub></p>
 
+<p><sub>名字来自《海猫鸣泣之时》的右代宫缘寿，与其他同名作品和角色无关。</sub></p>
+
 <p>
 <img alt="Rust" src="https://img.shields.io/badge/Rust-1.99-CE422B?style=for-the-badge&logo=rust&logoColor=white">
 <a href="https://github.com/AimesSoft/Bern"><img alt="Built with Bern" src="https://img.shields.io/badge/Built%20with-Bern-222222?style=for-the-badge"></a>
