@@ -1942,15 +1942,7 @@ pub fn phone_now_playing(app: enji::Client, live: live::Client, sung: sung::Clie
                                 like_button(app: app)
                             }
                             Text(content: song.artists, style: headline, emphasis: secondary, lines: 1)
-                            // What arrives once the song has loaded has its
-                            // place from the start, so the cover stays put.
-                            Column(height: 18) {
-                                if app.preview {
-                                    Text(content: tr! { "zh-Hans" => "试听片段 · 完整版需要黑胶会员", "en" => "Preview · the full song is for members" }, style: caption, color: accent, lines: 1)
-                                } else if app.show_format && app.format != "" {
-                                    Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
-                                }
-                            }
+                            song_note(app: app)
                             // The sung line, its translation and the next,
                             // while the cover shows in place of the lyrics.
                             if app.cover_lyrics {
@@ -2023,18 +2015,13 @@ pub fn now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pu
                             }
                         }
                         Column(gap: 4, align: leading) {
-                            if app.preview {
-                                Text(content: tr! { "zh-Hans" => "试听片段 · 完整版需要黑胶会员", "en" => "Preview · the full song is for members" }, style: caption, color: accent)
-                            }
                             Row(gap: 10, align: center) {
                                 Text(content: song.name, style: title, lines: 2)
                                 Spacer
                                 like_button(app: app)
                             }
                             Text(content: song.artists, style: headline, emphasis: secondary, lines: 1)
-                            if app.show_format && app.format != "" {
-                                Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
-                            }
+                            song_note(app: app)
                         }
                         now_progress(app: app, live: live)
                         Row(gap: 32, align: center) {
@@ -2221,6 +2208,21 @@ pub fn like_button(app: enji::Client) -> impl View {
                 IconButton(id: unlike, icon: "heart.fill", prominence: plain, label: tr! { "zh-Hans" => "取消喜欢", "en" => "Unlike" }, nudge: app.current_liked) => app.toggle_like()
             } else {
                 IconButton(id: like, icon: "heart", prominence: plain, label: tr! { "zh-Hans" => "喜欢", "en" => "Like" }) => app.toggle_like()
+            }
+        }
+    }
+}
+
+/// What arrives once the song has loaded, under its artists. Its place is
+/// there from the start, so nothing around it moves.
+#[component]
+pub fn song_note(app: enji::Client) -> impl View {
+    ui! {
+        Column(height: 18, align: leading) {
+            if app.preview {
+                Text(content: tr! { "zh-Hans" => "试听片段 · 完整版需要黑胶会员", "en" => "Preview · the full song is for members" }, style: caption, color: accent, lines: 1)
+            } else if app.show_format && app.format != "" {
+                Text(content: app.format, style: caption, emphasis: tertiary, lines: 1)
             }
         }
     }
