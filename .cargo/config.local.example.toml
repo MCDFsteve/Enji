@@ -3,7 +3,7 @@
 # ignored by git, and so are the changes it makes to Cargo.lock: commit the
 # lock file only as a checkout without config.toml leaves it.
 
-[patch.crates-io]
+[patch."https://github.com/AimesSoft/Bern.git"]
 # `bern build` sees Cargo take `bern` from this checkout and has the
 # generated hosts take every other Bern crate from there too. The `bern`
 # command should come from it as well: `cargo install --path crates/bern-cli`.

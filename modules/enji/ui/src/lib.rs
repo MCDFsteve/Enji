@@ -44,12 +44,6 @@ pub struct MainDraft {
     pub together_link: String,
 }
 
-
-
-
-
-
-
 // MARK: - Sidebar
 
 #[component]
@@ -663,11 +657,6 @@ pub fn history_row(app: enji::Client, played: enji::Played) -> impl View {
         } => app.play(Source::History, played.key)
     }
 }
-
-
-
-
-
 
 /// An album as a card: its cover, name, singer and year.
 #[component]
@@ -1346,7 +1335,13 @@ pub fn playlist_card(app: enji::Client, list: enji::Playlist) -> impl View {
 /// added to a playlist; out of the account's own open playlist with
 /// `removable`.
 #[component]
-pub fn song_row(app: enji::Client, song: enji::Song, source: Source, full: bool, removable: bool) -> impl View {
+pub fn song_row(
+    app: enji::Client,
+    song: enji::Song,
+    source: Source,
+    full: bool,
+    removable: bool,
+) -> impl View {
     ui! {
         if removable {
             Button(id: own_song, label: song.name, variant: row, enabled: !song.unavailable) {
@@ -1794,7 +1789,13 @@ pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -
 /// The playing song on a phone on its side: the cover, or the lyrics,
 /// comments or details in its place, beside the song and its controls.
 #[component]
-pub fn side_now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] draft: MainDraft) -> impl View {
+pub fn side_now_playing(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] draft: MainDraft,
+) -> impl View {
     ui! {
         Stack(appearance: dark) {
             if let Some(song) = app.current {
@@ -1863,7 +1864,13 @@ pub fn side_now_playing(app: enji::Client, live: live::Client, sung: sung::Clien
 /// lyrics, comments or details under a small one; the controls below, the
 /// switches between them at the bottom.
 #[component]
-pub fn phone_now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] draft: MainDraft) -> impl View {
+pub fn phone_now_playing(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] draft: MainDraft,
+) -> impl View {
     ui! {
         Stack(appearance: dark) {
             if let Some(song) = app.current {
@@ -1946,14 +1953,14 @@ pub fn phone_now_playing(app: enji::Client, live: live::Client, sung: sung::Clie
                             // The sung line, its translation and the next,
                             // while the cover shows in place of the lyrics.
                             if app.cover_lyrics {
-                                Column(gap: 3, padding_y: 8, height: 100, align: leading) {
+                                Column(gap: 3, padding_y: 8, align: leading) {
                                     if app.lyric_now != "" {
-                                        Text(content: app.lyric_now, style: callout, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
+                                        Text(content: app.lyric_now, ruby: if app.show_furigana { app.lyric_now_ruby } else { "" }, style: callout, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
                                         if app.show_translation && app.lyric_now_translation != "" {
                                             Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
                                         }
                                         if app.lyric_next != "" {
-                                            Text(content: app.lyric_next, style: footnote, emphasis: tertiary, lines: 1)
+                                            Text(content: app.lyric_next, ruby: if app.show_furigana { app.lyric_next_ruby } else { "" }, style: footnote, emphasis: tertiary, lines: 1)
                                         }
                                     }
                                 }
@@ -1973,7 +1980,13 @@ pub fn phone_now_playing(app: enji::Client, live: live::Client, sung: sung::Clie
 /// The playing song over the window: its cover lit under the pointer, the
 /// controls under it, and the lyrics beside it standing at the sung line.
 #[component]
-pub fn now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] draft: MainDraft) -> impl View {
+pub fn now_playing(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] draft: MainDraft,
+) -> impl View {
     ui! {
         Stack(appearance: dark, under_bars: true) {
             if let Some(song) = app.current {
@@ -2118,7 +2131,7 @@ pub fn lyrics(app: enji::Client, sung: sung::Client, #[session] draft: MainDraft
                     ForEach(items: app.lyrics, key: key) |line| {
                         Button(id: lyric, label: line.text, variant: lyric) {
                             Column(gap: 4, padding_x: 14, padding_y: 10, blur: line.blur, animate: smooth) {
-                                Text(content: line.text, lit: if line.current { sung.lyric_lit } else { -1.0 }, lit_path: line.word_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
+                                Text(content: line.text, ruby: if app.show_furigana { line.ruby } else { "" }, lit: if line.current { sung.lyric_lit } else { -1.0 }, lit_path: line.word_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since, style: title2, font_size: if line.current && window.compact { 26 } else if line.current { 32 } else if window.compact { 21 } else { 26 }, bold: line.current, animate: smooth)
                                 if line.translated && app.show_translation {
                                     Text(content: line.translation, font_size: if window.compact { 15 } else if line.current { 18 } else { 16 }, emphasis: secondary, animate: smooth)
                                 }
@@ -2395,7 +2408,12 @@ pub fn tv_small_controls(app: enji::Client) -> impl View {
 /// on the other, for reading across the room. Android TV counts 960 points
 /// across where Apple TV counts 1920.
 #[component]
-pub fn tv_now_playing(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client) -> impl View {
+pub fn tv_now_playing(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+) -> impl View {
     ui! {
         if let Some(song) = app.current {
             Row(gap: if window.medium { 48 } else { 112 }, padding_x: if window.medium { 32 } else { 120 }, padding_y: 12, align: center) {
@@ -2422,13 +2440,13 @@ pub fn tv_now_playing(app: enji::Client, live: live::Client, sung: sung::Client,
                     ForEach(items: app.lyrics_near, key: key) |line| {
                         if line.current {
                             Column(gap: 8, align: leading) {
-                                Text(content: line.text, style: large_title, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: line.word_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
+                                Text(content: line.text, ruby: if app.show_furigana { line.ruby } else { "" }, style: large_title, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: line.word_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
                                 if line.translation != "" {
                                     Text(content: line.translation, style: title3, emphasis: secondary, lines: 2)
                                 }
                             }
                         } else {
-                            Text(content: line.text, style: title2, emphasis: tertiary, lines: 1)
+                            Text(content: line.text, ruby: if app.show_furigana { line.ruby } else { "" }, style: title2, emphasis: tertiary, lines: 1)
                         }
                     }
                 }
@@ -3090,6 +3108,17 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Text(content: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" })
                             Spacer
                             Switch(id: translation, label: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, label_hidden: true, checked: app.show_translation, style: switch) => app.set_show_translation(app.show_translation)
+                        }
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" }, icon: "textformat", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" })
+                            Spacer
+                            Switch(id: furigana, label: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" }, label_hidden: true, checked: app.show_furigana, style: switch) => app.set_show_furigana(app.show_furigana)
                         }
                         Column(padding_x: 16) { Divider }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {

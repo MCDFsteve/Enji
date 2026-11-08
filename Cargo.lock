@@ -259,8 +259,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bern"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dc3f60e8db0d84042f952bde1f5b617a28d8c6bfbe32744531450b060e3f9b6"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -274,8 +273,7 @@ dependencies = [
 [[package]]
 name = "bern-command"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0593b15421c8d6ec20f205971fc1cdee8c22c426275a6500448d03893880b8e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -288,6 +286,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-media-player",
  "security-framework",
+ "serde_json",
  "windows 0.62.2",
  "windows-numerics",
  "zbus 5.19.0",
@@ -296,8 +295,7 @@ dependencies = [
 [[package]]
 name = "bern-ir"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41643ab2328d17070dc9a8e17910e52b9c5f48f4edd9ee9fff11cc2c8b8f50db"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -307,8 +305,7 @@ dependencies = [
 [[package]]
 name = "bern-macros"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05acc3d96a85ba84ed3e6a5f07bf1a4efd19170786273a75ea1dd71ef06ca910"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -322,8 +319,7 @@ dependencies = [
 [[package]]
 name = "bern-media"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a3d2743330e7f308ff7915ef93091c139366024fd0b025b7d128f822f354443"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-protocol",
 ]
@@ -331,8 +327,7 @@ dependencies = [
 [[package]]
 name = "bern-protocol"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "391b7685bad57216b9b87b54831311d129239337a1897fa6a7a243b2c7bdc526"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "serde",
  "serde_json",
@@ -341,8 +336,7 @@ dependencies = [
 [[package]]
 name = "bern-runtime"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "276d7b910f41dc35f8d51969d976c9e9d8ff6e5ef7384ab79dde2d72ddd40bef"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-protocol",
 ]
@@ -350,8 +344,7 @@ dependencies = [
 [[package]]
 name = "bern-script"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23dd23f8102d62a83a2c78417675a6c49ab20acebf5774956fc042b1aa23efe8"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "boa_engine",
  "serde",
@@ -361,8 +354,7 @@ dependencies = [
 [[package]]
 name = "bern-syntax"
 version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6498cd69802cb0c4d4841d7a359e2e88b8e8e65e8662f3b43cbaff8b4ad4163b"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=2819147ecfae9a0c7cfef3481006cb094145f0e3#2819147ecfae9a0c7cfef3481006cb094145f0e3"
 dependencies = [
  "bern-media",
  "bern-protocol",

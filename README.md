@@ -98,7 +98,7 @@
 - **私人漫游**：登录后从首页打开，歌放完自动接下一首，不想听就点“不喜欢”；也可以设成启动时直接打开。
 - **我的歌单**：我喜欢的音乐、自建和收藏的歌单；可以新建歌单、把歌加进去、给歌点红心。
 - **搜索**：网易云和本机的歌一起搜，有搜索记录和热搜榜，热搜榜可以在设置里单独关闭。
-- **歌词**：跟着歌逐行滚动，带中文翻译，点一行就跳到那里；也能看歌曲评论。网易云给了逐字时间的歌，每个字随着演唱从左到右逐渐亮起，桌面歌词也一样。手机竖着拿时，封面下方也显示正在唱的那一行。
+- **歌词**：跟着歌逐行滚动，带中文翻译，点一行就跳到那里；也能看歌曲评论。网易云给了逐字时间的歌，每个字随着演唱从左到右逐渐亮起，桌面歌词也一样。日语歌词可在汉字和片假名上方显示平假名注音，在设置中开关。手机竖着拿时，封面下方也显示正在唱的那一行。
 - **音质**：标准、较高、极高、无损、Hi-Res 可选（320k 以上需要网易云会员）。
 - **USB 独占输出**：Android 14 及以上，插 USB 解码器时按歌曲原本的采样率输出，不经过系统重采样。需要手机厂商开放这项功能。
 - **本地音乐**：MP3、FLAC、M4A、WAV 等常见格式都能放，播放时写出格式和码率，例如“FLAC · 921 kbps · 44.1 kHz · 16 bit”。电脑上添加文件夹；iPhone 上把歌放进“文件”App 的 Enji 文件夹；Android 上选一个文件夹。
@@ -183,11 +183,11 @@ pub trait Commands {
 
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
-```sh
-cargo binstall bern-cli@0.1.10
+```bash
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 2819147ecfae9a0c7cfef3481006cb094145f0e3 bern-cli
 ```
 
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) 会下载编译好的 `bern`；也可以用 `cargo install --locked bern-cli@0.1.10` 自己编译。
+当前源码使用尚未发版的注音能力，因此构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；旧版发布的工具不包含这项能力。
 
 然后取得 Enji 并运行：
 
@@ -208,6 +208,8 @@ macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 和 iP
 系统的播放控件在 macOS、iPhone 模拟器、Android 模拟器和 Ubuntu 上试过，桌面歌词在 macOS、Windows 和 Android 上试过；Windows 上的播放控件和 Linux 的桌面歌词还没有实际试过。
 
 USB 独占输出还没有接真的 USB 解码器试过；Linux 版的逐字歌词只通过了编译。
+
+日语假名注音尚未构建或进行实机验证。
 
 ## 免责声明
 

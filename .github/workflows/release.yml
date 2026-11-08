@@ -111,18 +111,13 @@ jobs:
             echo "BERN_ANDROID_KEY_ALIAS=enji" >> "$GITHUB_ENV"
           fi
 
-      # The build tool of the Bern Enji depends on (Cargo.toml), downloaded
-      # ready-built from Bern's release. Only the build for this runner's
-      # own Rust: an Intel bern under Rosetta takes the Mac for an Intel
-      # one and builds for it. The token keeps GitHub from slowing the
-      # lookups down until binstall gives up on them.
-      - uses: cargo-bins/cargo-binstall@v1.26.0
+      # Keep the CLI on the exact framework commit pinned by Cargo.toml.
       - name: Bern
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          cargo binstall --no-confirm --targets "$(rustc -vV | sed -n 's/^host: //p')" bern-cli@0.1.10
+          rev=$(sed -n '/^bern = /s/.*rev = "\([^"]*\)".*/\1/p' Cargo.toml)
+          test -n "$rev"
+          cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev "$rev" bern-cli
 
       - name: Package
         if: runner.os != 'Windows'

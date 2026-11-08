@@ -324,6 +324,9 @@ impl enji::Commands for EnjiEngine {
     fn set_show_translation(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetTranslation(shown))
     }
+    fn set_show_furigana(&mut self, shown: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetFurigana(shown))
+    }
     fn set_backdrop(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetBackdrop(shown))
     }

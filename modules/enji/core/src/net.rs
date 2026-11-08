@@ -65,6 +65,7 @@ pub enum Job {
     SetTogether(bool),
     SetUsbExclusive(bool),
     SetWordLyrics(bool),
+    SetFurigana(bool),
     SetHotSearch(bool),
     PlayFm,
     FmSongs(Vec<Song>),
@@ -314,6 +315,8 @@ pub fn initial_state() -> State {
         lyric_now: String::new(),
         lyric_now_translation: String::new(),
         lyric_now_path: String::new(),
+        lyric_now_ruby: String::new(),
+        lyric_next_ruby: String::new(),
         lyric_next: String::new(),
         total: "0:00".into(),
         volume: saved["volume"].as_f64().unwrap_or(0.8),
@@ -362,6 +365,7 @@ pub fn initial_state() -> State {
             _ => Quality::Exhigh,
         },
         show_translation: saved["show_translation"].as_bool().unwrap_or(true),
+        show_furigana: saved["show_furigana"].as_bool().unwrap_or(true),
         backdrop: saved["backdrop"].as_bool().unwrap_or(true),
         show_format: saved["show_format"].as_bool().unwrap_or(true),
         cover_lyrics: saved["cover_lyrics"].as_bool().unwrap_or(true),
@@ -395,6 +399,7 @@ fn save_settings(state: &State) {
         "mode": format!("{:?}", state.mode),
         "quality": format!("{:?}", state.quality),
         "show_translation": state.show_translation,
+        "show_furigana": state.show_furigana,
         "backdrop": state.backdrop,
         "show_format": state.show_format,
         "cover_lyrics": state.cover_lyrics,
@@ -1042,6 +1047,13 @@ impl Worker {
                 s.hot_search = on;
                 save_settings(s);
             }),
+            Job::SetFurigana(shown) => {
+                self.shared.update(|s| {
+                    s.show_furigana = shown;
+                    save_settings(s);
+                });
+                self.show_desktop_lyrics();
+            }
             Job::SetWordLyrics(on) => {
                 self.shared.update(|s| {
                     s.word_lyrics = on;
@@ -1982,9 +1994,14 @@ impl Worker {
             let (lit, clock, since) = enji_kit::live::read(|live| (live.lit, live.clock, live.since));
             let route = (lit >= 0.0 && !s.lyric_now.is_empty())
                 .then(|| bern::overlay::Route::new(&s.lyric_now_path, clock, since));
-            Some((first, second, route, s.desktop_lyrics_locked, s.playing))
+            let first_ruby = if s.show_furigana && !s.lyric_now.is_empty() { s.lyric_now_ruby.clone() } else { String::new() };
+            let second_ruby = if s.show_furigana && !s.lyric_now.is_empty()
+                && !(s.show_translation && !s.lyric_now_translation.is_empty()) {
+                s.lyric_next_ruby.clone()
+            } else { String::new() };
+            Some((first, second, first_ruby, second_ruby, route, s.desktop_lyrics_locked, s.playing))
         });
-        let Some((first, second, route, locked, playing)) = shown else {
+        let Some((first, second, first_ruby, second_ruby, route, locked, playing)) = shown else {
             return bern::overlay::hide("lyrics");
         };
         // Phones show it smaller, over another app.
@@ -1994,8 +2011,8 @@ impl Worker {
             "lyrics",
             &Overlay {
                 lines: vec![
-                    Line { text: first, size: large, bold: true, color: [255, 255, 255, 255], lit: None, route },
-                    Line { text: second, size: small, bold: false, color: [255, 255, 255, 215], lit: None, route: None },
+                    Line { text: first, ruby: first_ruby, size: large, bold: true, color: [255, 255, 255, 255], lit: None, route },
+                    Line { text: second, ruby: second_ruby, size: small, bold: false, color: [255, 255, 255, 215], lit: None, route: None },
                 ],
                 place: bern::overlay::Place::Free,
                 locked,
@@ -4239,6 +4256,8 @@ fn sung(s: &mut State) {
     let next = at.and_then(|i| s.lyrics[i + 1..].iter().find(|line| !line.text.trim().is_empty()));
     let (text, translation) = now.map_or_else(Default::default, |line| (line.text.clone(), line.translation.clone()));
     let next = next.map(|line| line.text.clone()).unwrap_or_default();
+    s.lyric_now_ruby = now.map_or_else(String::new, |line| line.ruby.clone());
+    s.lyric_next_ruby = next.map_or_else(String::new, |line| line.ruby.clone());
     s.lyric_now_path = now.map_or_else(String::new, |line| line.word_path.clone());
     s.lyric_now = text;
     s.lyric_now_translation = translation;
@@ -4277,6 +4296,7 @@ fn shown_lines(lines: &[lyrics::Line]) -> Vec<LyricLine> {
             translation: line.translation.clone().unwrap_or_default(),
             translated: line.translation.is_some(),
             word_path: line.path(),
+            ruby: line.ruby(),
             current: false,
             blur: 0.0,
         })

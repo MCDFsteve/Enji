@@ -98,7 +98,7 @@
 - **Roaming**: signed in, start it from the home page. One song follows another with no end, and Dislike moves on. It can also open when the app starts.
 - **Your playlists**: liked songs, playlists you made or saved; create playlists, add songs to them, like a song.
 - **Search** NetEase and your own music at once, with your search history and trending searches, which Settings can turn off on their own.
-- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. On songs NetEase times word by word, each character lights from left to right as it is sung, in desktop lyrics too. Holding a phone upright, the line being sung also shows under the cover.
+- **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. On songs NetEase times word by word, each character lights from left to right as it is sung, in desktop lyrics too. Japanese lyrics can show hiragana readings above kanji and katakana, with a switch in settings. Holding a phone upright, the line being sung also shows under the cover.
 - **Quality**: standard, higher, extreme, lossless or Hi-Res (above 320k needs NetEase VIP).
 - **USB exclusive output**: on Android 14 and later, a USB DAC plays each song at its own sample rate, without the system resampling it. It needs the phone's maker to allow it.
 - **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
@@ -183,11 +183,11 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
-```sh
-cargo binstall bern-cli@0.1.10
+```bash
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 2819147ecfae9a0c7cfef3481006cb094145f0e3 bern-cli
 ```
 
-[cargo-binstall](https://github.com/cargo-bins/cargo-binstall) downloads `bern` ready-built; `cargo install --locked bern-cli@0.1.10` compiles it instead.
+The source uses unreleased ruby support, so the build tool and `Cargo.toml` pin the same Bern commit. The older published tool does not include this capability.
 
 Then get Enji and run it:
 
@@ -208,6 +208,8 @@ Browsing, search, playback and lyrics have been used on a real Mac and a real Wi
 The system's media controls have been tried on macOS, the iPhone simulator, the Android emulator and Ubuntu, and desktop lyrics on macOS, Windows and Android. The media controls are still untried on Windows, as are desktop lyrics on Linux.
 
 USB exclusive output has not been tried with a real USB DAC yet, and word-by-word lyrics on Linux have only been compiled.
+
+Japanese furigana has not been built or tested on a device yet.
 
 ## Disclaimer
 

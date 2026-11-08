@@ -3,11 +3,16 @@
 
 use serde_json::Value;
 
+mod furigana;
+pub use furigana::Ruby;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Line {
     pub time: f64,
     pub text: String,
     pub translation: Option<String>,
+    /// Readings above ranges of the unchanged original text.
+    pub ruby: Vec<Ruby>,
     /// When each word starts, if NetEase timed them.
     pub words: Vec<Word>,
 }
@@ -24,6 +29,10 @@ pub struct Word {
 }
 
 impl Line {
+    pub fn ruby(&self) -> String {
+        furigana::encoded(&self.ruby)
+    }
+
     /// How the words light up: for each, the second it starts and how many
     /// characters stand lit then, and the same as it ends.
     pub fn path(&self) -> String {
@@ -46,12 +55,52 @@ impl Line {
 /// and it has them, else by the line.
 pub fn of_answer(body: &Value, by_word: bool) -> Vec<Line> {
     let text = |key: &str| body[key]["lyric"].as_str().unwrap_or("");
-    let lines = if by_word { word_timed(text("yrc")) } else { Vec::new() };
-    if lines.is_empty() {
-        return parse(text("lrc"), text("tlyric"));
+    let mut plain = parse(text("lrc"), text("tlyric"));
+    let roman = timed(text("romalrc"));
+    for line in &mut plain {
+        if let Some(roman) = nearest(&roman, line.time) {
+            line.ruby = furigana::annotate(&line.text, roman);
+        }
     }
-    let translation = if text("ytlrc").is_empty() { text("tlyric") } else { text("ytlrc") };
-    translated(lines, &timed(translation))
+    let lines = if by_word {
+        word_timed(text("yrc"))
+    } else {
+        Vec::new()
+    };
+    if lines.is_empty() {
+        return plain;
+    }
+    let translation = if text("ytlrc").is_empty() {
+        text("tlyric")
+    } else {
+        text("ytlrc")
+    };
+    let mut lines = translated(lines, &timed(translation));
+    let roman = timed(text("yromalrc"));
+    for line in &mut lines {
+        if let Some(roman) = nearest(&roman, line.time) {
+            line.ruby = furigana::annotate(&line.text, roman);
+        } else if let Some(mapped) = plain
+            .iter()
+            .filter(|other| (other.time - line.time).abs() <= NEAR)
+            .filter_map(|other| {
+                furigana::remap(&other.text, &line.text, &other.ruby)
+                    .map(|ruby| ((other.time - line.time).abs(), ruby))
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+        {
+            line.ruby = mapped.1;
+        }
+    }
+    lines
+}
+
+fn nearest(lines: &[(f64, String)], time: f64) -> Option<&str> {
+    lines
+        .iter()
+        .min_by(|a, b| (a.0 - time).abs().total_cmp(&(b.0 - time).abs()))
+        .filter(|(at, _)| (at - time).abs() <= NEAR)
+        .map(|(_, text)| text.as_str())
 }
 
 /// How far a line of a translation may be from the line it belongs to:
@@ -62,8 +111,12 @@ const NEAR: f64 = 1.0;
 fn translated(mut lines: Vec<Line>, translation: &[(f64, String)]) -> Vec<Line> {
     for line in &mut lines {
         let gap = |at: f64| (at - line.time).abs();
-        let nearest = translation.iter().min_by(|a, b| gap(a.0).total_cmp(&gap(b.0)));
-        line.translation = nearest.filter(|(at, _)| gap(*at) <= NEAR).map(|(_, text)| text.clone());
+        let nearest = translation
+            .iter()
+            .min_by(|a, b| gap(a.0).total_cmp(&gap(b.0)));
+        line.translation = nearest
+            .filter(|(at, _)| gap(*at) <= NEAR)
+            .map(|(_, text)| text.clone());
     }
     lines
 }
@@ -75,20 +128,46 @@ fn translated(mut lines: Vec<Line>, translation: &[(f64, String)]) -> Vec<Line> 
 fn word_timed(yrc: &str) -> Vec<Line> {
     let mut lines = Vec::new();
     for raw in yrc.lines() {
-        let Some((head, body)) = raw.trim().strip_prefix('[').and_then(|rest| rest.split_once(']')) else { continue };
-        let Some(start) = head.split(',').next().and_then(|start| start.parse::<f64>().ok()) else { continue };
+        let Some((head, body)) = raw
+            .trim()
+            .strip_prefix('[')
+            .and_then(|rest| rest.split_once(']'))
+        else {
+            continue;
+        };
+        let Some(start) = head
+            .split(',')
+            .next()
+            .and_then(|start| start.parse::<f64>().ok())
+        else {
+            continue;
+        };
         let (mut text, mut words, mut chars) = (String::new(), Vec::new(), 0);
         for (at, length, word) in timed_words(body) {
             chars += word.chars().count();
             text.push_str(word);
             // Some songs count from the line's start.
             let at = if at < start { start + at } else { at };
-            words.push(Word { time: at / 1000.0, length: length / 1000.0, end: chars });
+            words.push(Word {
+                time: at / 1000.0,
+                length: length / 1000.0,
+                end: chars,
+            });
         }
         let kept = text.trim_end().chars().count();
-        words.iter_mut().for_each(|word| word.end = word.end.min(kept));
+        words
+            .iter_mut()
+            .for_each(|word| word.end = word.end.min(kept));
         if kept > 0 {
-            lines.push(Line { time: start / 1000.0, text: text.trim_end().to_string(), translation: None, words });
+            let text = text.trim_end().to_string();
+            let ruby = furigana::annotate(&text, "");
+            lines.push(Line {
+                time: start / 1000.0,
+                text,
+                translation: None,
+                words,
+                ruby,
+            });
         }
     }
     lines.sort_by(|a, b| a.time.total_cmp(&b.time));
@@ -100,15 +179,28 @@ fn word_timed(yrc: &str) -> Vec<Line> {
 fn timed_words(body: &str) -> Vec<(f64, f64, &str)> {
     let mut tags = Vec::new();
     for (open, _) in body.match_indices('(') {
-        let Some(close) = body[open..].find(')').map(|close| open + close) else { break };
+        let Some(close) = body[open..].find(')').map(|close| open + close) else {
+            break;
+        };
         let parts: Vec<&str> = body[open + 1..close].split(',').collect();
-        if parts.len() == 3 && parts.iter().all(|part| !part.is_empty() && part.bytes().all(|digit| digit.is_ascii_digit())) {
+        if parts.len() == 3
+            && parts
+                .iter()
+                .all(|part| !part.is_empty() && part.bytes().all(|digit| digit.is_ascii_digit()))
+        {
             let number = |part: &str| part.parse::<f64>().unwrap_or(0.0);
             tags.push((open, close, number(parts[0]), number(parts[1])));
         }
     }
-    let ends = tags.iter().skip(1).map(|tag| tag.0).chain(std::iter::once(body.len()));
-    tags.iter().zip(ends).map(|(&(_, close, at, length), end)| (at, length, &body[close + 1..end])).collect()
+    let ends = tags
+        .iter()
+        .skip(1)
+        .map(|tag| tag.0)
+        .chain(std::iter::once(body.len()));
+    tags.iter()
+        .zip(ends)
+        .map(|(&(_, close, at, length), end)| (at, length, &body[close + 1..end]))
+        .collect()
 }
 
 /// The sung lines of `lrc` in order, each with the line of `translation`
@@ -121,14 +213,21 @@ pub fn parse(lrc: &str, translation: &str) -> Vec<Line> {
         // moment is the first one's translation, as bilingual LRC files
         // write it.
         if translated.is_empty() {
-            if let Some(last) = lines.last_mut().filter(|last| (last.time - time).abs() < 0.05 && last.translation.is_none()) {
+            if let Some(last) = lines
+                .last_mut()
+                .filter(|last| (last.time - time).abs() < 0.05 && last.translation.is_none())
+            {
                 last.translation = Some(text);
                 continue;
             }
         }
         lines.push(Line {
             time,
-            translation: translated.iter().find(|(at, _)| (at - time).abs() < 0.05).map(|(_, text)| text.clone()),
+            translation: translated
+                .iter()
+                .find(|(at, _)| (at - time).abs() < 0.05)
+                .map(|(_, text)| text.clone()),
+            ruby: furigana::annotate(&text, ""),
             text,
             words: Vec::new(),
         });
@@ -180,8 +279,14 @@ mod tests {
     fn a_second_line_at_the_same_moment_is_its_translation() {
         let lines = parse("[00:01.00]你好\n[00:01.00]Hello\n[00:03.00]再见\n", "");
         assert_eq!(lines.len(), 2);
-        assert_eq!((lines[0].text.as_str(), lines[0].translation.as_deref()), ("你好", Some("Hello")));
-        assert_eq!((lines[1].text.as_str(), lines[1].translation.as_deref()), ("再见", None));
+        assert_eq!(
+            (lines[0].text.as_str(), lines[0].translation.as_deref()),
+            ("你好", Some("Hello"))
+        );
+        assert_eq!(
+            (lines[1].text.as_str(), lines[1].translation.as_deref()),
+            ("再见", None)
+        );
         // A translation of their own wins: both lines stay lines.
         let lines = parse("[00:01.00]你好\n[00:01.00]Hello\n", "[00:01.00]哈喽\n");
         assert_eq!(lines.len(), 2);
@@ -189,7 +294,8 @@ mod tests {
 
     #[test]
     fn lines_take_their_translations_and_tags_are_left_out() {
-        let lrc = "[ar:someone]\n[00:01.50]海猫が鳴く頃に\n[00:04.00][00:20.00]もう一度\n[00:06.00]\n";
+        let lrc =
+            "[ar:someone]\n[00:01.50]海猫が鳴く頃に\n[00:04.00][00:20.00]もう一度\n[00:06.00]\n";
         let tlyric = "[00:01.50]在海猫鸣叫之时\n[00:04.00]再一次";
         let lines = parse(lrc, tlyric);
         assert_eq!(lines.len(), 3);
@@ -246,5 +352,27 @@ mod tests {
         let mut none = answer();
         none["yrc"] = serde_json::json!({});
         assert_eq!(super::of_answer(&none, true)[0].text, "plain line");
+    }
+
+    #[test]
+    fn roman_readings_follow_the_selected_lyric_version() {
+        let body = serde_json::json!({
+            "lrc": { "lyric": "[00:00.696]開け放たれた この部屋には誰もいない" },
+            "romalrc": { "lyric": "[00:00.696]a ke ha na ta re ta ko no he ya ni wa da re mo i na i" },
+            "yrc": { "lyric": "[750,9500](750,440,0)開(1190,320,0)け放たれた この部屋には誰もいない" },
+            "yromalrc": { "lyric": "[00:00.750]a ke ha na ta re ta ko no he ya ni wa da re mo i na i" }
+        });
+        let word = of_answer(&body, true);
+        let plain = of_answer(&body, false);
+        assert_eq!(word[0].ruby, plain[0].ruby);
+        assert_eq!(word[0].ruby[0].reading, "あ");
+        assert_eq!(word[0].words[0].end, 1);
+        assert_eq!(word[0].time, 0.75);
+        assert!(word[0].ruby().starts_with("[[0,1,"));
+        let mut fallback = body;
+        fallback["yromalrc"] = serde_json::json!({});
+        assert_eq!(of_answer(&fallback, true)[0].ruby, plain[0].ruby);
+        fallback["yrc"]["lyric"] = serde_json::json!("[750,1000](750,1000,0)違う歌詞");
+        assert!(of_answer(&fallback, true)[0].ruby.is_empty());
     }
 }

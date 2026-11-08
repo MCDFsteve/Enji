@@ -249,6 +249,9 @@ pub mod enji {
         /// they are not timed.
         #[content]
         pub word_path: String,
+        /// JSON character ranges and their readings, as Text(ruby:) takes it.
+        #[content]
+        pub ruby: String,
         /// How blurred it is: none for the sung line, a little for those
         /// beside it, more towards the edges, none while the lyrics are
         /// browsed.
@@ -616,9 +619,13 @@ pub mod enji {
         #[content]
         pub lyric_now_path: String,
         #[content]
+        pub lyric_now_ruby: String,
+        #[content]
         pub lyric_now_translation: String,
         #[content]
         pub lyric_next: String,
+        #[content]
+        pub lyric_next_ruby: String,
         #[content]
         pub total: String,
         pub volume: f64,
@@ -697,6 +704,8 @@ pub mod enji {
         pub together_link: String,
         pub quality: Quality,
         pub show_translation: bool,
+        /// Readings above Japanese characters in lyrics.
+        pub show_furigana: bool,
         /// The playing song's cover, blurred, behind the whole window.
         pub backdrop: bool,
         /// The playing song's encoding under its name.
@@ -856,6 +865,7 @@ pub mod enji {
         /// the account's page (`library`), open its playlist, if it has one.
         fn page_changed(&mut self, library: bool) -> Result<(), CommandError>;
         fn set_show_translation(&mut self, shown: bool) -> Result<(), CommandError>;
+        fn set_show_furigana(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_backdrop(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_show_format(&mut self, shown: bool) -> Result<(), CommandError>;
         /// Download the song at `index` of a list from NetEase: the full

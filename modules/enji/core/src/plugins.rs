@@ -446,6 +446,7 @@ pub fn overlay(spec: &Value) -> bern::overlay::Overlay {
         .flatten()
         .map(|line| bern::overlay::Line {
             text: line["text"].as_str().unwrap_or("").to_string(),
+            ruby: line["ruby"].as_str().unwrap_or("").to_string(),
             size: line["size"].as_f64().unwrap_or(16.0).clamp(6.0, 96.0),
             bold: line["bold"].as_bool().unwrap_or(false),
             color: color(&line["color"]),
