@@ -3,6 +3,7 @@
 
 use serde_json::Value;
 
+#[path = "lyrics/furigana.rs"]
 mod furigana;
 pub use furigana::Ruby;
 
