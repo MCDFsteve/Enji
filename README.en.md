@@ -184,7 +184,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 59be35274dfc07ebc762fefb27aa4d7533497879 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 1a96434c7746b1238e9784a22cf2eb72a8065efe bern-cli
 ```
 
 The source uses unreleased ruby support, so the build tool and `Cargo.toml` pin the same Bern commit. The older published tool does not include this capability.
@@ -209,7 +209,7 @@ The system's media controls have been tried on macOS, the iPhone simulator, the 
 
 USB exclusive output has not been tried with a real USB DAC yet, and word-by-word lyrics on Linux have only been compiled.
 
-Japanese furigana has passed lyric parsing unit tests, native Apple text layout tests, and compilation of both iOS 16/17 front ends. The complete app and on-device appearance have not been verified yet.
+Japanese furigana has passed lyric parsing unit tests, native Apple layout and color regression tests, and compilation of both iOS 16/17 front ends. The complete macOS app has been checked for the furigana toggle and its persistence after restart, colors, and desktop overlay. Font-size transitions and wrapping in a narrow window have also been checked frame by frame for clipping. Appearance on other platforms has not been verified yet.
 
 ## Disclaimer
 

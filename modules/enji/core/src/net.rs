@@ -4255,13 +4255,12 @@ fn sung(s: &mut State) {
     let now = at.map(|i| &s.lyrics[i]).filter(|line| !line.text.trim().is_empty());
     let next = at.and_then(|i| s.lyrics[i + 1..].iter().find(|line| !line.text.trim().is_empty()));
     let (text, translation) = now.map_or_else(Default::default, |line| (line.text.clone(), line.translation.clone()));
-    let next = next.map(|line| line.text.clone()).unwrap_or_default();
     s.lyric_now_ruby = now.map_or_else(String::new, |line| line.ruby.clone());
     s.lyric_next_ruby = next.map_or_else(String::new, |line| line.ruby.clone());
     s.lyric_now_path = now.map_or_else(String::new, |line| line.word_path.clone());
     s.lyric_now = text;
     s.lyric_now_translation = translation;
-    s.lyric_next = next;
+    s.lyric_next = next.map_or_else(String::new, |line| line.text.clone());
     let sung_at = at.unwrap_or(0);
     let words = |line: &&LyricLine| !line.text.trim().is_empty();
     let before: Vec<LyricLine> = s.lyrics[..sung_at].iter().rev().filter(words).take(NEAR_SHOWN_BEFORE).cloned().collect();
@@ -4616,6 +4615,39 @@ fn arrange(songs: &mut [Song], order: &SongOrder) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn current_and_next_lyrics_keep_their_own_readings_and_clear_at_the_end() {
+        let row = |key, text: &str, ruby: &str| super::LyricLine {
+            key, time: key as f64, text: text.into(), translation: "translation".into(),
+            translated: true, current: false, word_path: "0 0 1 2".into(),
+            ruby: ruby.into(), blur: 0.0,
+        };
+        let mut state = super::initial_state();
+        state.lyrics = vec![
+            row(1, "今日", r#"[[0,2,"きょう"]]"#),
+            row(2, " ", ""),
+            row(3, "東京", r#"[[0,2,"とうきょう"]]"#),
+        ];
+        state.line = 1;
+        super::sung(&mut state);
+        assert_eq!(state.lyric_now, "今日");
+        assert_eq!(state.lyric_now_translation, "translation");
+        assert_eq!(state.lyric_now_path, "0 0 1 2");
+        assert_eq!(state.lyric_now_ruby, r#"[[0,2,"きょう"]]"#);
+        assert_eq!(state.lyric_next, "東京");
+        assert_eq!(state.lyric_next_ruby, r#"[[0,2,"とうきょう"]]"#);
+        state.line = 3;
+        super::sung(&mut state);
+        assert_eq!(state.lyric_now_ruby, r#"[[0,2,"とうきょう"]]"#);
+        assert!(state.lyric_next.is_empty());
+        assert!(state.lyric_next_ruby.is_empty());
+        state.lyrics.clear();
+        super::sung(&mut state);
+        assert!(state.lyric_now.is_empty());
+        assert!(state.lyric_now_ruby.is_empty());
+        assert!(state.lyric_now_path.is_empty());
+    }
+
     use super::{grouped, listen_years, medals_of, profile_of, report_address, secure, top_songs};
     use serde_json::{json, Value};
     #[test]
