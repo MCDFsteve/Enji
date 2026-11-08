@@ -184,7 +184,7 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 2819147ecfae9a0c7cfef3481006cb094145f0e3 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 59be35274dfc07ebc762fefb27aa4d7533497879 bern-cli
 ```
 
 当前源码使用尚未发版的注音能力，因此构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；旧版发布的工具不包含这项能力。
@@ -209,7 +209,7 @@ macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 和 iP
 
 USB 独占输出还没有接真的 USB 解码器试过；Linux 版的逐字歌词只通过了编译。
 
-日语假名注音尚未构建或进行实机验证。
+日语假名注音已通过歌词解析单元测试、Apple 原生排版测试及 iOS 16/17 双前端编译；完整应用和设备上的显示效果尚未验证。
 
 ## 免责声明
 
