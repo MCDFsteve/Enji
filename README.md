@@ -184,10 +184,10 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 1a96434c7746b1238e9784a22cf2eb72a8065efe bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev f301ee4d4180896e04d3a0aa13265e4a39ca65f6 bern-cli
 ```
 
-当前源码使用尚未发版的注音能力，因此构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；旧版发布的工具不包含这项能力。
+构建工具与 `Cargo.toml` 固定到同一份 Bern 提交，包含注音字体修复；请使用上面的版本构建当前源码。
 
 然后取得 Enji 并运行：
 
@@ -209,7 +209,9 @@ macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 和 iP
 
 USB 独占输出还没有接真的 USB 解码器试过；Linux 版的逐字歌词只通过了编译。
 
-日语假名注音已通过歌词解析单元测试、Apple 原生排版与颜色回归测试及 iOS 16/17 双前端编译；macOS 完整应用已实际检查注音开关及重启保持、颜色、桌面浮层，并逐帧检查窄窗口内字号切换和换行时的文字完整性。其他平台的实际显示效果尚未验证。
+日语假名注音已通过歌词解析单元测试、Apple 原生排版与颜色回归测试及 iOS 16/17 双前端编译；macOS 完整应用已实际检查注音开关及重启保持、颜色、桌面浮层，并逐帧检查窄窗口内字号切换和换行时的文字完整性。
+
+iPhone 17（iOS 26.5）模拟器已实际检查注音开关、重启保持，以及开关注音时原文字体和字重一致；逐字高亮另用有逐字时间的歌曲逐帧验证。测试的日语歌曲不含逐字时间，尚未覆盖日语注音与逐字高亮同时播放。tvOS 已编译通过，但注音的实际显示效果尚未验证；其余平台的注音显示也未验证。
 
 ## 免责声明
 
