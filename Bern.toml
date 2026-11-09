@@ -3,7 +3,7 @@
 [app]
 id = "enji"
 bundle_id = "com.mcdfsteve.enji"
-version = "0.3.6"
+version = "0.3.7"
 name = { "zh-Hans" = "Enji Music", "en" = "Enji Music" }
 # On iPhone the app's folder shows in the Files app: music put there is the
 # local library.

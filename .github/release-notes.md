@@ -1,3 +1,21 @@
+## 0.3.7 新增
+
+- **日语歌词假名注音**：根据歌曲提供的罗马音，为日语歌词的汉字标注平假名。歌词页、封面下的歌词、电视和桌面歌词共用这项设置，可以在设置里关闭。
+
+## 0.3.7 修正
+
+- **注音跟随歌词高亮**：注音颜色与原文保持一致，换行、字号变化和切换歌词时同步过渡，不改变原文的逐字时间。
+- **原生界面**：更新到 Bern 0.1.11，包含导航、气泡、安全区背景和系统兼容性修正。
+
+## What's new in 0.3.7
+
+- **Japanese lyric readings**: hiragana readings above kanji, aligned from the song's romanized lyrics when available. The lyrics page, cover lyrics, TV and desktop lyrics share the setting, which can be turned off in Settings.
+
+## What's fixed in 0.3.7
+
+- **Readings follow the lyrics**: colours and highlights stay in step with the original text through wrapping, font-size changes and line transitions, without changing its word timing.
+- **Native interface**: updated to Bern 0.1.11, including navigation, popover, safe-area background and compatibility fixes.
+
 ## 0.3.6 修正
 
 - **Windows 切换页面更顺**：推荐、搜索和歌单这类每行都有右键菜单的列表，打开时卡住的时间短了一些。
