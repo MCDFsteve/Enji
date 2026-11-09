@@ -1,3 +1,19 @@
+## 0.3.10 紧急修复
+
+- **Windows 11 歌词页闪退**：修复打开歌词页、开关日语注音时触发的布局循环崩溃。
+- **逐字歌词闪退**：修复部分字形在首字开始高亮时产生负裁剪宽度，导致切歌或打开歌词页立即退出的问题。
+- 注音、逐字高亮和字号动画均保留。建议 Windows 用户尽快更新。
+
+已在 Windows 11 物理机上复现并验证：日语逐字歌词、中文逐字歌词、纯音乐、30 次开关歌词页、20 次开关注音及窗口缩放，同一进程运行超过 11 分钟无新崩溃。此次未运行 Windows 10 应用。
+
+## Emergency fixes in 0.3.10
+
+- **Windows 11 lyrics-page crashes**: fixes a layout cycle when opening lyrics or toggling Japanese readings.
+- **Word-by-word lyrics crashes**: fixes negative clipping widths at the start of certain glyphs, which could close the app when changing songs or opening lyrics.
+- Readings, word-by-word highlighting and font-size animations remain enabled. Windows users are encouraged to update.
+
+Reproduced and verified on a physical Windows 11 PC with Japanese and Chinese word-timed lyrics, instrumental music, 30 page open/close cycles, 20 reading toggles and window resizing. The same process ran for over 11 minutes without a new crash. Windows 10 was not run for this fix.
+
 ## 0.3.9 修正
 
 - **注音不再改变原文字体**：Apple 平台开启日语假名注音时，保留原来的系统字体、字重和中文、日文字形，不再变成细衬线体。
