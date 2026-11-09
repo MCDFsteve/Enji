@@ -184,7 +184,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev f301ee4d4180896e04d3a0aa13265e4a39ca65f6 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 03767176bb2b3b30af41257879e13fe15eba87c2 bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit, including the furigana font fix. Use the version above to build the current source.
@@ -211,7 +211,7 @@ USB exclusive output has not been tried with a real USB DAC yet, and word-by-wor
 
 Japanese furigana has passed lyric parsing unit tests, native Apple layout and color regression tests, and compilation of both iOS 16/17 front ends. The complete macOS app has been checked for the furigana toggle and its persistence after restart, colors, and desktop overlay. Font-size transitions and wrapping in a narrow window have also been checked frame by frame for clipping.
 
-The iPhone 17 simulator (iOS 26.5) has been checked for the furigana toggle, persistence after restart, and consistent base-text fonts and weights with furigana on or off. Word-by-word highlighting was checked frame by frame using a separate song with word timing. The Japanese songs tested had no word timing, so simultaneous Japanese furigana and word-by-word highlighting has not been verified in playback. tvOS compiles, but its furigana appearance has not been verified; furigana appearance on the remaining platforms is also unverified.
+The iPhone 17 simulator (iOS 26.5) has been checked for the furigana toggle, persistence after restart, and consistent base-text fonts and weights with furigana on or off. Word-by-word highlighting was checked frame by frame using a separate song with word timing. The Japanese songs tested had no word timing, so simultaneous Japanese furigana and word-by-word highlighting has not been verified in playback. The Apple TV 4K simulator (tvOS 27.0) has also been checked for the furigana toggle, persistence after restart, and word-by-word highlighting. The corrected TV large title keeps the same base-text size and weight with furigana on or off. Readings need horizontal space of their own, so long readings can still wrap a line earlier. tvOS 18 has only been compiled; furigana appearance on the remaining platforms is unverified.
 
 ## Disclaimer
 

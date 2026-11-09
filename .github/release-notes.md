@@ -1,3 +1,17 @@
+## 0.3.9 修正
+
+- **注音不再改变原文字体**：Apple 平台开启日语假名注音时，保留原来的系统字体、字重和中文、日文字形，不再变成细衬线体。
+- **电视歌词字号一致**：修正 Apple TV 大标题的字号映射，开关注音不再把原文放大。
+
+已在 iPhone 17（iOS 26.5）和 Apple TV 4K（tvOS 27.0）模拟器中实际检查注音开关、重启保持和字体；逐字高亮用另一首有逐字时间的歌曲验证。测试的日语歌曲不含逐字时间，尚未覆盖日语注音与逐字高亮同时播放。长读音需要额外空间，仍可能正常换行。
+
+## What's fixed in 0.3.9
+
+- **Readings keep the original font**: on Apple platforms, Japanese furigana preserves the system font, its weight, and Chinese/Japanese fallback glyphs instead of switching to a thin serif face.
+- **Consistent TV lyric sizes**: corrects the Apple TV large-title mapping so turning furigana on does not enlarge the base text.
+
+The furigana toggle, persistence after restart, and fonts were checked in the iPhone 17 (iOS 26.5) and Apple TV 4K (tvOS 27.0) simulators. Word-by-word highlighting was checked using a separate song with word timing. The Japanese samples had no word timing, so simultaneous furigana and word-by-word playback remains unverified. Long readings need extra space and can still wrap normally.
+
 ## 0.3.8 新增
 
 - **日语歌词假名注音**：根据歌曲提供的罗马音，为日语歌词的汉字标注平假名。歌词页、封面下的歌词、电视和桌面歌词共用这项设置，可以在设置里关闭。
