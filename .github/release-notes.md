@@ -1,20 +1,24 @@
-## 0.3.7 新增
+## 0.3.8 新增
 
 - **日语歌词假名注音**：根据歌曲提供的罗马音，为日语歌词的汉字标注平假名。歌词页、封面下的歌词、电视和桌面歌词共用这项设置，可以在设置里关闭。
 
-## 0.3.7 修正
+## 0.3.8 修正
+
+- **Apple TV 打包**：修正 tvOS 字体映射导致的编译失败，Apple TV 版也包含日语歌词注音。
 
 - **注音跟随歌词高亮**：注音颜色与原文保持一致，换行、字号变化和切换歌词时同步过渡，不改变原文的逐字时间。
-- **原生界面**：更新到 Bern 0.1.11，包含导航、气泡、安全区背景和系统兼容性修正。
+- **原生界面**：更新到 Bern 0.1.12，包含导航、气泡、安全区背景和系统兼容性修正。
 
-## What's new in 0.3.7
+## What's new in 0.3.8
 
 - **Japanese lyric readings**: hiragana readings above kanji, aligned from the song's romanized lyrics when available. The lyrics page, cover lyrics, TV and desktop lyrics share the setting, which can be turned off in Settings.
 
-## What's fixed in 0.3.7
+## What's fixed in 0.3.8
+
+- **Apple TV packaging**: fixes the tvOS font mapping that blocked compilation; the Apple TV version also includes Japanese lyric readings.
 
 - **Readings follow the lyrics**: colours and highlights stay in step with the original text through wrapping, font-size changes and line transitions, without changing its word timing.
-- **Native interface**: updated to Bern 0.1.11, including navigation, popover, safe-area background and compatibility fixes.
+- **Native interface**: updated to Bern 0.1.12, including navigation, popover, safe-area background and compatibility fixes.
 
 ## 0.3.6 修正
 
