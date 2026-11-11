@@ -258,8 +258,8 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bern"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -272,8 +272,8 @@ dependencies = [
 
 [[package]]
 name = "bern-command"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -294,8 +294,8 @@ dependencies = [
 
 [[package]]
 name = "bern-ir"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -304,8 +304,8 @@ dependencies = [
 
 [[package]]
 name = "bern-macros"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -318,16 +318,16 @@ dependencies = [
 
 [[package]]
 name = "bern-media"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-protocol"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "serde",
  "serde_json",
@@ -335,16 +335,16 @@ dependencies = [
 
 [[package]]
 name = "bern-runtime"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-script"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "boa_engine",
  "serde",
@@ -353,8 +353,8 @@ dependencies = [
 
 [[package]]
 name = "bern-syntax"
-version = "0.1.13"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=f1de4e50ca8cd974bf3edab674905f9c83da1afd#f1de4e50ca8cd974bf3edab674905f9c83da1afd"
+version = "0.1.15"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=47820993b1f519b5e4e754a1597867da39c2ee54#47820993b1f519b5e4e754a1597867da39c2ee54"
 dependencies = [
  "bern-media",
  "bern-protocol",
@@ -5060,3 +5060,11 @@ dependencies = [
  "syn 3.0.9",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "bern"
+version = "0.1.15"
+
+[[patch.unused]]
+name = "bern-script"
+version = "0.1.15"

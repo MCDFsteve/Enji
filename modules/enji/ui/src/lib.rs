@@ -1952,8 +1952,13 @@ pub fn phone_now_playing(
                             song_note(app: app)
                             // The sung line, its translation and the next,
                             // while the cover shows in place of the lyrics.
+                            // As tall as the longest of them can be (two sung
+                            // lines and the next, each with its readings, and the
+                            // translation), whatever the line is: the cover
+                            // takes the height left above, so it keeps its size
+                            // from line to line.
                             if app.cover_lyrics {
-                                Column(gap: 3, padding_y: 8, align: leading) {
+                                Column(gap: 3, padding_y: 8, height: 136, align: leading) {
                                     if app.lyric_now != "" {
                                         Text(content: app.lyric_now, ruby: if app.show_furigana { app.lyric_now_ruby } else { "" }, style: callout, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
                                         if app.show_translation && app.lyric_now_translation != "" {
