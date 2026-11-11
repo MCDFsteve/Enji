@@ -1726,7 +1726,7 @@ pub fn mini_player(app: enji::Client, #[session] draft: MainDraft) -> impl View 
 #[component]
 pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -> impl View {
     ui! {
-        Column(gap: 14, padding_x: 28, padding_y: 18) {
+        Column(gap: 6, padding_x: 28, padding_y: 8) {
             phone_progress(app: app, live: live)
             Row(gap: 0, align: center) {
                 Spacer
@@ -1914,7 +1914,7 @@ pub fn phone_now_playing(
                         // What the song and the controls leave, the cover in
                         // its middle: it gives way on a short screen, so
                         // nothing under it moves or is pressed together.
-                        Column(padding_x: 28, align: center) {
+                        Column(gap: 0, padding_x: 28, align: center) {
                             Spacer
                             // A spinner on the cover's place until a picture of
                             // it comes, the small one first, then the sharp one.
@@ -1925,20 +1925,24 @@ pub fn phone_now_playing(
                             // The empty canvas spans the column, so both stand
                             // in its middle.
                             // A plugin's pulses give it a nudge each, as strong as they are.
-                            Stack(nudge_key: pulse.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
-                                Stack(nudge_key: pulse.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
-                                    Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
-                                        Canvas {}
-                                        Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
-                                        // Only while a picture is coming: a song
-                                        // without one keeps the place.
-                                        if song.artwork.url != "" {
-                                            Progress
+                            Row(gap: 0, align: center) {
+                                Spacer
+                                Stack(nudge_key: pulse.cover_pulse_strong, nudge_scale: 1.055, nudge_motion: beat) {
+                                    Stack(nudge_key: pulse.cover_pulse, nudge_scale: 1.035, nudge_motion: beat) {
+                                        Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.018, nudge_motion: beat) {
+                                            Canvas {}
+                                            Image(source: "assets/cover-place.png", aspect: 1, fit: cover, corner: 18)
+                                            // Only while a picture is coming: a song
+                                            // without one keeps the place.
+                                            if song.artwork.url != "" {
+                                                Progress
+                                            }
+                                            Image(source: song.cover, aspect: 1, fit: cover, corner: 18)
+                                            Image(source: song.artwork, aspect: 1, fit: cover, corner: 18, glow: 1.05, glow_opacity: 0.22)
                                         }
-                                        Image(source: song.cover, aspect: 1, fit: cover, corner: 18)
-                                        Image(source: song.artwork, aspect: 1, fit: cover, corner: 18, glow: 1.05, glow_opacity: 0.22)
                                     }
                                 }
+                                Spacer
                             }
                             Spacer
                         }
@@ -1950,16 +1954,17 @@ pub fn phone_now_playing(
                             }
                             Text(content: song.artists, style: headline, emphasis: secondary, lines: 1)
                             song_note(app: app)
-                            // The sung line, its translation and the next,
-                            // while the cover shows in place of the lyrics.
+                            // Two rows only: the current line and its translation,
+                            // or the next line when no translation is shown.
+                            // Keep room for readings without stealing a whole
+                            // paragraph's height from the cover.
                             if app.cover_lyrics {
-                                Column(gap: 3, padding_y: 8, align: leading) {
+                                Column(gap: 2, padding_y: 4, height: 68, align: leading) {
                                     if app.lyric_now != "" {
-                                        Text(content: app.lyric_now, ruby: if app.show_furigana { app.lyric_now_ruby } else { "" }, style: callout, bold: true, lines: 2, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
+                                        Text(content: app.lyric_now, ruby: if app.show_furigana { app.lyric_now_ruby } else { "" }, style: callout, bold: true, lines: 1, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
                                         if app.show_translation && app.lyric_now_translation != "" {
                                             Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
-                                        }
-                                        if app.lyric_next != "" {
+                                        } else if app.lyric_next != "" {
                                             Text(content: app.lyric_next, ruby: if app.show_furigana { app.lyric_next_ruby } else { "" }, style: footnote, emphasis: tertiary, lines: 1)
                                         }
                                     }

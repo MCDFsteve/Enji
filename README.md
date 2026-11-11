@@ -184,10 +184,10 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 03767176bb2b3b30af41257879e13fe15eba87c2 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 47820993b1f519b5e4e754a1597867da39c2ee54 bern-cli
 ```
 
-构建工具与 `Cargo.toml` 固定到同一份 Bern 提交，包含注音字体修复；请使用上面的版本构建当前源码。
+构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；请使用上面的版本构建当前源码。
 
 然后取得 Enji 并运行：
 

@@ -184,10 +184,10 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 03767176bb2b3b30af41257879e13fe15eba87c2 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 47820993b1f519b5e4e754a1597867da39c2ee54 bern-cli
 ```
 
-The build tool and `Cargo.toml` pin the same Bern commit, including the furigana font fix. Use the version above to build the current source.
+The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.
 
 Then get Enji and run it:
 
