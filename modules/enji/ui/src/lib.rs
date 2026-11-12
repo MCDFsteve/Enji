@@ -1911,10 +1911,23 @@ pub fn phone_now_playing(
                             Panel::Details => { details_panel(app: app) }
                         }
                     } else {
-                        // What the song and the controls leave, the cover in
-                        // its middle: it gives way on a short screen, so
-                        // nothing under it moves or is pressed together.
+                        // The cover keeps its available size; only the free
+                        // space around it changes its distribution.
                         Column(gap: 0, padding_x: 28, align: center) {
+                            // Equal spacer shares: 13 above and 7 below keep
+                            // the old lower gap at 70%, without resizing the cover.
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
                             Spacer
                             // A spinner on the cover's place until a picture of
                             // it comes, the small one first, then the sharp one.
@@ -1945,6 +1958,12 @@ pub fn phone_now_playing(
                                 Spacer
                             }
                             Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
+                            Spacer
                         }
                         Column(gap: 4, padding_x: 28, align: leading) {
                             Row(gap: 10, align: center) {
@@ -1961,11 +1980,17 @@ pub fn phone_now_playing(
                             if app.cover_lyrics {
                                 Column(gap: 2, padding_y: 4, height: 68, align: leading) {
                                     if app.lyric_now != "" {
-                                        Text(content: app.lyric_now, ruby: if app.show_furigana { app.lyric_now_ruby } else { "" }, style: callout, bold: true, lines: 1, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
-                                        if app.show_translation && app.lyric_now_translation != "" {
-                                            Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
-                                        } else if app.lyric_next != "" {
-                                            Text(content: app.lyric_next, ruby: if app.show_furigana { app.lyric_next_ruby } else { "" }, style: footnote, emphasis: tertiary, lines: 1)
+                                        // Bottom-aligned slots keep both baselines
+                                        // steady when readings appear or disappear.
+                                        Stack(height: 32, align: bottom_leading) {
+                                            Text(content: app.lyric_now, ruby: if app.show_furigana { app.lyric_now_ruby } else { "" }, style: callout, bold: true, lines: 1, lit: sung.lyric_lit, lit_path: app.lyric_now_path, lit_clock: sung.lyric_clock, lit_since: sung.lyric_since)
+                                        }
+                                        Stack(height: 24, align: bottom_leading) {
+                                            if app.show_translation && app.lyric_now_translation != "" {
+                                                Text(content: app.lyric_now_translation, style: footnote, emphasis: secondary, lines: 1)
+                                            } else if app.lyric_next != "" {
+                                                Text(content: app.lyric_next, ruby: if app.show_furigana { app.lyric_next_ruby } else { "" }, style: footnote, emphasis: tertiary, lines: 1)
+                                            }
                                         }
                                     }
                                 }
