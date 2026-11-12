@@ -57,6 +57,10 @@ pub enum Job {
     ShowPanel(Panel),
     TogglePanel(Panel),
     MoreComments,
+    SetCommentsEnabled(bool),
+    SetDetailsEnabled(bool),
+    CommentsLoaded { song: i64, generation: u64, page: u32, result: Result<Value, String> },
+    DetailsLoaded { song: i64, generation: u64, album: Value, artist: Value },
     SetQuality(Quality),
     SetOrder(SongOrder),
     SetShowPlays(bool),
@@ -192,7 +196,10 @@ pub enum Job {
 
 /// The state at launch, with the settings saved last.
 pub fn initial_state() -> State {
-    let saved = store::settings();
+    state_from_settings(&store::settings())
+}
+
+fn state_from_settings(saved: &Value) -> State {
     let pick = |name: &str| saved[name].as_str().unwrap_or("").to_string();
     let state = State {
         login: Login::Out,
@@ -329,6 +336,8 @@ pub fn initial_state() -> State {
         browsing: false,
         panel: Panel::Lyrics,
         panel_open: false,
+        comments_enabled: saved["comments_enabled"].as_bool().unwrap_or(true),
+        details_enabled: saved["details_enabled"].as_bool().unwrap_or(true),
         comments: Vec::new(),
         comments_total: 0,
         comments_loading: false,
@@ -394,7 +403,11 @@ pub fn initial_state() -> State {
 
 /// The settings of `state` as they are kept.
 fn save_settings(state: &State) {
-    store::save_settings(&serde_json::json!({
+    store::save_settings(&settings_value(state));
+}
+
+fn settings_value(state: &State) -> Value {
+    serde_json::json!({
         "volume": state.volume,
         "mode": format!("{:?}", state.mode),
         "quality": format!("{:?}", state.quality),
@@ -411,6 +424,8 @@ fn save_settings(state: &State) {
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
         "online_info": state.online_info,
+        "comments_enabled": state.comments_enabled,
+        "details_enabled": state.details_enabled,
         "report_listening": state.report_listening,
         "annual_report": state.annual_report,
         "on_close": format!("{:?}", state.on_close),
@@ -421,7 +436,7 @@ fn save_settings(state: &State) {
         "order": format!("{:?}", state.order),
         "show_plays": state.show_plays,
         "default_playlist": state.default_playlist,
-    }));
+    })
 }
 
 /// How long to wait before each new try at a song's address, all told a
@@ -568,6 +583,8 @@ struct Worker {
     comments_for: i64,
     comments_page: u32,
     details_for: i64,
+    comments_generation: u64,
+    details_generation: u64,
     /// The songs the account likes.
     liked: std::collections::HashSet<i64>,
     /// The volume before muting, to come back to.
@@ -753,6 +770,8 @@ pub async fn run(
         comments_for: 0,
         comments_page: 0,
         details_for: 0,
+        comments_generation: 0,
+        details_generation: 0,
         liked: Default::default(),
         unmuted: 0.8,
         library: local::Library::load(),
@@ -1144,10 +1163,16 @@ impl Worker {
                 }
             }
             Job::ShowPanel(panel) => {
+                if !self.shared.read(|s| panel_allowed(s, &panel)) {
+                    return;
+                }
                 self.shared.update(|s| s.panel = if s.panel == panel { Panel::Lyrics } else { panel });
                 self.load_panel();
             }
             Job::TogglePanel(panel) => {
+                if !self.shared.read(|s| panel_allowed(s, &panel)) {
+                    return;
+                }
                 self.shared.update(|s| {
                     if s.panel_open && s.panel == panel {
                         s.panel_open = false;
@@ -1158,12 +1183,48 @@ impl Worker {
                 });
                 self.load_panel();
             }
+            Job::SetCommentsEnabled(on) => self.set_panel_feature(Panel::Comments, on),
+            Job::SetDetailsEnabled(on) => self.set_panel_feature(Panel::Details, on),
             Job::MoreComments => {
-                let song = self.shared.read(|s| s.current.as_ref().map_or(0, |song| song.id));
-                if song != 0 && song == self.comments_for {
-                    self.comments_page += 1;
-                    self.load_comments(song, self.comments_page);
+                let song = self.shared.read(|s| {
+                    (panel_allowed(s, &Panel::Comments) && !s.comments_loading && s.comments_more)
+                        .then_some(s.current_id)
+                });
+                if let Some(song) = song.filter(|song| *song > 0 && *song == self.comments_for) {
+                    self.load_comments(song, self.comments_page + 1);
                 }
+            }
+            Job::CommentsLoaded { song, generation, page, result } => {
+                if !self.shared.read(|s| panel_response_current(s, &Panel::Comments, song, generation, self.comments_generation))
+                {
+                    return;
+                }
+                match result {
+                    Ok(data) => {
+                        self.comments_page = page;
+                        self.shared.update(|s| {
+                            let more: Vec<_> = data["comments"].as_array()
+                                .map(|all| all.iter().map(convert::comment).collect()).unwrap_or_default();
+                            if page == 1 { s.comments = more; } else { s.comments.extend(more); }
+                            s.comments_total = data["totalCount"].as_i64().unwrap_or(s.comments.len() as i64);
+                            s.comments_more = data["hasMore"].as_bool().unwrap_or(false);
+                            s.comments_loading = false;
+                        });
+                    }
+                    Err(message) => {
+                        if page == 1 { self.comments_for = 0; }
+                        self.shared.update(|s| s.comments_loading = false);
+                        self.shared.fail(format!("评论加载失败：{message}"));
+                    }
+                }
+            }
+            Job::DetailsLoaded { song, generation, album, artist } => {
+                self.shared.update(|s| {
+                    if panel_response_current(s, &Panel::Details, song, generation, self.details_generation) {
+                        s.details = Some(convert::details(&album, &artist));
+                        s.details_loading = false;
+                    }
+                });
             }
             Job::SetOrder(order) => self.shared.update(|s| {
                 arrange(&mut s.opened_songs, &order);
@@ -1244,7 +1305,18 @@ impl Worker {
             Job::Downloaded { song, path } => {
                 let url = local::file_url(&path);
                 self.downloaded.insert(url.clone(), downloads::Origin { id: song.id, album: song.album_id, artist: song.artist_id });
+                for queued in &mut self.queue {
+                    downloaded_copy(queued, song.id, &url);
+                }
                 self.shared.update(|s| {
+                    if let Some(current) = &mut s.current {
+                        downloaded_copy(current, song.id, &url);
+                    }
+                    for list in [&mut s.queue, &mut s.opened_songs, &mut s.album_songs, &mut s.artist_songs] {
+                        for listed in list {
+                            downloaded_copy(listed, song.id, &url);
+                        }
+                    }
                     s.downloads.retain(|download| download.id != song.id);
                     downloads_changed(s);
                 });
@@ -1712,6 +1784,10 @@ impl Worker {
                     }
                     save_settings(s);
                 });
+                if !on {
+                    self.invalidate_panel(Panel::Comments);
+                    self.invalidate_panel(Panel::Details);
+                }
                 self.publish_history();
                 if on {
                     if store::cookie().is_some() && self.uid == 0 {
@@ -3059,7 +3135,10 @@ impl Worker {
             stream.cancel();
         }
         self.comments_for = 0;
+        self.comments_page = 0;
         self.details_for = 0;
+        self.comments_generation += 1;
+        self.details_generation += 1;
         let quality = self.shared.read(|s| s.quality.clone());
         let liked = self.liked.contains(&song.id);
         self.shared.update(|s| {
@@ -3075,7 +3154,9 @@ impl Worker {
             s.comments.clear();
             s.comments_total = 0;
             s.comments_more = false;
+            s.comments_loading = false;
             s.details = None;
+            s.details_loading = false;
             s.preview = false;
             s.playing = false;
             s.buffering = true;
@@ -3883,14 +3964,47 @@ impl Worker {
 
     // MARK: Comments and details
 
+    fn set_panel_feature(&mut self, panel: Panel, on: bool) {
+        self.shared.update(|s| {
+            match panel {
+                Panel::Comments => s.comments_enabled = on,
+                Panel::Details => s.details_enabled = on,
+                Panel::Lyrics => return,
+            }
+            save_settings(s);
+        });
+        if !on {
+            self.invalidate_panel(panel);
+        }
+    }
+
+    fn invalidate_panel(&mut self, panel: Panel) {
+        match panel {
+            Panel::Comments => {
+                self.comments_generation += 1;
+                self.comments_for = 0;
+                self.comments_page = 0;
+            }
+            Panel::Details => {
+                self.details_generation += 1;
+                self.details_for = 0;
+            }
+            Panel::Lyrics => return,
+        }
+        self.shared.update(|s| clear_panel(s, &panel));
+    }
+
     /// What the panel beside the cover shows, loaded for the playing song.
     fn load_panel(&mut self) {
         let (panel, song) = self.shared.read(|s| (s.panel.clone(), s.current.clone()));
+        if !self.shared.read(|s| panel_allowed(s, &panel)) {
+            return;
+        }
         let Some(song) = song.filter(|song| song.id > 0) else { return };
         match panel {
             Panel::Comments if self.comments_for != song.id => {
                 self.comments_for = song.id;
-                self.comments_page = 1;
+                self.comments_page = 0;
                 self.load_comments(song.id, 1);
             }
             Panel::Details if self.details_for != song.id => {
@@ -3901,10 +4015,14 @@ impl Worker {
         }
     }
 
-    fn load_comments(&self, song: i64, page: u32) {
-        let client = enji_kit::client();
-        let shared = self.shared.clone();
-        shared.update(|s| s.comments_loading = true);
+    fn load_comments(&mut self, song: i64, page: u32) {
+        if !self.shared.read(|s| panel_result_current(s, &Panel::Comments, song)) {
+            return;
+        }
+        self.comments_generation += 1;
+        let generation = self.comments_generation;
+        let (client, jobs) = (enji_kit::client(), self.jobs.clone());
+        self.shared.update(|s| s.comments_loading = true);
         tokio::spawn(async move {
             let query = Query::new()
                 .param("type", "0")
@@ -3912,52 +4030,28 @@ impl Worker {
                 .param("sortType", "2")
                 .param("pageNo", &param(page))
                 .param("pageSize", "30");
-            let found = client.comment_new(&query).await;
-            let playing = |s: &State| s.current.as_ref().is_some_and(|c| c.id == song);
-            match found {
-                Ok(r) => shared.update(|s| {
-                    if !playing(s) {
-                        return;
-                    }
-                    let data = &r.body["data"];
-                    let more: Vec<_> = data["comments"]
-                        .as_array()
-                        .map(|all| all.iter().map(convert::comment).collect())
-                        .unwrap_or_default();
-                    if page == 1 {
-                        s.comments = more;
-                    } else {
-                        s.comments.extend(more);
-                    }
-                    s.comments_total = data["totalCount"].as_i64().unwrap_or(s.comments.len() as i64);
-                    s.comments_more = data["hasMore"].as_bool().unwrap_or(false);
-                    s.comments_loading = false;
-                }),
-                Err(e) => {
-                    shared.update(|s| s.comments_loading = false);
-                    shared.fail(format!("评论加载失败：{e}"));
-                }
-            }
+            let result = client.comment_new(&query).await
+                .map(|r| r.body["data"].clone()).map_err(|e| e.to_string());
+            let _ = jobs.send(Job::CommentsLoaded { song, generation, page, result });
         });
     }
 
-    fn load_details(&self, song: &Song) {
-        let client = enji_kit::client();
-        let shared = self.shared.clone();
+    fn load_details(&mut self, song: &Song) {
+        if !self.shared.read(|s| panel_result_current(s, &Panel::Details, song.id)) {
+            return;
+        }
+        self.details_generation += 1;
+        let generation = self.details_generation;
+        let (client, jobs) = (enji_kit::client(), self.jobs.clone());
         let (id, album, artist) = (song.id, param(song.album_id), param(song.artist_id));
-        shared.update(|s| s.details_loading = true);
+        self.shared.update(|s| s.details_loading = true);
         tokio::spawn(async move {
             let album_query = Query::new().param("id", &album);
             let artist_query = Query::new().param("id", &artist);
             let (album, artist) = tokio::join!(client.album(&album_query), client.artists(&artist_query));
             let album = album.map(|r| r.body["album"].clone()).unwrap_or(Value::Null);
             let artist = artist.map(|r| r.body["artist"].clone()).unwrap_or(Value::Null);
-            shared.update(|s| {
-                if s.current.as_ref().is_some_and(|c| c.id == id) {
-                    s.details = Some(convert::details(&album, &artist));
-                    s.details_loading = false;
-                }
-            });
+            let _ = jobs.send(Job::DetailsLoaded { song: id, generation, album, artist });
         });
     }
 
@@ -4574,6 +4668,50 @@ fn show_opened(s: &mut State, id: i64, info: &Value, mut songs: Vec<Song>, uid: 
     s.opened_loading = false;
 }
 
+/// Publish the successful file before a library scan can finish.
+fn downloaded_copy(song: &mut Song, id: i64, url: &str) {
+    if song.id == id && song.file.is_empty() {
+        song.file = url.to_string();
+        song.downloaded = true;
+    }
+}
+
+fn panel_allowed(s: &State, panel: &Panel) -> bool {
+    match panel {
+        Panel::Lyrics => true,
+        Panel::Comments => s.netease && s.comments_enabled,
+        Panel::Details => s.netease && s.details_enabled,
+    }
+}
+
+fn panel_result_current(s: &State, panel: &Panel, song: i64) -> bool {
+    panel_allowed(s, panel) && song > 0 && s.current_id == song
+}
+
+fn panel_response_current(s: &State, panel: &Panel, song: i64, generation: u64, expected: u64) -> bool {
+    generation == expected && panel_result_current(s, panel, song)
+}
+
+fn clear_panel(s: &mut State, panel: &Panel) {
+    if &s.panel == panel {
+        s.panel = Panel::Lyrics;
+        s.panel_open = false;
+    }
+    match panel {
+        Panel::Comments => {
+            s.comments.clear();
+            s.comments_total = 0;
+            s.comments_more = false;
+            s.comments_loading = false;
+        }
+        Panel::Details => {
+            s.details = None;
+            s.details_loading = false;
+        }
+        Panel::Lyrics => {}
+    }
+}
+
 /// What is downloading as the lists show it, and how far the playing song is.
 fn downloads_changed(s: &mut State) {
     s.has_downloads = !s.downloads.is_empty();
@@ -4750,6 +4888,82 @@ mod tests {
             added,
             place,
         }
+    }
+
+    #[test]
+    fn panel_features_default_on_and_keep_independent_preferences() {
+        let defaults = super::state_from_settings(&json!({}));
+        assert!(defaults.comments_enabled && defaults.details_enabled);
+        let kept = super::state_from_settings(&json!({"comments_enabled": false, "details_enabled": true}));
+        assert!(!kept.comments_enabled && kept.details_enabled);
+        let kept = super::state_from_settings(&json!({"comments_enabled": true, "details_enabled": false}));
+        assert!(kept.comments_enabled && !kept.details_enabled);
+        for comments in [false, true] {
+            for details in [false, true] {
+                let mut state = super::state_from_settings(&json!({}));
+                state.comments_enabled = comments;
+                state.details_enabled = details;
+                let restored = super::state_from_settings(&super::settings_value(&state));
+                assert_eq!((restored.comments_enabled, restored.details_enabled), (comments, details));
+            }
+        }
+    }
+
+    #[test]
+    fn disabling_a_panel_closes_it_and_invalidates_its_results() {
+        use super::{Panel, clear_panel, panel_allowed, panel_response_current};
+        let mut state = super::state_from_settings(&json!({}));
+        state.current_id = 42;
+        state.panel = Panel::Comments;
+        state.panel_open = true;
+        state.comments_loading = true;
+        state.comments_more = true;
+        state.comments_total = 30;
+        assert!(panel_response_current(&state, &Panel::Comments, 42, 1, 1));
+        state.comments_enabled = false;
+        clear_panel(&mut state, &Panel::Comments);
+        assert_eq!(state.panel, Panel::Lyrics);
+        assert!(!state.panel_open && !state.comments_loading && !state.comments_more);
+        assert_eq!(state.comments_total, 0);
+        assert!(!panel_allowed(&state, &Panel::Comments));
+        assert!(panel_allowed(&state, &Panel::Details));
+        assert!(!panel_response_current(&state, &Panel::Comments, 42, 1, 1));
+        state.comments_enabled = true;
+        assert!(!panel_response_current(&state, &Panel::Comments, 42, 1, 2));
+        assert!(!panel_response_current(&state, &Panel::Comments, 41, 2, 2));
+        assert!(panel_response_current(&state, &Panel::Comments, 42, 2, 2));
+        state.panel = Panel::Details;
+        state.details_loading = true;
+        state.details_enabled = false;
+        clear_panel(&mut state, &Panel::Details);
+        assert_eq!(state.panel, Panel::Lyrics);
+        assert!(!state.details_loading);
+        assert!(!panel_allowed(&state, &Panel::Details));
+    }
+
+    #[test]
+    fn only_successful_downloads_mark_the_matching_remote_song() {
+        let mut track = song(0, "a", "artist", 0, 0);
+        super::downloaded_copy(&mut track, 2, "file:///downloads/other.flac");
+        assert!(!track.downloaded && track.file.is_empty());
+        super::downloaded_copy(&mut track, 1, "file:///downloads/a.flac");
+        assert!(track.downloaded);
+        assert_eq!(track.file, "file:///downloads/a.flac");
+        let mut imported = song(0, "a", "artist", 0, 0);
+        imported.file = "file:///music/a.flac".into();
+        super::downloaded_copy(&mut imported, 1, "file:///downloads/a.flac");
+        assert!(!imported.downloaded);
+        assert_eq!(imported.file, "file:///music/a.flac");
+        let mut state = super::state_from_settings(&json!({}));
+        state.current_id = 1;
+        state.current = Some(song(0, "a", "artist", 0, 0));
+        state.downloads.push(super::Download { id: 1, name: "a".into(), artists: "artist".into(), progress: 1.0 });
+        super::downloads_changed(&mut state);
+        assert!(state.current_downloading);
+        assert!(!state.current.as_ref().unwrap().downloaded, "100 percent is not successful completion");
+        state.downloads.clear();
+        super::downloads_changed(&mut state);
+        assert!(!state.current_downloading && state.current_download == 0.0);
     }
 
     #[test]

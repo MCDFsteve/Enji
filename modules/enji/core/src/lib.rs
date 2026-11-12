@@ -264,6 +264,12 @@ impl enji::Commands for EnjiEngine {
     fn toggle_panel(&mut self, panel: Panel) -> Result<(), CommandError> {
         self.submit(Job::TogglePanel(panel))
     }
+    fn set_comments_enabled(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetCommentsEnabled(on))
+    }
+    fn set_details_enabled(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetDetailsEnabled(on))
+    }
     fn more_comments(&mut self) -> Result<(), CommandError> {
         self.submit(Job::MoreComments)
     }

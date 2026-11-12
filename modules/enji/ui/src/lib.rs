@@ -1752,27 +1752,28 @@ pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -
                     IconButton(id: phone_lyrics_off, icon: "quote.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
                 }
                 if app.current_id > 0 {
-                    Spacer
-                    if app.panel_open && app.panel == Panel::Comments {
-                        IconButton(id: phone_comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
-                    } else {
-                        IconButton(id: phone_comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
-                    }
-                    Spacer
-                    if app.panel_open && app.panel == Panel::Details {
-                        IconButton(id: phone_details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
-                    } else {
-                        IconButton(id: phone_details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.toggle_panel(Panel::Details)
-                    }
-                    if song.file == "" {
+                    if app.netease && app.comments_enabled {
                         Spacer
-                        // How far it is, over the symbol's own circle.
-                        Stack {
-                            IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
-                            if app.current_downloading {
-                                Progress(value: app.current_download, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" }, style: ring, width: 19.3, stroke_width: 3)
-                            }
+                        if app.panel_open && app.panel == Panel::Comments {
+                            IconButton(id: phone_comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
+                        } else {
+                            IconButton(id: phone_comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
                         }
+                    }
+                    if app.netease && app.details_enabled {
+                        Spacer
+                        if app.panel_open && app.panel == Panel::Details {
+                            IconButton(id: phone_details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.toggle_panel(Panel::Details)
+                        } else {
+                            IconButton(id: phone_details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.toggle_panel(Panel::Details)
+                        }
+                    }
+                    if song.file == "" || song.downloaded {
+                        Spacer
+                        IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
+                            icon_progress: if song.downloaded { 1.0 } else { app.current_download },
+                            badge_icon: "checkmark", badge_visible: song.downloaded,
+                            label: if song.downloaded { tr! { "zh-Hans" => "已下载", "en" => "Downloaded" } } else { tr! { "zh-Hans" => "下载", "en" => "Download" } }) => app.download_current()
                     }
                 }
                 Spacer
@@ -2089,23 +2090,25 @@ pub fn now_playing(
                                 IconButton(id: lyrics_off, icon: "quote.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.show_panel(Panel::Lyrics)
                             }
                             if app.current_id > 0 {
-                                if app.panel == Panel::Comments {
-                                    IconButton(id: comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.show_panel(Panel::Comments)
-                                } else {
-                                    IconButton(id: comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论", "en" => "Comments" }) => app.show_panel(Panel::Comments)
-                                }
-                                if app.panel == Panel::Details {
-                                    IconButton(id: details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.show_panel(Panel::Details)
-                                } else {
-                                    IconButton(id: details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "详情", "en" => "Details" }) => app.show_panel(Panel::Details)
-                                }
-                                if song.file == "" {
-                                    Stack {
-                                        IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
-                                        if app.current_downloading {
-                                            Progress(value: app.current_download, label: tr! { "zh-Hans" => "下载进度", "en" => "Download Progress" }, style: ring, width: 19.3, stroke_width: 3)
-                                        }
+                                if app.netease && app.comments_enabled {
+                                    if app.panel == Panel::Comments {
+                                        IconButton(id: comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.show_panel(Panel::Comments)
+                                    } else {
+                                        IconButton(id: comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.show_panel(Panel::Comments)
                                     }
+                                }
+                                if app.netease && app.details_enabled {
+                                    if app.panel == Panel::Details {
+                                        IconButton(id: details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.show_panel(Panel::Details)
+                                    } else {
+                                        IconButton(id: details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.show_panel(Panel::Details)
+                                    }
+                                }
+                                if song.file == "" || song.downloaded {
+                                    IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
+                                        icon_progress: if song.downloaded { 1.0 } else { app.current_download },
+                                        badge_icon: "checkmark", badge_visible: song.downloaded,
+                                        label: if song.downloaded { tr! { "zh-Hans" => "已下载", "en" => "Downloaded" } } else { tr! { "zh-Hans" => "下载", "en" => "Download" } }) => app.download_current()
                                 }
                             }
                             if app.desktop_lyrics_supported {
@@ -3004,6 +3007,32 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                     Spacer
                                     Switch(id: annual_report, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, label_hidden: true, checked: app.annual_report, style: switch) => app.set_annual_report(app.annual_report)
                                 }
+                            }
+                        }
+                        if app.netease {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "评论区", "en" => "Comments" }, icon: "text.bubble", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "评论区", "en" => "Comments" })
+                                Spacer
+                                Switch(id: comments_enabled, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }, label_hidden: true, checked: app.comments_enabled, style: switch) => app.set_comments_enabled(app.comments_enabled)
+                            }
+                        }
+                        if app.netease {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }, icon: "info.circle", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" })
+                                Spacer
+                                Switch(id: details_enabled, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }, label_hidden: true, checked: app.details_enabled, style: switch) => app.set_details_enabled(app.details_enabled)
                             }
                         }
                         if app.netease {
