@@ -648,6 +648,9 @@ pub mod enji {
         pub panel: Panel,
         /// On a phone, the panel shows in place of the cover.
         pub panel_open: bool,
+        /// Comments and song information are offered in the player.
+        pub comments_enabled: bool,
+        pub details_enabled: bool,
         pub comments: Vec<Comment>,
         pub comments_total: i64,
         pub comments_loading: bool,
@@ -835,6 +838,8 @@ pub mod enji {
         /// On a phone: show `panel` in place of the cover; shown already, the
         /// cover again.
         fn toggle_panel(&mut self, panel: Panel) -> Result<(), CommandError>;
+        fn set_comments_enabled(&mut self, on: bool) -> Result<(), CommandError>;
+        fn set_details_enabled(&mut self, on: bool) -> Result<(), CommandError>;
         /// The next page of comments.
         fn more_comments(&mut self) -> Result<(), CommandError>;
         fn set_quality(&mut self, quality: Quality) -> Result<(), CommandError>;
