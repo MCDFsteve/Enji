@@ -1770,10 +1770,15 @@ pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -
                     }
                     if song.file == "" || song.downloaded {
                         Spacer
-                        IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
-                            icon_progress: if song.downloaded { 1.0 } else { app.current_download },
-                            badge_icon: "checkmark", badge_visible: song.downloaded,
-                            label: if song.downloaded { tr! { "zh-Hans" => "已下载", "en" => "Downloaded" } } else { tr! { "zh-Hans" => "下载", "en" => "Download" } }) => app.download_current()
+                        if song.downloaded {
+                            Stack(variant: quiet) {
+                                Label(title: tr! { "zh-Hans" => "在本地", "en" => "On This Device" }, icon: "folder", display: icon, font_size: 18)
+                            }
+                        } else {
+                            IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
+                                icon_progress: app.current_download,
+                                label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                        }
                     }
                 }
                 Spacer
@@ -2105,10 +2110,15 @@ pub fn now_playing(
                                     }
                                 }
                                 if song.file == "" || song.downloaded {
-                                    IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
-                                        icon_progress: if song.downloaded { 1.0 } else { app.current_download },
-                                        badge_icon: "checkmark", badge_visible: song.downloaded,
-                                        label: if song.downloaded { tr! { "zh-Hans" => "已下载", "en" => "Downloaded" } } else { tr! { "zh-Hans" => "下载", "en" => "Download" } }) => app.download_current()
+                                    if song.downloaded {
+                                        Stack(variant: quiet) {
+                                            Label(title: tr! { "zh-Hans" => "在本地", "en" => "On This Device" }, icon: "folder", display: icon, font_size: 18)
+                                        }
+                                    } else {
+                                        IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
+                                            icon_progress: app.current_download,
+                                            label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
+                                    }
                                 }
                             }
                             if app.desktop_lyrics_supported {
