@@ -725,6 +725,8 @@ pub mod enji {
         pub desktop_lyrics_locked: bool,
         /// This system shows desktop lyrics.
         pub desktop_lyrics_supported: bool,
+        /// On Windows, the sung line on a connected speaker with a screen.
+        pub speaker_lyrics: bool,
         /// A phone: its playing page can show the sung line under the
         /// cover, and its desktop lyrics, with no pointer over them, unlock
         /// in Settings.
@@ -906,6 +908,7 @@ pub mod enji {
         fn set_hot_search(&mut self, on: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;
+        fn set_speaker_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;
         fn dismiss_error(&mut self) -> Result<(), CommandError>;
         /// The songs a module lists under `source`, so the commands that
