@@ -3,7 +3,10 @@
 
 use bern::prelude::*;
 use enji_protocol::enji::{self, Detail, Login, Source};
-use enji_ui::{detail_view, detail_view_props, playlist_card, playlist_card_props, song_row, song_row_props};
+use enji_ui::{
+    detail_view, detail_view_props, playlist_card, playlist_card_props, song_row, song_row_props,
+    watch_playlist_row, watch_playlist_row_props,
+};
 use recommend_protocol::recommend::{self, DayPart};
 
 /// The page, or what was opened from it over it.
@@ -14,6 +17,27 @@ pub fn recommend_page(app: enji::Client, recommend: recommend::Client) -> impl V
             detail_view(app: app)
         } else {
             home_page(app: app, recommend: recommend)
+        }
+    }
+}
+
+#[component]
+pub fn watch_greeting(app: enji::Client, recommend: recommend::Client) -> impl View {
+    ui! {
+        if app.nickname == "" {
+            match recommend.day_part {
+                DayPart::Morning => { Text(content: tr! { "zh-Hans" => "早上好", "en" => "Good Morning" }, style: headline, bold: true) }
+                DayPart::Noon => { Text(content: tr! { "zh-Hans" => "中午好", "en" => "Hello" }, style: headline, bold: true) }
+                DayPart::Afternoon => { Text(content: tr! { "zh-Hans" => "下午好", "en" => "Good Afternoon" }, style: headline, bold: true) }
+                DayPart::Evening => { Text(content: tr! { "zh-Hans" => "晚上好", "en" => "Good Evening" }, style: headline, bold: true) }
+            }
+        } else {
+            match recommend.day_part {
+                DayPart::Morning => { Text(content: tr! { "zh-Hans" => "早上好，{name}", "en" => "Good Morning, {name}"; name: app.nickname }, style: headline, bold: true) }
+                DayPart::Noon => { Text(content: tr! { "zh-Hans" => "中午好，{name}", "en" => "Hello, {name}"; name: app.nickname }, style: headline, bold: true) }
+                DayPart::Afternoon => { Text(content: tr! { "zh-Hans" => "下午好，{name}", "en" => "Good Afternoon, {name}"; name: app.nickname }, style: headline, bold: true) }
+                DayPart::Evening => { Text(content: tr! { "zh-Hans" => "晚上好，{name}", "en" => "Good Evening, {name}"; name: app.nickname }, style: headline, bold: true) }
+            }
         }
     }
 }
@@ -43,33 +67,71 @@ pub fn greeting(app: enji::Client, recommend: recommend::Client) -> impl View {
 #[component]
 pub fn home_page(app: enji::Client, recommend: recommend::Client) -> impl View {
     ui! {
-        ScrollView {
-            Column(gap: 20, padding: if window.compact { 18 } else { 32 }) {
-                greeting(app: app, recommend: recommend)
-                if app.login == Login::In {
-                    Row {
-                        Button(id: play_fm, label: tr! { "zh-Hans" => "私人漫游", "en" => "Roaming" }, icon: "dot.radiowaves.left.and.right", shape: capsule, height: 36) => app.play_fm()
+        if window.watch {
+            watch_home_page(app: app, recommend: recommend)
+        } else {
+            ScrollView {
+                Column(gap: 20, padding: if window.compact { 18 } else { 32 }) {
+                    greeting(app: app, recommend: recommend)
+                    if app.login == Login::In {
+                        Row {
+                            Button(id: play_fm, label: tr! { "zh-Hans" => "私人漫游", "en" => "Roaming" }, icon: "dot.radiowaves.left.and.right", shape: capsule, height: 36) => app.play_fm()
+                        }
+                    }
+                    if recommend.has_daily {
+                        Row(gap: 12, align: center) {
+                            Text(content: tr! { "zh-Hans" => "每日推荐", "en" => "Daily Mix" }, style: title2)
+                            Spacer
+                            Button(id: play_daily, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 32) => app.play(Source::Daily, 0)
+                        }
+                        Grid(min_width: 320, gap: 2) {
+                            ForEach(items: recommend.daily, key: index) |song| {
+                                song_row(app: app, song: song, source: Source::Daily, full: false, removable: false)
+                            }
+                        }
+                    }
+                    Text(content: tr! { "zh-Hans" => "推荐歌单", "en" => "Playlists for You" }, style: title2)
+                    if recommend.loading {
+                        Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
+                    }
+                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
+                        ForEach(items: recommend.picks, key: id, stagger: 0.03) |list| {
+                            playlist_card(app: app, list: list)
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn watch_home_page(app: enji::Client, recommend: recommend::Client) -> impl View {
+    ui! {
+        ScrollView {
+            Column(gap: 8, padding_x: 14, padding_y: 24) {
+                Column(padding_x: 12, align: center) {
+                    watch_greeting(app: app, recommend: recommend)
+                }
+                if app.login == Login::In {
+                    Button(id: play_fm, label: tr! { "zh-Hans" => "私人漫游", "en" => "Roaming" }, icon: "dot.radiowaves.left.and.right", prominence: prominent, width: fill) => app.play_fm()
+                }
                 if recommend.has_daily {
-                    Row(gap: 12, align: center) {
-                        Text(content: tr! { "zh-Hans" => "每日推荐", "en" => "Daily Mix" }, style: title2)
-                        Spacer
-                        Button(id: play_daily, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 32) => app.play(Source::Daily, 0)
-                    }
-                    Grid(min_width: 320, gap: 2) {
+                    Text(content: tr! { "zh-Hans" => "每日推荐", "en" => "Daily Mix" }, style: callout, bold: true)
+                    Button(id: play_daily, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, width: fill) => app.play(Source::Daily, 0)
+                    Column(gap: 2) {
                         ForEach(items: recommend.daily, key: index) |song| {
                             song_row(app: app, song: song, source: Source::Daily, full: false, removable: false)
                         }
                     }
                 }
-                Text(content: tr! { "zh-Hans" => "推荐歌单", "en" => "Playlists for You" }, style: title2)
+                Text(content: tr! { "zh-Hans" => "推荐歌单", "en" => "Playlists for You" }, style: callout, bold: true)
                 if recommend.loading {
                     Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
                 }
-                Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
-                    ForEach(items: recommend.picks, key: id, stagger: 0.03) |list| {
-                        playlist_card(app: app, list: list)
+                Column(gap: 4) {
+                    ForEach(items: recommend.picks, key: id) |list| {
+                        watch_playlist_row(app: app, list: list)
                     }
                 }
             }
