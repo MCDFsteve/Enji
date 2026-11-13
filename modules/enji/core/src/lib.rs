@@ -6,6 +6,8 @@ mod audio;
 mod beats;
 mod covers;
 mod downloads;
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+mod k20;
 mod listens;
 mod local;
 mod lyrics;
@@ -399,6 +401,9 @@ impl enji::Commands for EnjiEngine {
     }
     fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError> {
         self.submit(Job::SetDesktopLyricsLocked(locked))
+    }
+    fn set_speaker_lyrics(&mut self, shown: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetSpeakerLyrics(shown))
     }
     fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError> {
         self.submit(Job::SetAppearance(appearance))

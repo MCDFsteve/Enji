@@ -106,6 +106,7 @@ pub enum Job {
     SetCoverLyrics(bool),
     SetDesktopLyrics(bool),
     SetDesktopLyricsLocked(bool),
+    SetSpeakerLyrics(bool),
     Download(Source, usize),
     DownloadCurrent,
     DownloadProgress { id: i64, progress: f64 },
@@ -383,6 +384,7 @@ fn state_from_settings(saved: &Value) -> State {
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
+        speaker_lyrics: saved["speaker_lyrics"].as_bool().unwrap_or(true),
         phone: cfg!(any(target_os = "ios", target_os = "android")),
         appearance: match pick("appearance").as_str() {
             "Light" => Appearance::Light,
@@ -420,6 +422,7 @@ fn settings_value(state: &State) -> Value {
         "hot_search": state.hot_search,
         "desktop_lyrics": state.desktop_lyrics,
         "desktop_lyrics_locked": state.desktop_lyrics_locked,
+        "speaker_lyrics": state.speaker_lyrics,
         "plugins": state.plugins.iter().filter(|plugin| plugin.enabled).map(|plugin| plugin.id.clone()).collect::<Vec<_>>(),
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
@@ -596,6 +599,8 @@ struct Worker {
     /// The playing song's cover for the system's now playing, by the token
     /// of the song it is for.
     now_artwork: Option<(u64, Arc<Vec<u8>>)>,
+    /// What was last sent to an external speaker screen, for which song token.
+    speaker_shown: Option<(u64, String)>,
     /// The enabled plugins, running.
     plugins: plugins::Plugins,
     /// The ids of the enabled plugins, kept in the settings.
@@ -777,6 +782,7 @@ pub async fn run(
         library: local::Library::load(),
         downloaded: downloads::Index::load(),
         now_artwork: None,
+        speaker_shown: None,
         plugins: plugins::Plugins::default(),
         enabled_plugins: store::settings()["plugins"]
             .as_array()
@@ -1158,6 +1164,7 @@ impl Worker {
                 if self.position > 3.0 || self.queue.len() < 2 {
                     self.audio.seek(0.0);
                     self.show_now_playing(Some(0.0));
+                    self.moved_to(0.0);
                 } else {
                     self.advance(false, false);
                 }
@@ -1285,6 +1292,13 @@ impl Worker {
                     save_settings(s);
                 });
                 self.desktop_lyrics();
+            }
+            Job::SetSpeakerLyrics(shown) => {
+                self.shared.update(|s| {
+                    s.speaker_lyrics = shown;
+                    save_settings(s);
+                });
+                self.speaker_lyrics();
             }
             Job::Download(source, index) => {
                 if let Some(song) = self.list_of(&source).get(index).cloned() {
@@ -1821,6 +1835,7 @@ impl Worker {
                         s.scroll_tick += 1;
                     });
                     self.desktop_lyrics();
+                    self.speaker_lyrics();
                 }
                 if !cover.is_empty() {
                     if let Some(song) = self.queue.get(self.at).cloned() {
@@ -1875,6 +1890,7 @@ impl Worker {
                 });
                 self.show_now_playing(Some(from));
                 self.desktop_lyrics();
+                self.speaker_lyrics();
             }
             Job::Format { token, format } => {
                 if token == self.token {
@@ -1890,6 +1906,7 @@ impl Worker {
                     s.playing = false;
                 });
                 self.show_now_playing(None);
+                self.speaker_lyrics();
                 self.shared.fail(message);
                 self.failures += 1;
                 if self.failures < 5 && self.queue.len() > 1 {
@@ -2101,6 +2118,43 @@ impl Worker {
                 ],
             },
         );
+    }
+
+    /// The sung line, or the song's name before singing starts, on a
+    /// connected speaker screen while speaker lyrics are on and the song
+    /// plays.
+    fn speaker_lyrics(&mut self) {
+        let active = self.shared.read(|s| {
+            let on = s.speaker_lyrics
+                && (s.playing || s.buffering)
+                && !self.paused
+                && self.left_at.is_none();
+            let song = s.current.as_ref().filter(|_| on)?;
+            Some((song.name.clone(), s.has_lyrics, s.lyric_now.clone()))
+        });
+        let next = active.and_then(|(name, has_lyrics, lyric_now)| {
+            let shown = if self.lines.is_empty() && has_lyrics && !lyric_now.trim().is_empty() {
+                crate::k20::screen_line(
+                    &name,
+                    &[lyrics::Line {
+                        time: 0.0,
+                        text: lyric_now,
+                        translation: None,
+                        ruby: Vec::new(),
+                        words: Vec::new(),
+                    }],
+                    self.position,
+                )
+            } else {
+                crate::k20::screen_line(&name, &self.lines, self.position)
+            };
+            shown.map(|line| (self.token, line))
+        });
+        if self.speaker_shown == next {
+            return;
+        }
+        self.speaker_shown = next.clone();
+        crate::k20::show(self.token, next.as_ref().map(|(_, line)| line.as_str()));
     }
 
     /// Start the enabled plugins, show them, and tell them what plays.
@@ -3176,6 +3230,7 @@ impl Worker {
         });
         self.show_now_playing(Some(0.0));
         self.desktop_lyrics();
+        self.speaker_lyrics();
         self.greet_plugins();
         self.fetch_now_artwork(&song);
         self.load_panel();
@@ -3584,6 +3639,7 @@ impl Worker {
     fn moved_to(&mut self, position: f64) {
         self.position = position;
         self.seeking = Some((position, Instant::now()));
+        self.speaker_lyrics();
     }
 
     // MARK: Listening together
@@ -4081,6 +4137,7 @@ impl Worker {
         self.report_to_room(false);
         self.show_now_playing(None);
         self.show_desktop_lyrics();
+        self.speaker_lyrics();
         let position = self.position;
         self.send_plugins("playback", json!({ "playing": playing, "position": position }));
         // Playing on ends browsing the lyrics.
@@ -4230,6 +4287,7 @@ impl Worker {
             });
             self.desktop_lyrics();
         }
+        self.speaker_lyrics();
     }
 }
 

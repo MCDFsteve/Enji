@@ -112,6 +112,7 @@
 - **Downloads**: keep songs on your device with their lyrics and covers; on a computer they go to Enji in your Music folder. Downloaded songs and your own files are marked in every list.
 - **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification all show what's playing and control it. The music keeps playing when you switch apps or lock the screen.
 - **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them. Hover over them (tap on Android) to skip, pause or lock them; locked, clicks go through them.
+- **Speaker lyrics**: on Windows with a supported USB speaker with a screen plugged in, the line being sung shows on the speaker's own screen in the font and animation set on it, with a switch in Settings.
 - **Plugins**: install plugins from the plugin market in Settings, such as lyrics on the Windows taskbar or a cover that pulses with the beat. Plugins are written in JavaScript; see [enji-plugins](https://github.com/MCDFsteve/enji-plugins).
 - **History**: what you played recently, and how many times you played each song. What you listen to goes to your NetEase account (you can turn this off in Settings), for its rankings and annual report.
 - **Heart Mode**: once on in Settings, it sits with Repeat and Shuffle: from the playing song, songs NetEase picks for you.

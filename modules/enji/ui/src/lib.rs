@@ -3922,6 +3922,19 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                 }
                             }
                         }
+                        if app.windows {
+                            Column(padding_x: 16) { Divider }
+                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                                Column(width: 22, align: center) {
+                                    Stack(variant: quiet) {
+                                        Label(title: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" }, icon: "speaker.wave.2", display: icon, font_size: 15)
+                                    }
+                                }
+                                Text(content: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" })
+                                Spacer
+                                Switch(id: speaker_lyrics, label: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" }, label_hidden: true, checked: app.speaker_lyrics, style: switch) => app.set_speaker_lyrics(app.speaker_lyrics)
+                            }
+                        }
                         Column(padding_x: 16) { Divider }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
                             Column(width: 22, align: center) {
