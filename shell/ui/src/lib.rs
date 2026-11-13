@@ -7,11 +7,11 @@
 
 use bern::prelude::*;
 use enji_protocol::enji::{self, CloseAction, Detail, Login};
+use enji_shell_protocol::shell;
+use enji_ui::*;
 use live_protocol::live;
 use pulse_protocol::pulse;
 use sung_protocol::sung;
-use enji_shell_protocol::shell;
-use enji_ui::*;
 
 style! {
     accents {
@@ -174,7 +174,13 @@ pub struct ShellDraft {
 }
 
 #[component]
-pub fn app(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, windows: AppWindows) -> impl View {
+pub fn app(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    windows: AppWindows,
+) -> impl View {
     ui! {
         WindowSet(handle: AppWindows, primary: main, accent: Accent::Enji, appearance: app.appearance) {
             MenuBar {
@@ -202,13 +208,20 @@ pub fn app(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pul
 }
 
 #[component]
-pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft, #[session] draft: MainDraft) -> impl View {
+pub fn main_window(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] nav: ShellDraft,
+    #[session] draft: MainDraft,
+) -> impl View {
     ui! {
         Stack(align: bottom) {
             // While a song plays, its cover blurred behind the whole window,
             // under the title bar too, washed so the pages stay easy to read.
             if let Some(song) = app.current {
-                if app.backdrop {
+                if app.backdrop && (!window.watch || nav.page == Page::Playing) {
                     Stack(under_bars: true) {
                         Canvas(label: song.name) {
                             Shape(kind: rect, fill: surface.canvas)
@@ -233,13 +246,14 @@ pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pu
                     }
                 }
                 Layout(size: tv) { tv_shell(app: app, live: live, sung: sung, pulse: pulse) }
+                Layout(size: watch) { watch_shell(app: app, live: live, sung: sung, pulse: pulse) }
             }
             // What modules show over the pages, such as search on a phone.
             Slot(id: overlays)
             // The page the condition shows moves in and out itself: the
             // layer is what appears, not something inside it.
             // Turning the phone changes what is in the layer, not the layer.
-            if draft.now && !window.tv && (window.compact || window.short) {
+            if draft.now && !window.tv && !window.watch && (window.compact || window.short) {
                 Stack(appear: sheet, disappear: sheet) {
                     if window.compact {
                         phone_now_playing(app: app, live: live, sung: sung, pulse: pulse)
@@ -248,7 +262,7 @@ pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pu
                     }
                 }
             }
-            if draft.now && !window.short && !window.compact && !window.tv {
+            if draft.now && !window.short && !window.compact && !window.tv && !window.watch {
                 Stack(under_bars: true, appear: sheet, disappear: sheet) {
                     now_playing(app: app, live: live, sung: sung, pulse: pulse)
                 }
@@ -268,7 +282,7 @@ pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pu
             if app.together_open {
                 together_dialog(app: app)
             }
-            if app.report_url != "" && !window.tv {
+            if app.report_url != "" && !window.tv && !window.watch {
                 report_dialog(app: app)
             }
             if let Some(list) = app.deleting {
@@ -279,12 +293,12 @@ pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pu
             }
             // On a phone, over the small player and the tabs.
             if app.has_notice {
-                Column(padding_x: 24, padding_y: if window.compact || window.short && !window.tv { 124 } else { 24 }) {
+                Column(padding_x: if window.watch { 16 } else { 24 }, padding_y: if window.watch { 16 } else if window.compact || window.short && !window.tv { 124 } else { 24 }) {
                     Toast(content: app.notice, icon: "checkmark.circle.fill", key: app.notice_key)
                 }
             }
             if app.has_error {
-                Column(padding_x: 24, padding_y: if window.compact || window.short && !window.tv { 124 } else { 24 }) {
+                Column(padding_x: if window.watch { 16 } else { 24 }, padding_y: if window.watch { 16 } else if window.compact || window.short && !window.tv { 124 } else { 24 }) {
                     Toast(content: app.error, key: app.error_key)
                 }
             }
@@ -300,7 +314,13 @@ pub fn main_window(app: enji::Client, live: live::Client, sung: sung::Client, pu
 
 /// A sidebar of pages, the chosen one beside it over the player bar.
 #[component]
-pub fn desktop_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft) -> impl View {
+pub fn desktop_shell(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] nav: ShellDraft,
+) -> impl View {
     ui! {
         SplitView {
             Sidebar(id: pages, selection: nav.page, fallback: Page::Local) {
@@ -345,7 +365,13 @@ pub fn desktop_shell(app: enji::Client, live: live::Client, sung: sung::Client, 
 /// The pages in tabs, the playing song in a small player over them, and
 /// what modules put at the top trailing corner, such as search.
 #[component]
-pub fn phone_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft) -> impl View {
+pub fn phone_shell(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] nav: ShellDraft,
+) -> impl View {
     ui! {
         Stack(align: top_trailing) {
             Tabs(id: phone_tabs, selection: nav.page, fallback: Page::Library, bar: floating) {
@@ -370,7 +396,13 @@ pub fn phone_shell(app: enji::Client, live: live::Client, sung: sung::Client, pu
 /// The pages in tabs across the top, for a remote: the playing song is one
 /// of them, and the rest stand under it.
 #[component]
-pub fn tv_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse: pulse::Client, #[session] nav: ShellDraft) -> impl View {
+pub fn tv_shell(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] nav: ShellDraft,
+) -> impl View {
     ui! {
         Tabs(id: tv_tabs, selection: nav.page, fallback: Page::Library) {
             Pages(slot: main, all: true)
@@ -387,6 +419,57 @@ pub fn tv_shell(app: enji::Client, live: live::Client, sung: sung::Client, pulse
     }
 }
 
+/// The pages in tabs on a watch, with the playing song as its own screen and
+/// a slim bar above the page button while browsing.
+#[component]
+pub fn watch_shell(
+    app: enji::Client,
+    live: live::Client,
+    sung: sung::Client,
+    pulse: pulse::Client,
+    #[session] nav: ShellDraft,
+) -> impl View {
+    ui! {
+        Stack {
+            Tabs(id: watch_tabs, selection: nav.page, fallback: Page::Library) {
+                Pages(slot: main, all: true)
+                Tab(value: Page::Library, label: tr! { "zh-Hans" => "我的", "en" => "Mine" }, icon: "music.note.list") {
+                    page_view(app: app, page: Page::Library)
+                }
+                Tab(value: Page::Playing, label: tr! { "zh-Hans" => "正在播放", "en" => "Now Playing" }, icon: "play.fill") {
+                    watch_now_playing(app: app, live: live, sung: sung, pulse: pulse)
+                }
+                Tab(value: Page::Settings, label: tr! { "zh-Hans" => "设置", "en" => "Settings" }, icon: "gearshape") {
+                    page_view(app: app, page: Page::Settings)
+                }
+                TabAccessory {
+                    if nav.page != Page::Playing {
+                        if let Some(song) = app.current {
+                            Row(gap: 6, align: center) {
+                                Button(id: watch_mini_open, label: tr! { "zh-Hans" => "正在播放：{name}", "en" => "Now playing: {name}"; name: song.name }, variant: bare, width: fill) {
+                                    Row(gap: 6, align: center) {
+                                        Image(source: song.cover, width: 22, height: 22, fit: cover, corner: 11)
+                                        Text(content: song.name, style: caption, lines: 1)
+                                        Spacer
+                                    }
+                                } => nav.page.set(Page::Playing)
+                                if app.playing {
+                                    IconButton(id: watch_mini_pause, icon: "pause.fill", font_size: 14, height: 28, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
+                                } else {
+                                    IconButton(id: watch_mini_play, icon: "play.fill", font_size: 14, height: 28, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if app.fm_opened > 0 {
+                Watch(value: app.fm_opened) => nav.page.set(Page::Playing)
+            }
+        }
+    }
+}
+
 /// One of the core's pages, or the playlist opened from it; with NetEase
 /// off, the local music in place of the account's page.
 #[component]
@@ -397,7 +480,7 @@ pub fn page_view(app: enji::Client, page: Page) -> impl View {
         } else {
             match page {
                 Page::Library => {
-                    if window.compact || window.short && !window.tv {
+                    if window.watch || window.compact || window.short && !window.tv {
                         mine_page(app: app)
                     } else if app.netease || window.tv {
                         library_page(app: app)
@@ -405,9 +488,9 @@ pub fn page_view(app: enji::Client, page: Page) -> impl View {
                         local_page(app: app)
                     }
                 }
-                // A TV has no folders to choose music from.
+                // A TV or watch has no folders to choose music from.
                 Page::Local => {
-                    if !window.tv {
+                    if !window.tv && !window.watch {
                         local_page(app: app)
                     }
                 }
@@ -423,61 +506,85 @@ pub fn page_view(app: enji::Client, page: Page) -> impl View {
 #[component]
 pub fn module_switches(app: enji::Client, shell: shell::Client) -> impl View {
     ui! {
-        Column(gap: 0) {
-            if build.modules.recommend {
-                if app.netease {
+        if window.watch {
+            watch_module_switches(app: app, shell: shell)
+        } else {
+            Column(gap: 0) {
+                if build.modules.recommend {
+                    if app.netease {
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "推荐", "en" => "For You" }, icon: "sparkles", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "推荐", "en" => "For You" })
+                            Spacer
+                            Switch(id: module_recommend, label: tr! { "zh-Hans" => "推荐", "en" => "For You" }, label_hidden: true, checked: shell.modules.recommend, style: switch) => shell.set_module("recommend", shell.modules.recommend)
+                        }
+                    }
+                }
+                if build.modules.charts {
+                    if app.netease {
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, icon: "chart.bar", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" })
+                            Spacer
+                            Switch(id: module_charts, label: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, label_hidden: true, checked: shell.modules.charts, style: switch) => shell.set_module("charts", shell.modules.charts)
+                        }
+                    }
+                }
+                if build.modules.search {
                     Column(padding_x: 16) { Divider }
                     Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
                         Column(width: 22, align: center) {
                             Stack(variant: quiet) {
-                                Label(title: tr! { "zh-Hans" => "推荐", "en" => "For You" }, icon: "sparkles", display: icon, font_size: 15)
+                                Label(title: tr! { "zh-Hans" => "搜索", "en" => "Search" }, icon: "magnifyingglass", display: icon, font_size: 15)
                             }
                         }
-                        Text(content: tr! { "zh-Hans" => "推荐", "en" => "For You" })
+                        Text(content: tr! { "zh-Hans" => "搜索", "en" => "Search" })
                         Spacer
-                        Switch(id: module_recommend, label: tr! { "zh-Hans" => "推荐", "en" => "For You" }, label_hidden: true, checked: shell.modules.recommend, style: switch) => shell.set_module("recommend", shell.modules.recommend)
+                        Switch(id: module_search, label: tr! { "zh-Hans" => "搜索", "en" => "Search" }, label_hidden: true, checked: shell.modules.search, style: switch) => shell.set_module("search", shell.modules.search)
+                    }
+                    if shell.modules.search && app.netease {
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, icon: "list.bullet", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" })
+                            Spacer
+                            Switch(id: hot_search, label: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, label_hidden: true, checked: app.hot_search, style: switch) => app.set_hot_search(app.hot_search)
+                        }
                     }
                 }
             }
-            if build.modules.charts {
-                if app.netease {
-                    Column(padding_x: 16) { Divider }
-                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                        Column(width: 22, align: center) {
-                            Stack(variant: quiet) {
-                                Label(title: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, icon: "chart.bar", display: icon, font_size: 15)
-                            }
-                        }
-                        Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" })
-                        Spacer
-                        Switch(id: module_charts, label: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, label_hidden: true, checked: shell.modules.charts, style: switch) => shell.set_module("charts", shell.modules.charts)
-                    }
-                }
+        }
+    }
+}
+
+#[component]
+pub fn watch_module_switches(app: enji::Client, shell: shell::Client) -> impl View {
+    ui! {
+        Column(gap: 6) {
+            if build.modules.recommend && app.netease {
+                Switch(id: module_recommend, label: tr! { "zh-Hans" => "推荐", "en" => "For You" }, checked: shell.modules.recommend, style: switch) => shell.set_module("recommend", shell.modules.recommend)
+            }
+            if build.modules.charts && app.netease {
+                Switch(id: module_charts, label: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, checked: shell.modules.charts, style: switch) => shell.set_module("charts", shell.modules.charts)
             }
             if build.modules.search {
-                Column(padding_x: 16) { Divider }
-                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                    Column(width: 22, align: center) {
-                        Stack(variant: quiet) {
-                            Label(title: tr! { "zh-Hans" => "搜索", "en" => "Search" }, icon: "magnifyingglass", display: icon, font_size: 15)
-                        }
-                    }
-                    Text(content: tr! { "zh-Hans" => "搜索", "en" => "Search" })
-                    Spacer
-                    Switch(id: module_search, label: tr! { "zh-Hans" => "搜索", "en" => "Search" }, label_hidden: true, checked: shell.modules.search, style: switch) => shell.set_module("search", shell.modules.search)
-                }
+                Switch(id: module_search, label: tr! { "zh-Hans" => "搜索", "en" => "Search" }, checked: shell.modules.search, style: switch) => shell.set_module("search", shell.modules.search)
                 if shell.modules.search && app.netease {
-                    Column(padding_x: 16) { Divider }
-                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                        Column(width: 22, align: center) {
-                            Stack(variant: quiet) {
-                                Label(title: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, icon: "list.bullet", display: icon, font_size: 15)
-                            }
-                        }
-                        Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" })
-                        Spacer
-                        Switch(id: hot_search, label: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, label_hidden: true, checked: app.hot_search, style: switch) => app.set_hot_search(app.hot_search)
-                    }
+                    Switch(id: hot_search, label: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, checked: app.hot_search, style: switch) => app.set_hot_search(app.hot_search)
                 }
             }
         }

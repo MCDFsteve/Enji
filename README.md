@@ -21,6 +21,7 @@
 <img alt="iOS · SwiftUI" src="https://img.shields.io/badge/iOS-SwiftUI-555555?style=flat-square&logo=apple&logoColor=white">
 <img alt="Windows · WinUI 3" src="https://img.shields.io/badge/Windows-WinUI%203-555555?style=flat-square&logo=windows11&logoColor=white">
 <img alt="Android · Jetpack Compose" src="https://img.shields.io/badge/Android-Compose-555555?style=flat-square&logo=android&logoColor=white">
+<img alt="Wear OS · Jetpack Compose" src="https://img.shields.io/badge/Wear%20OS-Compose-555555?style=flat-square&logo=wearos&logoColor=white">
 <img alt="Linux · GTK 4" src="https://img.shields.io/badge/Linux-GTK%204-555555?style=flat-square&logo=gtk&logoColor=white">
 <img alt="MCP built in" src="https://img.shields.io/badge/AI-MCP%20built%20in-555555?style=flat-square">
 <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-E60026?style=flat-square"></a>
@@ -84,6 +85,12 @@
 <br><sub>Android TV</sub>
 </p>
 
+<p align="center">
+<a href="docs/screenshots/wearos-charts.png"><img src="docs/screenshots/wearos-charts.png" width="200" alt="Wear OS 排行榜：单列圆屏列表，底部是迷你播放条与页签切换按钮"></a>
+<a href="docs/screenshots/wearos-now-playing.png"><img src="docs/screenshots/wearos-now-playing.png" width="200" alt="Wear OS 播放页：全圆虚化封面底图、环形进度条、播放控制与歌词队列入口"></a>
+<br><sub>Wear OS</sub>
+</p>
+
 ## 特色
 
 - **轻。** macOS 版 `.app` 13.9 MiB，压缩后 7 MiB；停在排行榜页时占用 61 MiB 内存。
@@ -113,6 +120,7 @@
 - **接着听**：下次打开时，上次放的歌和进度还在，按播放就接着放。
 - **留在后台**：电脑上可以在设置里选关闭窗口时退出还是留在后台。留在后台时音乐继续放，从任务栏托盘（macOS 是菜单栏）能控制和打开窗口。
 - **电视**：Apple TV 和 Android TV 上用遥控器操作，用手机扫码登录。
+- **手表**：Wear OS 手表端使用原生 Wear Material 3 控件与表冠滚动，支持全圆播放页、歌词、队列、推荐、排行榜、搜索与手机扫码登录。
 - **外观**：浅色、深色或跟随系统，中文和英文界面；格式、封面下的歌词和桌面歌词都能在设置里关掉。
 
 ## 下载
@@ -126,6 +134,7 @@
 | Apple TV | `-tvos.ipa` |
 | Windows | `-windows-x64-setup.exe` 或 `-windows-arm64-setup.exe`，也有免安装的 `.zip` |
 | Android 手机、平板和电视 | 大多用 `-android-arm64-v8a.apk`；很旧的 32 位设备用 `-android-armeabi-v7a.apk`；模拟器和 x86 设备用 `-android-x86_64.apk` |
+| Wear OS | 常见手表用 `-wearos-arm64-v8a.apk`；32 位手表用 `-wearos-armeabi-v7a.apk`；模拟器用 `-wearos-x86_64.apk` |
 | Linux | `-linux-x64` 或 `-linux-arm64` 的 `.deb`，也有 `.tar.gz` |
 
 macOS、iOS、tvOS 和 Windows 版没有开发者签名：`.ipa` 需要用 AltStore、Sideloadly 等工具以自己的 Apple ID 签名安装，其余的第一次打开时怎么放行写在发布说明里。
@@ -184,7 +193,7 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 37a347ba4f5d479821ce9e2b42af4bf612e6d2c3 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev a665137d2da468a512b9721cbc17834b47cd837e bern-cli
 ```
 
 构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；请使用上面的版本构建当前源码。
@@ -197,13 +206,13 @@ cd Enji
 bern run
 ```
 
-`bern run` 构建并打开这台电脑上的版本；`bern build --target <平台> --release` 构建某个平台（`macos`、`ios`、`windows`、`linux`、`android`），`bern package` 生成安装包。`bern doctor` 会列出这台电脑构建各平台还缺什么，各平台需要的工具见 [Bern 的说明](https://github.com/AimesSoft/Bern#quick-start)。
+`bern run` 构建并打开这台电脑上的版本；`bern build --target <平台> --release` 构建某个平台（`macos`、`ios`、`windows`、`linux`、`android`、`wearos`），`bern package` 生成安装包。`bern doctor` 会列出这台电脑构建各平台还缺什么，各平台需要的工具见 [Bern 的说明](https://github.com/AimesSoft/Bern#quick-start)。
 
 同时修改 Bern 时，把 Bern 放在 Enji 旁边（`../Bern`），再把 `.cargo/config.local.example.toml` 复制成 `.cargo/config.toml`，Enji 就会用这份 Bern 源码；`bern` 也从它安装：在 Bern 目录里运行 `cargo install --path crates/bern-cli`。
 
 ## 现状
 
-macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 和 iPad 模拟器、Android 手机和平板模拟器、Apple TV 和 Android TV 模拟器上实际用过浏览、搜索、播放和歌词。
+macOS 和 Windows 实机、Ubuntu 24.04 虚拟机（GNOME）、iPhone Duo 和 iPad 模拟器、Android 手机和平板模拟器、Apple TV 和 Android TV 模拟器，以及 Wear OS 6.0 模拟器上实际用过浏览、搜索、播放和歌词；真实手表硬件尚未实机测试。
 
 系统的播放控件在 macOS、iPhone 模拟器、Android 模拟器和 Ubuntu 上试过，桌面歌词在 macOS、Windows 和 Android 上试过；Windows 上的播放控件和 Linux 的桌面歌词还没有实际试过。
 

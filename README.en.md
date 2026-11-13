@@ -21,6 +21,7 @@
 <img alt="iOS · SwiftUI" src="https://img.shields.io/badge/iOS-SwiftUI-555555?style=flat-square&logo=apple&logoColor=white">
 <img alt="Windows · WinUI 3" src="https://img.shields.io/badge/Windows-WinUI%203-555555?style=flat-square&logo=windows11&logoColor=white">
 <img alt="Android · Jetpack Compose" src="https://img.shields.io/badge/Android-Compose-555555?style=flat-square&logo=android&logoColor=white">
+<img alt="Wear OS · Jetpack Compose" src="https://img.shields.io/badge/Wear%20OS-Compose-555555?style=flat-square&logo=wearos&logoColor=white">
 <img alt="Linux · GTK 4" src="https://img.shields.io/badge/Linux-GTK%204-555555?style=flat-square&logo=gtk&logoColor=white">
 <img alt="MCP built in" src="https://img.shields.io/badge/AI-MCP%20built%20in-555555?style=flat-square">
 <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-E60026?style=flat-square"></a>
@@ -84,6 +85,12 @@
 <br><sub>Android TV</sub>
 </p>
 
+<p align="center">
+<a href="docs/screenshots/wearos-charts.png"><img src="docs/screenshots/wearos-charts.png" width="200" alt="Wear OS charts: single-column watch list with a mini player bar and tab button at the bottom"></a>
+<a href="docs/screenshots/wearos-now-playing.png"><img src="docs/screenshots/wearos-now-playing.png" width="200" alt="Wear OS now playing: full-bleed blurred cover, circular progress ring, playback controls, lyrics and queue"></a>
+<br><sub>Wear OS</sub>
+</p>
+
 ## Highlights
 
 - **Light.** The macOS `.app` is 13.9 MiB, 7 MiB zipped, and uses 61 MiB of memory sitting on the Charts page.
@@ -113,6 +120,7 @@
 - **Pick up where you left off**: the next time you open Enji, the last song and its place are still there. Press play to go on.
 - **Stay in the background**: on a computer, choose in Settings whether closing the window quits. Staying, the music plays on, with controls in the system tray (the menu bar on a Mac).
 - **TV**: Apple TV and Android TV, with the remote; sign in by scanning a code with your phone.
+- **Watch**: Wear OS uses native Wear Material 3 controls and crown scrolling, with a full-bleed round player, lyrics, queue, For You, Charts, Search and phone-scanned QR sign-in.
 - **Looks**: light, dark or follow the system; Chinese or English. The format line, the lyrics under the cover and the desktop lyrics can each be turned off in Settings.
 
 ## Download
@@ -126,6 +134,7 @@ Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest):
 | Apple TV | `-tvos.ipa` |
 | Windows | `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip` |
 | Android phones, tablets and TVs | Most take `-android-arm64-v8a.apk`; very old 32-bit devices `-android-armeabi-v7a.apk`; emulators and x86 devices `-android-x86_64.apk` |
+| Wear OS | Most watches take `-wearos-arm64-v8a.apk`; 32-bit watches `-wearos-armeabi-v7a.apk`; emulators `-wearos-x86_64.apk` |
 | Linux | `-linux-x64` or `-linux-arm64`, as `.deb` or `.tar.gz` |
 
 The macOS, iOS, tvOS and Windows builds aren't signed by a developer: install an `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time.
@@ -184,7 +193,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 37a347ba4f5d479821ce9e2b42af4bf612e6d2c3 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev a665137d2da468a512b9721cbc17834b47cd837e bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.
@@ -197,13 +206,13 @@ cd Enji
 bern run
 ```
 
-`bern run` builds and opens the version for this computer; `bern build --target <platform> --release` builds one platform (`macos`, `ios`, `windows`, `linux`, `android`), and `bern package` makes the installers. `bern doctor` lists what this computer still needs for each platform; see [Bern's guide](https://github.com/AimesSoft/Bern#quick-start) for the tools each one takes.
+`bern run` builds and opens the version for this computer; `bern build --target <platform> --release` builds one platform (`macos`, `ios`, `windows`, `linux`, `android`, `wearos`), and `bern package` makes the installers. `bern doctor` lists what this computer still needs for each platform; see [Bern's guide](https://github.com/AimesSoft/Bern#quick-start) for the tools each one takes.
 
 To work on Bern at the same time, put it beside Enji (`../Bern`) and copy `.cargo/config.local.example.toml` to `.cargo/config.toml`: Enji then builds with that Bern source. Install `bern` from it too, with `cargo install --path crates/bern-cli` in the Bern directory.
 
 ## Status
 
-Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo and iPad simulators, Android phone and tablet emulators, and the Apple TV and Android TV emulators.
+Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo and iPad simulators, Android phone and tablet emulators, the Apple TV and Android TV emulators, and a Wear OS 6.0 emulator; physical watch hardware has not been tested yet.
 
 The system's media controls have been tried on macOS, the iPhone simulator, the Android emulator and Ubuntu, and desktop lyrics on macOS, Windows and Android. The media controls are still untried on Windows, as are desktop lyrics on Linux.
 
