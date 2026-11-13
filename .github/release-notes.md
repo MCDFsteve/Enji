@@ -1,15 +1,15 @@
 ## 本次更新
 
-- 评论区和歌曲介绍现在可以分别关闭，重启后保留选择。
-- 下载进度改为在下载图标内部自上向下填色；完成后显示普通颜色的「在本地」文件夹图标。
-- 缩短手机播放页封面下方的留白，开关注音时歌词位置不再跳动。
-- 修复 iOS 播放页入场时封面二次上移，以及个人资料页退出登录按钮偏离居中的问题。
-- 为 iOS 26 及以上的进度、音量滑杆加入系统触觉反馈，遵循设备支持和系统设置。
+- 修复 iOS 16 上部分分段选项点击后无法切换的问题。
+- 修复 iPad 年度听歌报告只显示背景的问题，并增加原生关闭按钮，网页加载失败时也能退出。
+- 修复深色播放页中注音歌词变黑的问题，正文与假名注音颜色保持一致。
+- 修复 iOS 16 触摸浏览歌词时仍然模糊的问题；播放中滚动结束后恢复当前行跟随。
+- 去掉 iPad 侧栏重复的系统大标题，保留图标旁的小标题。
 
 ## What's new
 
-- Comments and song information can now be turned off independently, with preferences kept after restarting.
-- Download progress fills the download icon from top to bottom. Completed downloads show a neutral-colored “On This Device” folder icon.
-- Less empty space below the cover on phones. Toggling pronunciation guides no longer shifts the lyrics.
-- Fixes the cover shifting again during the iOS player’s entrance animation and the off-center sign-out button on the profile page.
-- Adds system haptic feedback to progress and volume sliders on iOS 26 and later, respecting device support and system settings.
+- Fixes segmented options failing to switch when tapped on iOS 16.
+- Fixes the annual listening report showing only its background on iPad. A native close button remains available even if the page fails to load.
+- Fixes lyrics with furigana turning black in the dark player view, keeping the main text and pronunciation guides consistent.
+- Fixes lyrics staying blurred while browsing by touch on iOS 16. During playback, following the current line resumes after scrolling ends.
+- Removes the duplicate large title from the iPad sidebar, keeping the smaller title beside the icon.

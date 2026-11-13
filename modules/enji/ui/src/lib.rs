@@ -2503,13 +2503,19 @@ pub fn tv_now_playing(
     }
 }
 
-/// NetEase's annual report, the page its app shows: made for a phone's
-/// shape, told it is in the app, and closed by the button it draws.
+/// NetEase's annual report uses a mobile browsing environment. A native
+/// close button stays reachable even when the remote page cannot load.
 #[component]
 pub fn report_dialog(app: enji::Client) -> impl View {
     ui! {
         Modal(width: 430, height: 720) {
-            WebPage(url: app.report_url, cookies_file: app.cookie_file, cookie_domain: app.cookie_domain, user_agent: app.report_agent, close_on: app.report_close, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }) => app.close_report()
+            Column(gap: 0) {
+                Row(padding: 8) {
+                    Spacer
+                    IconButton(id: close_report, icon: "xmark", prominence: plain, label: tr! { "zh-Hans" => "关闭", "en" => "Close" }) => app.close_report()
+                }
+                WebPage(url: app.report_url, cookies_file: app.cookie_file, cookie_domain: app.cookie_domain, user_agent: app.report_agent, content_mode: mobile, close_on: app.report_close, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }) => app.close_report()
+            }
             Shortcut(key: "escape") => app.close_report()
         }
     }
