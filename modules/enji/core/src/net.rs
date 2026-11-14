@@ -929,6 +929,7 @@ impl Worker {
                     s.mine.clear();
                     sort_playlists(s);
                 });
+                self.show_now_playing(None);
             }
             Job::SignedIn(cookie) => {
                 if let Err(e) = store::save_cookie(&cookie) {
@@ -951,6 +952,7 @@ impl Worker {
                 self.load_plays();
                 self.report_listens();
                 self.find_room();
+                self.show_now_playing(None);
             }
             Job::Counted => self.show_counts(),
             Job::SetReportListening(on) => {
@@ -975,6 +977,7 @@ impl Worker {
                 self.liked = ids.into_iter().collect();
                 let liked = &self.liked;
                 self.shared.update(|s| s.current_liked = liked.contains(&s.current_id));
+                self.show_now_playing(None);
             }
             Job::ToggleLike => self.toggle_like(),
             Job::Shuffle(source) => {
@@ -2044,8 +2047,13 @@ impl Worker {
     /// The playing song as the system shows it, at `position` seconds or
     /// where it plays now; nothing when no song is on.
     fn show_now_playing(&self, position: Option<f64>) {
-        let current = self.shared.read(|s| s.current.clone().map(|song| (song, s.playing)));
-        let Some((song, playing)) = current else {
+        let current = self.shared.read(|s| {
+            s.current.clone().map(|song| {
+                let liked = (s.login == Login::In && song.id > 0).then_some(s.current_liked);
+                (song, s.playing, liked)
+            })
+        });
+        let Some((song, playing, liked)) = current else {
             return bern::now_playing::update(None);
         };
         let artwork = self.now_artwork.as_ref().filter(|(token, _)| *token == self.token).map(|(_, bytes)| bytes.clone());
@@ -2057,6 +2065,7 @@ impl Worker {
             duration: song.seconds,
             position: position.unwrap_or(self.position),
             playing,
+            liked,
         }));
     }
 
@@ -3985,21 +3994,32 @@ impl Worker {
     /// Like the playing song, or no longer: shown at once, undone if
     /// NetEase refuses.
     fn toggle_like(&mut self) {
+        self.set_like(None);
+    }
+
+    fn set_like(&mut self, want: Option<bool>) {
         let (song, signed_in) = self.shared.read(|s| (s.current_id, s.login == Login::In));
         // Local songs, below 0, are not on NetEase.
         if song <= 0 {
             return;
         }
         if !signed_in {
+            self.show_now_playing(None);
             return self.shared.fail("登录后才能收藏歌曲");
         }
-        let like = !self.liked.contains(&song);
+        let currently = self.liked.contains(&song);
+        let like = want.unwrap_or(!currently);
+        if like == currently {
+            self.show_now_playing(None);
+            return;
+        }
         if like {
             self.liked.insert(song);
         } else {
             self.liked.remove(&song);
         }
         self.shared.update(|s| s.current_liked = like);
+        self.show_now_playing(None);
         let (client, shared, jobs, uid) = (enji_kit::client(), self.shared.clone(), self.jobs.clone(), self.uid);
         tokio::spawn(async move {
             let query = Query::new().param("id", &param(song)).param("like", if like { "true" } else { "false" });
@@ -4180,6 +4200,7 @@ impl Worker {
                         self.handle(Job::Seek(seconds / length));
                     }
                 }
+                Command::Like(liked) => self.set_like(Some(liked)),
             }
         }
         // The desktop lyrics' bar; plugins' overlays have none.
