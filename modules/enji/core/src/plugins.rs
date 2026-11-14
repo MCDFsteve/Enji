@@ -97,6 +97,7 @@ impl Pack {
                 "android" => "Android",
                 "ios" => "iOS",
                 "tvos" => "tvOS",
+                "watchos" => "watchOS",
                 other => other,
             })
             .collect::<Vec<_>>()
@@ -118,6 +119,8 @@ pub fn platform_name() -> &'static str {
         "ios"
     } else if cfg!(target_os = "tvos") {
         "tvos"
+    } else if cfg!(target_os = "watchos") {
+        "watchos"
     } else if cfg!(target_os = "windows") {
         "windows"
     } else if cfg!(target_os = "android") {

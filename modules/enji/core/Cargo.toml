@@ -33,6 +33,26 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 jni = "0.21"
 ndk-context = "0.1"
 
+# Apple Watch has no AudioToolbox; AVAudioEngine pulls samples from rodio's mixer.
+[target.'cfg(target_os = "watchos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-avf-audio = { version = "0.3", default-features = false, features = [
+    "std",
+    "AVAudioEngine",
+    "AVAudioFormat",
+    "AVAudioMixerNode",
+    "AVAudioMixing",
+    "AVAudioNode",
+    "AVAudioSession",
+    "AVAudioSessionTypes",
+    "AVAudioSourceNode",
+    "AVAudioTypes",
+    "block2",
+    "objc2-core-audio-types",
+] }
+objc2-core-audio-types = "0.3"
+
 [dev-dependencies]
 # The tests run scripts, with no app to host them.
 bern-script = { workspace = true, features = ["boa"] }

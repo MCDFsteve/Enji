@@ -22,6 +22,8 @@ mod tv_audio;
 #[cfg(any(target_os = "android", test))]
 #[cfg_attr(test, allow(dead_code))]
 mod usb_audio;
+#[cfg(target_os = "watchos")]
+mod watch_audio;
 
 use bern::{media::MediaSource, CommandError};
 use enji_kit::{convert, plays};

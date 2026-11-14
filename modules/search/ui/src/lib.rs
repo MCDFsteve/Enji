@@ -53,13 +53,13 @@ pub fn watch_search_page(
 ) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 6, padding_x: 14, padding_y: 22) {
+            Column(gap: 6, variant: watch_page) {
                 Row(align: center) {
                     Spacer
                     Text(content: tr! { "zh-Hans" => "搜索", "en" => "Search" }, style: headline, bold: true)
                     Spacer
                 }
-                Column(padding_x: 6) {
+                Column(variant: watch_inset) {
                     Search(id: search_box, value: draft.query, prompt: tr! { "zh-Hans" => "歌曲、歌手、专辑", "en" => "Songs, singers, albums" }) => search.search(draft.query)
                 }
                 if draft.query == "" {
@@ -195,7 +195,7 @@ pub fn search_kinds(search: search::Client) -> impl View {
 #[component]
 pub fn watch_search_kinds(search: search::Client) -> impl View {
     ui! {
-        Column(padding_x: 16, padding_y: 4) {
+        Column(variant: watch_inset, padding_y: 2) {
             Picker(id: search_kind, label: tr! { "zh-Hans" => "搜索", "en" => "Search For" }, label_hidden: true, selected: search.kind, style: menu) => search.set_kind(search.kind)
         }
     }

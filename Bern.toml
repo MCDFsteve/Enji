@@ -3,7 +3,7 @@
 [app]
 id = "enji"
 bundle_id = "com.mcdfsteve.enji"
-version = "0.3.15"
+version = "0.3.16"
 name = { "zh-Hans" = "Enji Music", "en" = "Enji Music" }
 # On iPhone the app's folder shows in the Files app: music put there is the
 # local library.
@@ -17,15 +17,16 @@ overlays = true
 # to scan from the album (iOS asks the user to allow it).
 photos = true
 
-# The equalizer (Fluent's device eq, MIT) in the accent: on macOS and iOS a
-# Liquid Glass icon, white and black in the dark appearance; on Windows and
-# Linux the glyph alone; on Android an adaptive icon the system can tint
-# with the wallpaper's colours; elsewhere on a white plate. Drawn by
+# The equalizer (Fluent's device eq, MIT) in the accent: on macOS, iOS and
+# Apple Watch a Liquid Glass icon, white and black in the dark appearance; on
+# Windows and Linux the glyph alone; on Android an adaptive icon the system
+# can tint with the wallpaper's colours; elsewhere on a white plate. Drawn by
 # design/icon/build.py and exported by design/icon/export.sh.
 [app.icon]
 default = "assets/icon/enji.png"
 macos = "assets/icon/Enji.icon"
 ios = "assets/icon/Enji.icon"
+watchos = "assets/icon/Enji.icon"
 windows = "assets/icon/enji.ico"
 linux = "assets/icon/hicolor"
 android = "assets/icon/android/res"
@@ -99,6 +100,11 @@ frontends = ["swiftui", "swiftui-16"]
 
 [targets.tvos]
 platform = "tvos"
+javascript = true
+channels = ["ipc"]
+
+[targets.watchos]
+platform = "watchos"
 javascript = true
 channels = ["ipc"]
 

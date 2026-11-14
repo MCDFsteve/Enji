@@ -25,17 +25,17 @@ use std::{
 
 /// Where downloads go: the Music folder's `Enji` on a computer, the
 /// `Downloads` folder among the music the Files app shows on an iPhone,
-/// the app's own folder on Android.
+/// the app's own folder on Android, Apple Watch and Apple TV.
 pub fn dir() -> PathBuf {
     #[cfg(target_os = "ios")]
     {
         store::phone_music_dir().unwrap_or_else(store::dir).join("Downloads")
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "tvos", target_os = "watchos"))]
     {
         store::dir().join("Downloads")
     }
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    #[cfg(not(any(target_os = "ios", target_os = "android", target_os = "tvos", target_os = "watchos")))]
     {
         dirs::audio_dir().map(|music| music.join("Enji")).unwrap_or_else(|| store::dir().join("Downloads"))
     }

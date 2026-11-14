@@ -16,7 +16,7 @@ pub fn charts_page(app: enji::Client, charts: charts::Client) -> impl View {
             detail_view(app: app)
         } else if window.watch {
             ScrollView {
-                Column(gap: 8, padding_x: 14, padding_y: 24) {
+                Column(gap: 8, variant: watch_page) {
                     Row(align: center) {
                         Spacer
                         Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, style: headline, bold: true)

@@ -27,6 +27,7 @@ jobs:
           - { name: macOS Intel, os: macos-26-intel, target: macos, key: macos-x64 }
           - { name: iOS, os: macos-26, target: ios, key: ios }
           - { name: Apple TV, os: macos-26, target: tvos, key: tvos }
+          - { name: Apple Watch, os: macos-26, target: watchos, key: watchos }
           - { name: Windows, os: windows-latest, target: windows, key: windows-x64 }
           - { name: Windows ARM, os: windows-11-arm, target: windows, key: windows-arm64 }
           - { name: Android, os: ubuntu-24.04, target: android, key: android }
@@ -78,6 +79,10 @@ jobs:
       - name: Apple TV targets
         if: matrix.target == 'tvos'
         run: rustup target add aarch64-apple-tvos aarch64-apple-tvos-sim
+
+      - name: Apple Watch targets
+        if: matrix.target == 'watchos'
+        run: rustup target add aarch64-apple-watchos aarch64-apple-watchos-sim
 
       - name: Java
         if: matrix.target == 'android' || matrix.target == 'wearos'
