@@ -19,6 +19,7 @@
 <p>
 <img alt="macOS · SwiftUI" src="https://img.shields.io/badge/macOS-SwiftUI-555555?style=flat-square&logo=apple&logoColor=white">
 <img alt="iOS · SwiftUI" src="https://img.shields.io/badge/iOS-SwiftUI-555555?style=flat-square&logo=apple&logoColor=white">
+<img alt="watchOS · SwiftUI" src="https://img.shields.io/badge/watchOS-SwiftUI-555555?style=flat-square&logo=apple&logoColor=white">
 <img alt="Windows · WinUI 3" src="https://img.shields.io/badge/Windows-WinUI%203-555555?style=flat-square&logo=windows11&logoColor=white">
 <img alt="Android · Jetpack Compose" src="https://img.shields.io/badge/Android-Compose-555555?style=flat-square&logo=android&logoColor=white">
 <img alt="Wear OS · Jetpack Compose" src="https://img.shields.io/badge/Wear%20OS-Compose-555555?style=flat-square&logo=wearos&logoColor=white">
@@ -86,6 +87,12 @@
 </p>
 
 <p align="center">
+<a href="docs/screenshots/watchos-charts.png"><img src="docs/screenshots/watchos-charts.png" width="200" alt="Apple Watch charts: single-column playlist list with a Liquid Glass mini player bar at the bottom"></a>
+<a href="docs/screenshots/watchos-now-playing.png"><img src="docs/screenshots/watchos-now-playing.png" width="200" alt="Apple Watch now playing: full-bleed blurred cover, Liquid Glass transport controls, circular progress ring, lyrics and queue"></a>
+<br><sub>Apple Watch</sub>
+</p>
+
+<p align="center">
 <a href="docs/screenshots/wearos-charts.png"><img src="docs/screenshots/wearos-charts.png" width="200" alt="Wear OS charts: single-column watch list with a mini player bar and tab button at the bottom"></a>
 <a href="docs/screenshots/wearos-now-playing.png"><img src="docs/screenshots/wearos-now-playing.png" width="200" alt="Wear OS now playing: full-bleed blurred cover, circular progress ring, playback controls, lyrics and queue"></a>
 <br><sub>Wear OS</sub>
@@ -121,7 +128,7 @@
 - **Pick up where you left off**: the next time you open Enji, the last song and its place are still there. Press play to go on.
 - **Stay in the background**: on a computer, choose in Settings whether closing the window quits. Staying, the music plays on, with controls in the system tray (the menu bar on a Mac).
 - **TV**: Apple TV and Android TV, with the remote; sign in by scanning a code with your phone.
-- **Watch**: Wear OS uses native Wear Material 3 controls and crown scrolling, with a full-bleed round player, lyrics, queue, For You, Charts, Search and phone-scanned QR sign-in.
+- **Watch**: Apple Watch (watchOS) uses native SwiftUI Liquid Glass controls and Digital Crown scrolling, and Wear OS uses native Wear Material 3 controls and crown scrolling; both support standalone playback, lyrics (including Japanese furigana), queue, For You, Charts, Search, song downloads and phone-scanned QR sign-in.
 - **Looks**: light, dark or follow the system; Chinese or English. The format line, the lyrics under the cover and the desktop lyrics can each be turned off in Settings.
 
 ## Download
@@ -132,13 +139,14 @@ Get it from [Releases](https://github.com/MCDFsteve/Enji/releases/latest):
 | --- | --- |
 | macOS | `-macos-arm64.dmg` for Apple silicon, `-macos-x86_64.dmg` for Intel |
 | iPhone / iPad | `-ios.ipa` |
+| Apple Watch | `-watchos.ipa` |
 | Apple TV | `-tvos.ipa` |
 | Windows | `-windows-x64-setup.exe` or `-windows-arm64-setup.exe`, or the portable `.zip` |
 | Android phones, tablets and TVs | Most take `-android-arm64-v8a.apk`; very old 32-bit devices `-android-armeabi-v7a.apk`; emulators and x86 devices `-android-x86_64.apk` |
 | Wear OS | Most watches take `-wearos-arm64-v8a.apk`; 32-bit watches `-wearos-armeabi-v7a.apk`; emulators `-wearos-x86_64.apk` |
 | Linux | `-linux-x64` or `-linux-arm64`, as `.deb` or `.tar.gz` |
 
-The macOS, iOS, tvOS and Windows builds aren't signed by a developer: install an `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time.
+The macOS, iOS, watchOS, tvOS and Windows builds aren't signed by a developer: install an `.ipa` with AltStore, Sideloadly or a similar tool, which signs it with your Apple ID; the release notes say how to open the others the first time.
 
 ## For AI
 
@@ -194,7 +202,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev a665137d2da468a512b9721cbc17834b47cd837e bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 8a43a1582864e0354ed4229966c98ac908bfc6fe bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.
@@ -207,13 +215,13 @@ cd Enji
 bern run
 ```
 
-`bern run` builds and opens the version for this computer; `bern build --target <platform> --release` builds one platform (`macos`, `ios`, `windows`, `linux`, `android`, `wearos`), and `bern package` makes the installers. `bern doctor` lists what this computer still needs for each platform; see [Bern's guide](https://github.com/AimesSoft/Bern#quick-start) for the tools each one takes.
+`bern run` builds and opens the version for this computer; `bern build --target <platform> --release` builds one platform (`macos`, `ios`, `tvos`, `watchos`, `windows`, `linux`, `android`, `wearos`), and `bern package` makes the installers. `bern doctor` lists what this computer still needs for each platform; see [Bern's guide](https://github.com/AimesSoft/Bern#quick-start) for the tools each one takes.
 
 To work on Bern at the same time, put it beside Enji (`../Bern`) and copy `.cargo/config.local.example.toml` to `.cargo/config.toml`: Enji then builds with that Bern source. Install `bern` from it too, with `cargo install --path crates/bern-cli` in the Bern directory.
 
 ## Status
 
-Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo and iPad simulators, Android phone and tablet emulators, the Apple TV and Android TV emulators, and a Wear OS 6.0 emulator; physical watch hardware has not been tested yet.
+Browsing, search, playback and lyrics have been used on a real Mac and a real Windows PC, an Ubuntu 24.04 virtual machine (GNOME), the iPhone Duo and iPad simulators, Android phone and tablet emulators, the Apple TV and Android TV emulators, the Apple Watch Series 12 simulator (watchOS 27.2), and a Wear OS 6.0 emulator; physical watch hardware has not been tested yet.
 
 The system's media controls have been tried on macOS, the iPhone simulator, the Android emulator and Ubuntu, and desktop lyrics on macOS, Windows and Android. The media controls are still untried on Windows, as are desktop lyrics on Linux.
 
@@ -240,5 +248,5 @@ The iPhone 17 simulator (iOS 26.5) has been checked for the furigana toggle, per
 - [ncm-api-rs](https://github.com/SPlayer-Dev/ncm-api-rs): the NetEase Cloud Music API
 - [Misuzu Music](https://github.com/AimesSoft/MisuzuMusic): how shuffle, local song matching and the cover glow work
 - [symphonia](https://github.com/pdeljanov/Symphonia), [rodio](https://github.com/RustAudio/rodio), [lofty](https://github.com/Serial-ATA/lofty-rs): decoding, playback and tags
-- [Boa](https://github.com/boa-dev/boa): the JavaScript engine plugins run in on Apple TV, where the system has none to lend; the plugin format follows NipaPlay Next's
+- [Boa](https://github.com/boa-dev/boa): the JavaScript engine plugins run in on Apple TV and Apple Watch, where the system has none to lend; the plugin format follows NipaPlay Next's
 - [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons): the equalizer in the icon

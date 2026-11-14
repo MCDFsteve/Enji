@@ -7,6 +7,8 @@ use crate::beats::{Beat, Beats};
 use crate::tv_audio::Output;
 #[cfg(target_os = "android")]
 use crate::usb_audio::{Exclusive, Plugged};
+#[cfg(target_os = "watchos")]
+use crate::watch_audio::Output;
 use rodio::{Sink, Source};
 use symphonia::core::{
     audio::SampleBuffer,
@@ -67,7 +69,7 @@ pub fn levels() -> (f32, f32) {
 }
 
 /// The system's audio output, as rodio plays through it.
-#[cfg(not(target_os = "tvos"))]
+#[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
 struct Shared {
     _stream: rodio::OutputStream,
     handle: rodio::OutputStreamHandle,
@@ -75,7 +77,7 @@ struct Shared {
 
 /// Where a song plays. A DAC of its own leaves no room for the shared
 /// output, which would keep it mixing.
-#[cfg(not(target_os = "tvos"))]
+#[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
 struct Output {
     shared: Option<Shared>,
     /// A USB DAC is to be used alone.
@@ -88,7 +90,7 @@ struct Output {
     exclusive: Option<Exclusive>,
 }
 
-#[cfg(not(target_os = "tvos"))]
+#[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
 impl Output {
     fn open() -> Result<Output, String> {
         let mut output = Output {

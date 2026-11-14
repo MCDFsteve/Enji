@@ -3,15 +3,15 @@
 
 use std::{fs, path::PathBuf};
 
-/// Where Enji keeps its files: the app's own storage on phones and TVs, the
-/// system's place for application data elsewhere (Application Support,
-/// AppData, ~/.local/share).
+/// Where Enji keeps its files: the app's own storage on phones, watches and
+/// TVs, the system's place for application data elsewhere (Application
+/// Support, AppData, ~/.local/share).
 pub fn dir() -> PathBuf {
-    #[cfg(any(target_os = "android", target_os = "ios", target_os = "tvos"))]
+    #[cfg(any(target_os = "android", target_os = "ios", target_os = "tvos", target_os = "watchos"))]
     {
         bern::storage::data_dir().unwrap_or_else(std::env::temp_dir)
     }
-    #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "tvos")))]
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "tvos", target_os = "watchos")))]
     {
         dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Enji")
     }

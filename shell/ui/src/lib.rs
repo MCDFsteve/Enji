@@ -109,6 +109,28 @@ style! {
     #[target(android)]
     Row.close_now { padding_x: 24, padding_y: 44 }
 
+    // Watch pages: room inside a round bezel on Wear OS, flush below the
+    // status bar on Apple Watch's rectangular screen.
+    Column.watch_page { padding_x: 14, padding_y: 22 }
+    #[target(watchos)]
+    Column.watch_page { padding_x: 6, padding_y: 4 }
+
+    Column.watch_modal { padding_x: 16, padding_y: 24 }
+    #[target(watchos)]
+    Column.watch_modal { padding_x: 8, padding_y: 6 }
+
+    Column.watch_inset { padding_x: 6 }
+    #[target(watchos)]
+    Column.watch_inset { padding_x: 0 }
+
+    Column.watch_top_room { padding_y: 10 }
+    #[target(watchos)]
+    Column.watch_top_room { padding_y: 0 }
+
+    Row.watch_row { padding_x: 10, padding_y: 8 }
+    #[target(watchos)]
+    Row.watch_row { padding_x: 6, padding_y: 5 }
+
     // The settings' cards, and the cover's place while nothing plays.
     Stack.card {
         background: fill.subtle,
@@ -442,22 +464,20 @@ pub fn watch_shell(
                 Tab(value: Page::Settings, label: tr! { "zh-Hans" => "设置", "en" => "Settings" }, icon: "gearshape") {
                     page_view(app: app, page: Page::Settings)
                 }
-                TabAccessory {
-                    if nav.page != Page::Playing {
-                        if let Some(song) = app.current {
-                            Row(gap: 6, align: center) {
-                                Button(id: watch_mini_open, label: tr! { "zh-Hans" => "正在播放：{name}", "en" => "Now playing: {name}"; name: song.name }, variant: bare, width: fill) {
-                                    Row(gap: 6, align: center) {
-                                        Image(source: song.cover, width: 22, height: 22, fit: cover, corner: 11)
-                                        Text(content: song.name, style: caption, lines: 1)
-                                        Spacer
-                                    }
-                                } => nav.page.set(Page::Playing)
-                                if app.playing {
-                                    IconButton(id: watch_mini_pause, icon: "pause.fill", font_size: 14, height: 28, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
-                                } else {
-                                    IconButton(id: watch_mini_play, icon: "play.fill", font_size: 14, height: 28, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
+                TabAccessory(shown: nav.page != Page::Playing && app.current_id != 0) {
+                    if let Some(song) = app.current {
+                        Row(gap: 6, align: center) {
+                            Button(id: watch_mini_open, label: tr! { "zh-Hans" => "正在播放：{name}", "en" => "Now playing: {name}"; name: song.name }, variant: bare, width: fill) {
+                                Row(gap: 6, align: center) {
+                                    Image(source: song.cover, width: 22, height: 22, fit: cover, corner: 11)
+                                    Text(content: song.name, style: caption, lines: 1)
+                                    Spacer
                                 }
+                            } => nav.page.set(Page::Playing)
+                            if app.playing {
+                                IconButton(id: watch_mini_pause, icon: "pause.fill", font_size: 14, height: 28, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
+                            } else {
+                                IconButton(id: watch_mini_play, icon: "play.fill", font_size: 14, height: 28, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
                             }
                         }
                     }
@@ -574,7 +594,7 @@ pub fn module_switches(app: enji::Client, shell: shell::Client) -> impl View {
 #[component]
 pub fn watch_module_switches(app: enji::Client, shell: shell::Client) -> impl View {
     ui! {
-        Column(gap: 6) {
+        Section {
             if build.modules.recommend && app.netease {
                 Switch(id: module_recommend, label: tr! { "zh-Hans" => "推荐", "en" => "For You" }, checked: shell.modules.recommend, style: switch) => shell.set_module("recommend", shell.modules.recommend)
             }

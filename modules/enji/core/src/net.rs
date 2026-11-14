@@ -303,7 +303,7 @@ fn state_from_settings(saved: &Value) -> State {
             _ if cfg!(target_os = "macos") => CloseAction::Background,
             _ => CloseAction::Quit,
         },
-        desktop: cfg!(not(any(target_os = "android", target_os = "ios", target_os = "tvos"))),
+        desktop: cfg!(not(any(target_os = "android", target_os = "ios", target_os = "tvos", target_os = "watchos"))),
         report_url: String::new(),
         cookie_file: String::new(),
         cookie_domain: ".music.163.com".into(),

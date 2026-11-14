@@ -108,7 +108,7 @@ pub fn watch_sign_in(app: enji::Client) -> impl View {
     ui! {
         Modal(width: 220) {
             ScrollView {
-                Column(gap: 8, padding_x: 16, padding_y: 22, align: center) {
+                Column(gap: 8, variant: watch_modal, align: center) {
                     Text(content: tr! { "zh-Hans" => "扫码登录", "en" => "Sign In" }, style: headline, bold: true)
                     sign_in_picture(app: app)
                     sign_in_steps(app: app)
@@ -375,14 +375,14 @@ pub fn mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
 pub fn watch_mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 6, padding_x: 14, padding_y: 24) {
+            Column(gap: 6, variant: watch_page) {
                 Row(align: center) {
                     Spacer
                     Text(content: tr! { "zh-Hans" => "我的", "en" => "Mine" }, style: headline, bold: true)
                     Spacer
                 }
                 Button(id: open_local, label: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, variant: row, width: fill) {
-                    Row(gap: 10, padding_x: 10, padding_y: 8, align: center) {
+                    Row(gap: 10, variant: watch_row, align: center) {
                         Stack(variant: tint) {
                             Label(title: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, icon: "music.note", display: icon, font_size: 16)
                         }
@@ -392,7 +392,7 @@ pub fn watch_mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl V
                     }
                 } => draft.shelf.set(Shelf::Local)
                 Button(id: open_history, label: tr! { "zh-Hans" => "播放记录", "en" => "History" }, variant: row, width: fill) {
-                    Row(gap: 10, padding_x: 10, padding_y: 8, align: center) {
+                    Row(gap: 10, variant: watch_row, align: center) {
                         Stack(variant: tint) {
                             Label(title: tr! { "zh-Hans" => "播放记录", "en" => "History" }, icon: "clock.arrow.circlepath", display: icon, font_size: 16)
                         }
@@ -590,7 +590,7 @@ pub fn shelf_back(#[session] draft: MainDraft) -> impl View {
 pub fn shelf_room(#[session] draft: MainDraft) -> impl View {
     ui! {
         if window.watch {
-            IconButton(id: watch_shelf_back, icon: "chevron.left", height: 32, font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => draft.shelf.set(Shelf::Mine)
+            IconButton(id: watch_shelf_back, icon: "chevron.left", height: 32, font_size: 15, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => draft.shelf.set(Shelf::Mine)
         } else if window.compact || window.short && !window.tv {
             Column(height: 52) {
                 Spacer
@@ -688,10 +688,10 @@ pub fn local_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
 pub fn watch_local_page(app: enji::Client) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 6, padding_x: 14, padding_y: 22) {
-                Row(gap: 4, padding_x: 4, align: center) {
+            Column(gap: 6, variant: watch_page) {
+                Row(gap: 6, padding_x: 2, align: center) {
                     shelf_room()
-                    Text(content: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, style: callout, bold: true, lines: 1)
+                    Text(content: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, style: headline, bold: true, lines: 1)
                     Spacer
                 }
                 if app.scanning {
@@ -766,8 +766,8 @@ pub fn history_page(app: enji::Client) -> impl View {
 pub fn watch_history_page(app: enji::Client) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 6, padding_x: 14, padding_y: 22) {
-                Row(gap: 4, padding_x: 4, align: center) {
+            Column(gap: 6, variant: watch_page) {
+                Row(gap: 6, padding_x: 2, align: center) {
                     shelf_room()
                     Text(content: tr! { "zh-Hans" => "播放记录", "en" => "History" }, style: headline, bold: true, lines: 1)
                     Spacer
@@ -798,7 +798,7 @@ pub fn watch_history_page(app: enji::Client) -> impl View {
 pub fn history_row(app: enji::Client, played: enji::Played) -> impl View {
     ui! {
         Button(id: played_song, label: played.song.name, variant: row) {
-            Row(gap: if window.watch { 10 } else { 14 }, padding_x: if window.watch { 8 } else { 12 }, padding_y: if window.watch { 6 } else { 7 }, align: center) {
+            Row(gap: if window.watch { 8 } else { 14 }, padding_x: if window.watch { 6 } else { 12 }, padding_y: if window.watch { 5 } else { 7 }, align: center) {
                 Stack(width: if window.watch { 34 } else { 44 }, height: if window.watch { 34 } else { 44 }) {
                     cover_placeholder(side: if window.watch { 34.0 } else { 44.0 })
                     Image(source: played.song.cover, width: if window.watch { 34 } else { 44 }, height: if window.watch { 34 } else { 44 }, fit: cover, corner: 6)
@@ -923,8 +923,8 @@ pub fn back_over(app: enji::Client) -> impl View {
 pub fn back_row(app: enji::Client) -> impl View {
     ui! {
         if window.watch {
-            Row(padding_x: 4) {
-                IconButton(id: watch_back, icon: "chevron.left", height: 32, font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
+            Row(padding_x: 2) {
+                IconButton(id: watch_back, icon: "chevron.left", height: 32, font_size: 15, label: tr! { "zh-Hans" => "返回", "en" => "Back" }) => app.back()
                 Spacer
             }
         } else if window.tv {
@@ -1228,7 +1228,7 @@ pub fn account_page(app: enji::Client) -> impl View {
 pub fn watch_account_page(app: enji::Client) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 10, padding_x: 14, padding_y: 22) {
+            Column(gap: 10, variant: watch_page) {
                 back_row(app: app)
                 Column(gap: 6, align: center) {
                     Image(source: app.avatar, width: 56, height: 56, fit: cover, corner: 28)
@@ -1252,9 +1252,9 @@ pub fn watch_account_page(app: enji::Client) -> impl View {
 pub fn album_page(app: enji::Client, album: enji::Album) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 0, padding_x: if window.watch { 14 } else if window.compact { 8 } else { 24 }, padding_y: if window.watch { 22 } else if window.compact { 4 } else { 12 }) {
-                back_row(app: app)
-                if window.watch {
+            if window.watch {
+                Column(gap: 0, variant: watch_page) {
+                    back_row(app: app)
                     Column(gap: 8, padding_y: 6, align: center) {
                         Image(source: album.cover, width: 88, height: 88, fit: cover, corner: 12)
                         Text(content: album.name, style: headline, bold: true, lines: 2)
@@ -1262,44 +1262,57 @@ pub fn album_page(app: enji::Client, album: enji::Album) -> impl View {
                         Text(content: app.album_meta, style: caption, emphasis: secondary)
                         album_actions(app: app)
                     }
-                } else if window.compact {
-                    Row(padding_x: 10, padding_y: 10) {
-                        Spacer
-                        Column(gap: 14, align: center) {
-                            Image(source: album.cover, width: 200, height: 200, fit: cover, corner: 14, glow: 1, glow_opacity: 0.35)
-                            Column(gap: 6, align: center) {
-                                Text(content: album.name, style: title2, bold: true, lines: 2)
-                                album_singer(app: app, album: album)
-                                Text(content: app.album_meta, style: caption, emphasis: secondary)
-                            }
-                            album_actions(app: app)
-                        }
-                        Spacer
+                    if app.album_loading {
+                        song_skeleton()
                     }
-                } else {
-                    Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
-                        Image(source: album.cover, width: 216, height: 216, fit: cover, corner: 16, glow: 1, glow_opacity: 0.35)
-                        Column(gap: 10, align: leading) {
-                            Text(content: album.name, style: large_title, bold: true, lines: 2)
-                            album_singer(app: app, album: album)
-                            Text(content: app.album_meta, style: subheadline, emphasis: secondary)
-                            if app.album_description != "" {
-                                Text(content: app.album_description, style: footnote, emphasis: secondary, lines: 2)
-                            }
-                            Column(padding_y: 6) {
+                    Column(gap: 2) {
+                        ForEach(items: app.album_songs, key: index) |song| {
+                            song_row(app: app, song: song, source: Source::Album, full: true, removable: false)
+                        }
+                    }
+                }
+            } else {
+                Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: if window.compact { 4 } else { 12 }) {
+                    back_row(app: app)
+                    if window.compact {
+                        Row(padding_x: 10, padding_y: 10) {
+                            Spacer
+                            Column(gap: 14, align: center) {
+                                Image(source: album.cover, width: 200, height: 200, fit: cover, corner: 14, glow: 1, glow_opacity: 0.35)
+                                Column(gap: 6, align: center) {
+                                    Text(content: album.name, style: title2, bold: true, lines: 2)
+                                    album_singer(app: app, album: album)
+                                    Text(content: app.album_meta, style: caption, emphasis: secondary)
+                                }
                                 album_actions(app: app)
                             }
+                            Spacer
                         }
-                        Spacer
+                    } else {
+                        Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
+                            Image(source: album.cover, width: 216, height: 216, fit: cover, corner: 16, glow: 1, glow_opacity: 0.35)
+                            Column(gap: 10, align: leading) {
+                                Text(content: album.name, style: large_title, bold: true, lines: 2)
+                                album_singer(app: app, album: album)
+                                Text(content: app.album_meta, style: subheadline, emphasis: secondary)
+                                if app.album_description != "" {
+                                    Text(content: app.album_description, style: footnote, emphasis: secondary, lines: 2)
+                                }
+                                Column(padding_y: 6) {
+                                    album_actions(app: app)
+                                }
+                            }
+                            Spacer
+                        }
                     }
-                }
-                song_header(app: app)
-                if app.album_loading {
-                    song_skeleton()
-                }
-                Column(gap: 2) {
-                    ForEach(items: app.album_songs, key: index) |song| {
-                        song_row(app: app, song: song, source: Source::Album, full: true, removable: false)
+                    song_header(app: app)
+                    if app.album_loading {
+                        song_skeleton()
+                    }
+                    Column(gap: 2) {
+                        ForEach(items: app.album_songs, key: index) |song| {
+                            song_row(app: app, song: song, source: Source::Album, full: true, removable: false)
+                        }
                     }
                 }
             }
@@ -1351,72 +1364,81 @@ pub fn watch_album_actions(app: enji::Client) -> impl View {
 pub fn artist_page(app: enji::Client, artist: enji::Artist) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 0, padding_x: if window.watch { 14 } else if window.compact { 8 } else { 24 }, padding_y: if window.watch { 22 } else if window.compact { 4 } else { 12 }) {
-                back_row(app: app)
-                if window.watch {
+            if window.watch {
+                Column(gap: 0, variant: watch_page) {
+                    back_row(app: app)
                     Column(gap: 8, padding_y: 6, align: center) {
                         Image(source: artist.picture, width: 80, height: 80, fit: cover, corner: 40)
                         Text(content: artist.name, style: headline, bold: true, lines: 1)
                         Text(content: artist.detail, style: caption, emphasis: secondary)
                         artist_actions(app: app)
                     }
-                } else if window.compact {
-                    Row(padding_x: 10, padding_y: 10) {
-                        Spacer
-                        Column(gap: 12, align: center) {
-                            Image(source: artist.picture, width: 160, height: 160, fit: cover, corner: 80)
-                            Text(content: artist.name, style: title2, bold: true, lines: 1)
-                            Text(content: artist.detail, style: caption, emphasis: secondary)
-                            artist_actions(app: app)
-                        }
-                        Spacer
-                    }
-                } else {
-                    Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
-                        Image(source: artist.picture, width: 200, height: 200, fit: cover, corner: 100)
-                        Column(gap: 10, align: leading) {
-                            Text(content: artist.name, style: large_title, bold: true, lines: 1)
-                            Text(content: artist.detail, style: subheadline, emphasis: secondary)
-                            if app.artist_description != "" {
-                                Text(content: app.artist_description, style: footnote, emphasis: secondary, lines: 3)
-                            }
-                            Column(padding_y: 6) {
-                                artist_actions(app: app)
-                            }
-                        }
-                        Spacer
-                    }
-                }
-                if app.artist_loading {
-                    song_skeleton()
-                } else {
-                    Column(padding_x: if window.watch { 4 } else { 12 }, padding_y: 8) {
-                        if window.watch {
+                    if app.artist_loading {
+                        song_skeleton()
+                    } else {
+                        Column(padding_x: 4, padding_y: 8) {
                             Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: caption, bold: true)
-                        } else {
-                            Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: title3, bold: true)
                         }
-                    }
-                    song_header(app: app)
-                    Column(gap: 2) {
-                        ForEach(items: app.artist_songs, key: index) |song| {
-                            song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
+                        Column(gap: 2) {
+                            ForEach(items: app.artist_songs, key: index) |song| {
+                                song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
+                            }
                         }
-                    }
-                    Column(padding_x: if window.watch { 4 } else { 12 }, padding_y: if window.watch { 10 } else { 20 }) {
-                        if window.watch {
+                        Column(padding_x: 4, padding_y: 10) {
                             Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: caption, bold: true)
-                        } else {
-                            Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: title3, bold: true)
                         }
-                    }
-                    if window.watch {
                         Column(gap: 4) {
                             ForEach(items: app.artist_albums, key: id) |album| {
                                 watch_album_row(app: app, album: album)
                             }
                         }
+                    }
+                }
+            } else {
+                Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: if window.compact { 4 } else { 12 }) {
+                    back_row(app: app)
+                    if window.compact {
+                        Row(padding_x: 10, padding_y: 10) {
+                            Spacer
+                            Column(gap: 12, align: center) {
+                                Image(source: artist.picture, width: 160, height: 160, fit: cover, corner: 80)
+                                Text(content: artist.name, style: title2, bold: true, lines: 1)
+                                Text(content: artist.detail, style: caption, emphasis: secondary)
+                                artist_actions(app: app)
+                            }
+                            Spacer
+                        }
                     } else {
+                        Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
+                            Image(source: artist.picture, width: 200, height: 200, fit: cover, corner: 100)
+                            Column(gap: 10, align: leading) {
+                                Text(content: artist.name, style: large_title, bold: true, lines: 1)
+                                Text(content: artist.detail, style: subheadline, emphasis: secondary)
+                                if app.artist_description != "" {
+                                    Text(content: app.artist_description, style: footnote, emphasis: secondary, lines: 3)
+                                }
+                                Column(padding_y: 6) {
+                                    artist_actions(app: app)
+                                }
+                            }
+                            Spacer
+                        }
+                    }
+                    if app.artist_loading {
+                        song_skeleton()
+                    } else {
+                        Column(padding_x: 12, padding_y: 8) {
+                            Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: title3, bold: true)
+                        }
+                        song_header(app: app)
+                        Column(gap: 2) {
+                            ForEach(items: app.artist_songs, key: index) |song| {
+                                song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
+                            }
+                        }
+                        Column(padding_x: 12, padding_y: 20) {
+                            Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: title3, bold: true)
+                        }
                         Column(padding_x: 12, padding_y: 4) {
                             Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
                                 ForEach(items: app.artist_albums, key: id, stagger: 0.02) |album| {
@@ -1465,9 +1487,9 @@ pub fn watch_artist_actions(app: enji::Client) -> impl View {
 pub fn playlist_page(app: enji::Client, list: enji::Playlist) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 0, padding_x: if window.watch { 14 } else if window.compact { 8 } else { 24 }, padding_y: if window.watch { 22 } else if window.compact { 4 } else { 12 }) {
-                back_row(app: app)
-                if window.watch {
+            if window.watch {
+                Column(gap: 0, variant: watch_page) {
+                    back_row(app: app)
                     Column(gap: 8, padding_y: 6, align: center) {
                         Image(source: list.cover, width: 88, height: 88, fit: cover, corner: 12)
                         Text(content: list.name, style: headline, bold: true, lines: 2)
@@ -1475,49 +1497,62 @@ pub fn playlist_page(app: enji::Client, list: enji::Playlist) -> impl View {
                         Text(content: app.opened_meta, style: caption, emphasis: secondary)
                         phone_playlist_actions(app: app, list: list)
                     }
-                } else if window.compact {
-                    Row(padding_x: 10, padding_y: 10) {
-                        Spacer
-                        Column(gap: 14, align: center) {
-                            Image(source: list.cover, width: 200, height: 200, fit: cover, corner: 14, glow: 1, glow_opacity: 0.35)
-                            Column(gap: 6, align: center) {
-                                Text(content: list.name, style: title2, bold: true, lines: 2)
+                    if app.opened_loading {
+                        song_skeleton()
+                    }
+                    Column(gap: 2) {
+                        ForEach(items: app.opened_songs, key: index) |song| {
+                            song_row(app: app, song: song, source: Source::Playlist, full: true, removable: app.opened_owned)
+                        }
+                    }
+                }
+            } else {
+                Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: if window.compact { 4 } else { 12 }) {
+                    back_row(app: app)
+                    if window.compact {
+                        Row(padding_x: 10, padding_y: 10) {
+                            Spacer
+                            Column(gap: 14, align: center) {
+                                Image(source: list.cover, width: 200, height: 200, fit: cover, corner: 14, glow: 1, glow_opacity: 0.35)
+                                Column(gap: 6, align: center) {
+                                    Text(content: list.name, style: title2, bold: true, lines: 2)
+                                    playlist_owner(app: app)
+                                    Text(content: app.opened_meta, style: caption, emphasis: secondary)
+                                }
+                            }
+                            Spacer
+                        }
+                        Column(padding_x: 12, padding_y: 6) {
+                            phone_playlist_actions(app: app, list: list)
+                        }
+                    } else {
+                        Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
+                            Image(source: list.cover, width: 216, height: 216, fit: cover, corner: 16, glow: 1, glow_opacity: 0.35)
+                            Column(gap: 10, align: leading) {
+                                Text(content: list.name, style: large_title, bold: true, lines: 2)
                                 playlist_owner(app: app)
-                                Text(content: app.opened_meta, style: caption, emphasis: secondary)
+                                Text(content: app.opened_meta, style: subheadline, emphasis: secondary)
+                                if app.opened_description != "" {
+                                    Text(content: app.opened_description, style: footnote, emphasis: secondary, lines: 2)
+                                }
+                                Column(padding_y: 6) {
+                                    playlist_actions(app: app, list: list)
+                                }
                             }
+                            Spacer
                         }
-                        Spacer
                     }
-                    Column(padding_x: 12, padding_y: 6) {
-                        phone_playlist_actions(app: app, list: list)
+                    song_header(app: app)
+                    if app.opened_loading {
+                        song_skeleton()
                     }
-                } else {
-                    Row(gap: 32, padding_x: 8, padding_y: 16, align: center) {
-                        Image(source: list.cover, width: 216, height: 216, fit: cover, corner: 16, glow: 1, glow_opacity: 0.35)
-                        Column(gap: 10, align: leading) {
-                            Text(content: list.name, style: large_title, bold: true, lines: 2)
-                            playlist_owner(app: app)
-                            Text(content: app.opened_meta, style: subheadline, emphasis: secondary)
-                            if app.opened_description != "" {
-                                Text(content: app.opened_description, style: footnote, emphasis: secondary, lines: 2)
-                            }
-                            Column(padding_y: 6) {
-                                playlist_actions(app: app, list: list)
-                            }
+                    // In the scroll view, rows are built as they come into view:
+                    // a playlist of a thousand songs does not fetch a thousand
+                    // covers at once.
+                    Column(gap: 2) {
+                        ForEach(items: app.opened_songs, key: index) |song| {
+                            song_row(app: app, song: song, source: Source::Playlist, full: true, removable: app.opened_owned)
                         }
-                        Spacer
-                    }
-                }
-                song_header(app: app)
-                if app.opened_loading {
-                    song_skeleton()
-                }
-                // In the scroll view, rows are built as they come into view:
-                // a playlist of a thousand songs does not fetch a thousand
-                // covers at once.
-                Column(gap: 2) {
-                    ForEach(items: app.opened_songs, key: index) |song| {
-                        song_row(app: app, song: song, source: Source::Playlist, full: true, removable: app.opened_owned)
                     }
                 }
             }
@@ -1613,7 +1648,7 @@ pub fn watch_playlist_row(app: enji::Client, list: enji::Playlist) -> impl View 
     ui! {
         if list.owned {
             Button(id: open_own_list, label: list.name, variant: row, width: fill) {
-                Row(gap: 10, padding_x: 10, padding_y: 8, align: center) {
+                Row(gap: 10, variant: watch_row, align: center) {
                     Image(source: list.cover, width: 34, height: 34, fit: cover, corner: 6)
                     Column(gap: 1, align: leading) {
                         Text(content: list.name, style: callout, lines: 1)
@@ -1629,7 +1664,7 @@ pub fn watch_playlist_row(app: enji::Client, list: enji::Playlist) -> impl View 
             } => app.show_playlist(list)
         } else {
             Button(id: open_list, label: list.name, variant: row, width: fill) {
-                Row(gap: 10, padding_x: 10, padding_y: 8, align: center) {
+                Row(gap: 10, variant: watch_row, align: center) {
                     Image(source: list.cover, width: 34, height: 34, fit: cover, corner: 6)
                     Column(gap: 1, align: leading) {
                         Text(content: list.name, style: callout, lines: 1)
@@ -1649,7 +1684,7 @@ pub fn watch_playlist_row(app: enji::Client, list: enji::Playlist) -> impl View 
 pub fn watch_album_row(app: enji::Client, album: enji::Album) -> impl View {
     ui! {
         Button(id: open_album, label: album.name, variant: row, width: fill) {
-            Row(gap: 10, padding_x: 10, padding_y: 8, align: center) {
+            Row(gap: 10, variant: watch_row, align: center) {
                 Image(source: album.cover, width: 34, height: 34, fit: cover, corner: 6)
                 Column(gap: 1, align: leading) {
                     Text(content: album.name, style: callout, lines: 1)
@@ -1665,7 +1700,7 @@ pub fn watch_album_row(app: enji::Client, album: enji::Album) -> impl View {
 pub fn watch_artist_row(app: enji::Client, artist: enji::Artist) -> impl View {
     ui! {
         Button(id: open_artist, label: artist.name, variant: row, width: fill) {
-            Row(gap: 10, padding_x: 10, padding_y: 8, align: center) {
+            Row(gap: 10, variant: watch_row, align: center) {
                 Image(source: artist.picture, width: 34, height: 34, fit: cover, corner: 17)
                 Column(gap: 1, align: leading) {
                     Text(content: artist.name, style: callout, lines: 1)
@@ -1774,7 +1809,7 @@ pub fn song_row(
 #[component]
 pub fn song_line(app: enji::Client, song: enji::Song, full: bool, marked: bool) -> impl View {
     ui! {
-        Row(gap: if window.watch { 8 } else { 14 }, padding_x: if window.watch { 8 } else { 12 }, padding_y: if window.watch { 6 } else { 7 }, align: center) {
+        Row(gap: if window.watch { 8 } else { 14 }, padding_x: if window.watch { 6 } else { 12 }, padding_y: if window.watch { 5 } else { 7 }, align: center) {
             if full && !window.compact && !window.watch {
                 Column(width: 28, align: center) {
                     if song.id == app.current_id {
@@ -2934,12 +2969,12 @@ pub fn watch_now_playing(
         Stack(appearance: dark) {
             if let Some(song) = app.current {
                 if app.panel_open {
-                    Column(gap: 2, padding_x: 8) {
-                        Column(height: 18) { Spacer }
-                        Row(gap: 6, padding_x: 20, align: center) {
+                    Column(gap: 2, padding_x: 6) {
+                        Column(variant: watch_top_room) {}
+                        Row(gap: 6, padding_x: 8, align: center) {
                             Text(content: song.name, style: caption, bold: true, lines: 1)
                             Spacer
-                            IconButton(id: watch_close_panel, icon: "chevron.down", height: 28, font_size: 14, prominence: plain, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => app.toggle_panel(app.panel)
+                            IconButton(id: watch_close_panel, icon: "chevron.down", height: 28, font_size: 14, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => app.toggle_panel(app.panel)
                         }
                         match app.panel {
                             Panel::Lyrics => { lyrics(app: app, sung: sung) }
@@ -2948,15 +2983,15 @@ pub fn watch_now_playing(
                         }
                     }
                 } else {
-                    Column(gap: 4, padding_x: 16, align: center) {
-                        Column(height: 20) { Spacer }
-                        Column(gap: 1, padding_x: 14, align: center) {
+                    Column(gap: 4, padding_x: 10, align: center) {
+                        Column(variant: watch_top_room) {}
+                        Column(gap: 1, padding_x: 8, align: center) {
                             Text(content: song.name, style: headline, bold: true, lines: 1)
                             Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
                         }
                         Spacer
                         Row(gap: 6, align: center) {
-                            IconButton(id: watch_previous, icon: "backward.fill", height: 36, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
+                            IconButton(id: watch_previous, icon: "backward.fill", height: 36, font_size: 16, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
                             Stack(align: center) {
                                 Progress(style: ring, value: live.progress, total: 1, width: 54, stroke_width: 3, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" })
                                 Stack(nudge_key: pulse.cover_pulse_soft, nudge_scale: 1.04, nudge_motion: beat) {
@@ -2967,10 +3002,10 @@ pub fn watch_now_playing(
                                     }
                                 }
                             }
-                            IconButton(id: watch_next, icon: "forward.fill", height: 36, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
+                            IconButton(id: watch_next, icon: "forward.fill", height: 36, font_size: 16, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
                         }
                         Spacer
-                        Row(gap: 4, align: center) {
+                        Row(gap: 6, padding_y: 2, align: center) {
                             like_button(app: app)
                             IconButton(id: watch_lyrics, icon: "quote.bubble", height: 32, font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
                             PopoverButton(id: watch_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "music.note.list", font_size: 15, prominence: plain) {
@@ -3111,7 +3146,7 @@ pub fn watch_together_dialog(app: enji::Client, #[session] draft: MainDraft) -> 
     ui! {
         Modal(width: 220) {
             ScrollView {
-                Column(gap: 10, padding_x: 16, padding_y: 26) {
+                Column(gap: 10, variant: watch_modal) {
                     Text(content: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, style: headline, bold: true)
                     if app.together_room != "" {
                         ForEach(items: app.together_users, key: id) |user| {
@@ -3223,7 +3258,7 @@ pub fn watch_playlist_chooser(app: enji::Client) -> impl View {
     ui! {
         Modal(width: 220) {
             ScrollView {
-                Column(gap: 8, padding_x: 16, padding_y: 26) {
+                Column(gap: 8, variant: watch_modal) {
                     Text(content: tr! { "zh-Hans" => "添加到歌单", "en" => "Add to Playlist" }, style: headline, bold: true)
                     ForEach(items: app.mine, key: id) |list| {
                         if list.owned {
@@ -3330,7 +3365,7 @@ pub fn watch_naming_dialog(app: enji::Client, #[session] draft: MainDraft) -> im
     ui! {
         Modal(width: 220) {
             ScrollView {
-                Column(gap: 10, padding_x: 16, padding_y: 26) {
+                Column(gap: 10, variant: watch_modal) {
                     Text(content: tr! { "zh-Hans" => "新建歌单", "en" => "New Playlist" }, style: headline, bold: true)
                     TextInput(id: new_name, label: tr! { "zh-Hans" => "歌单名称", "en" => "Name" }, label_hidden: true, value: draft.new_name, prompt: tr! { "zh-Hans" => "歌单名称", "en" => "Name" }, submit: clear) => app.create_playlist(draft.new_name)
                     Button(id: create_playlist, label: tr! { "zh-Hans" => "新建", "en" => "Create" }, prominence: prominent, width: fill, enabled: draft.new_name != "", clears: draft.new_name) => app.create_playlist(draft.new_name)
@@ -3447,7 +3482,7 @@ pub fn watch_delete_dialog(app: enji::Client, list: enji::Playlist) -> impl View
     ui! {
         Modal(width: 220) {
             ScrollView {
-                Column(gap: 10, padding_x: 16, padding_y: 26) {
+                Column(gap: 10, variant: watch_modal) {
                     Text(content: tr! { "zh-Hans" => "删除歌单「{name}」？", "en" => "Delete “{name}”?"; name: list.name }, style: headline, bold: true)
                     Text(content: tr! { "zh-Hans" => "删除后不能恢复。", "en" => "This cannot be undone." }, style: caption, emphasis: secondary)
                     Button(id: confirm_delete, label: tr! { "zh-Hans" => "删除", "en" => "Delete" }, role: destructive, prominence: prominent, width: fill) => app.confirm_delete()

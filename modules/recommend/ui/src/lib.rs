@@ -109,9 +109,11 @@ pub fn home_page(app: enji::Client, recommend: recommend::Client) -> impl View {
 pub fn watch_home_page(app: enji::Client, recommend: recommend::Client) -> impl View {
     ui! {
         ScrollView {
-            Column(gap: 8, padding_x: 14, padding_y: 24) {
-                Column(padding_x: 12, align: center) {
+            Column(gap: 8, variant: watch_page) {
+                Row(align: center) {
+                    Spacer
                     watch_greeting(app: app, recommend: recommend)
+                    Spacer
                 }
                 if app.login == Login::In {
                     Button(id: play_fm, label: tr! { "zh-Hans" => "私人漫游", "en" => "Roaming" }, icon: "dot.radiowaves.left.and.right", prominence: prominent, width: fill) => app.play_fm()

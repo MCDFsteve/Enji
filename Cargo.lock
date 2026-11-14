@@ -259,7 +259,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 [[package]]
 name = "bern"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -273,7 +273,7 @@ dependencies = [
 [[package]]
 name = "bern-command"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -295,7 +295,7 @@ dependencies = [
 [[package]]
 name = "bern-ir"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -305,7 +305,7 @@ dependencies = [
 [[package]]
 name = "bern-macros"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -319,7 +319,7 @@ dependencies = [
 [[package]]
 name = "bern-media"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-protocol",
 ]
@@ -327,7 +327,7 @@ dependencies = [
 [[package]]
 name = "bern-protocol"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "serde",
  "serde_json",
@@ -336,7 +336,7 @@ dependencies = [
 [[package]]
 name = "bern-runtime"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-protocol",
 ]
@@ -344,7 +344,7 @@ dependencies = [
 [[package]]
 name = "bern-script"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "boa_engine",
  "serde",
@@ -354,7 +354,7 @@ dependencies = [
 [[package]]
 name = "bern-syntax"
 version = "0.1.17"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=a665137d2da468a512b9721cbc17834b47cd837e#a665137d2da468a512b9721cbc17834b47cd837e"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=8a43a1582864e0354ed4229966c98ac908bfc6fe#8a43a1582864e0354ed4229966c98ac908bfc6fe"
 dependencies = [
  "bern-media",
  "bern-protocol",
@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "charts-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "charts-protocol",
@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "charts-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "charts-ui"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "charts-protocol",
@@ -1150,10 +1150,11 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "enji-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "bern-script",
+ "block2",
  "chrono",
  "dirs",
  "enji-kit",
@@ -1163,6 +1164,9 @@ dependencies = [
  "lofty",
  "ncm-api-rs",
  "ndk-context",
+ "objc2",
+ "objc2-avf-audio",
+ "objc2-core-audio-types",
  "png 0.17.16",
  "qrcode",
  "rand 0.8.8",
@@ -1177,7 +1181,7 @@ dependencies = [
 
 [[package]]
 name = "enji-kit"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "dirs",
@@ -1200,14 +1204,14 @@ dependencies = [
 
 [[package]]
 name = "enji-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
 ]
 
 [[package]]
 name = "enji-shell"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-kit",
@@ -1217,14 +1221,14 @@ dependencies = [
 
 [[package]]
 name = "enji-shell-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
 ]
 
 [[package]]
 name = "enji-shell-ui"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -1237,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "enji-ui"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -2024,7 +2028,7 @@ checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
 name = "live-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-kit",
@@ -2033,7 +2037,7 @@ dependencies = [
 
 [[package]]
 name = "live-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
 ]
@@ -2425,8 +2429,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13a380031deed8e99db00065c45937da434ca987c034e13b87e4441f9e4090be"
 dependencies = [
  "bitflags 2.13.2",
+ "block2",
  "objc2",
+ "objc2-core-audio-types",
  "objc2-foundation",
+]
+
+[[package]]
+name = "objc2-core-audio-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a89f2ec274a0cf4a32642b2991e8b351a404d290da87bb6a9a9d8632490bd1c"
+dependencies = [
+ "bitflags 2.13.2",
+ "objc2",
 ]
 
 [[package]]
@@ -2799,7 +2815,7 @@ dependencies = [
 
 [[package]]
 name = "pulse-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-kit",
@@ -2808,7 +2824,7 @@ dependencies = [
 
 [[package]]
 name = "pulse-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
 ]
@@ -2954,7 +2970,7 @@ dependencies = [
 
 [[package]]
 name = "recommend-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "chrono",
@@ -2967,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "recommend-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -2975,7 +2991,7 @@ dependencies = [
 
 [[package]]
 name = "recommend-ui"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -3219,7 +3235,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "search-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-kit",
@@ -3231,7 +3247,7 @@ dependencies = [
 
 [[package]]
 name = "search-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -3239,7 +3255,7 @@ dependencies = [
 
 [[package]]
 name = "search-ui"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-protocol",
@@ -3535,7 +3551,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "sung-core"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
  "enji-kit",
@@ -3544,7 +3560,7 @@ dependencies = [
 
 [[package]]
 name = "sung-protocol"
-version = "0.3.15"
+version = "0.3.16"
 dependencies = [
  "bern",
 ]
@@ -5060,11 +5076,3 @@ dependencies = [
  "syn 3.0.9",
  "winnow 1.0.4",
 ]
-
-[[patch.unused]]
-name = "bern"
-version = "0.1.15"
-
-[[patch.unused]]
-name = "bern-script"
-version = "0.1.15"
