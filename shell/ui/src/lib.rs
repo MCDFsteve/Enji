@@ -241,9 +241,10 @@ pub fn main_window(
     ui! {
         Stack(align: bottom) {
             // While a song plays, its cover blurred behind the whole window,
-            // under the title bar too, washed so the pages stay easy to read.
+            // under the title bar too, washed so the pages stay easy to read;
+            // hidden while the playing sheet covers the whole window.
             if let Some(song) = app.current {
-                if app.backdrop && (!window.watch || nav.page == Page::Playing) {
+                if app.backdrop && (!draft.now || window.tv || window.watch) && (!window.watch || nav.page == Page::Playing) {
                     Stack(under_bars: true) {
                         Canvas(label: song.name) {
                             Shape(kind: rect, fill: surface.canvas)
