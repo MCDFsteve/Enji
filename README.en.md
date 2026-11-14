@@ -117,7 +117,7 @@
 - **USB exclusive output**: on Android 14 and later, a USB DAC plays each song at its own sample rate, without the system resampling it. It needs the phone's maker to allow it.
 - **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
 - **Downloads**: keep songs on your device with their lyrics and covers; on a computer they go to Enji in your Music folder. Downloaded songs and your own files are marked in every list.
-- **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls and the Android notification all show what's playing and control it. The music keeps playing when you switch apps or lock the screen.
+- **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone Dynamic Island, lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls, and the Android notification and maker islands all show what's playing and control it, with a favorite button right in the island and notification when signed in. The music keeps playing when you switch apps or lock the screen.
 - **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them. Hover over them (tap on Android) to skip, pause or lock them; locked, clicks go through them.
 - **Speaker lyrics**: on Windows with a supported USB speaker with a screen plugged in, the line being sung shows on the speaker's own screen in the font and animation set on it, with a switch in Settings.
 - **Plugins**: install plugins from the plugin market in Settings, such as lyrics on the Windows taskbar or a cover that pulses with the beat. Plugins are written in JavaScript; see [enji-plugins](https://github.com/MCDFsteve/enji-plugins).
@@ -202,7 +202,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 6b39f468eabc9cb0886eb74cefa8a21725b984c6 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 98ee6feaa546225ff16b761899251ff4b2d2f7bf bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.
