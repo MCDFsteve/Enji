@@ -58,10 +58,14 @@ pub fn of_answer(body: &Value, by_word: bool) -> Vec<Line> {
     let text = |key: &str| body[key]["lyric"].as_str().unwrap_or("");
     let mut plain = parse(text("lrc"), text("tlyric"));
     let roman = timed(text("romalrc"));
-    for line in &mut plain {
-        if let Some(roman) = nearest(&roman, line.time) {
-            line.ruby = furigana::annotate(&line.text, roman);
-        }
+    let plain_rubies = furigana::annotate_lines((0..plain.len()).map(|i| {
+        (
+            plain[i].text.as_str(),
+            match_timed(&plain, i, &roman).unwrap_or(""),
+        )
+    }));
+    for (line, ruby) in plain.iter_mut().zip(plain_rubies) {
+        line.ruby = ruby;
     }
     let lines = if by_word {
         word_timed(text("yrc"))
@@ -78,29 +82,88 @@ pub fn of_answer(body: &Value, by_word: bool) -> Vec<Line> {
     };
     let mut lines = translated(lines, &timed(translation));
     let roman = timed(text("yromalrc"));
-    for line in &mut lines {
-        if let Some(roman) = nearest(&roman, line.time) {
-            line.ruby = furigana::annotate(&line.text, roman);
-        } else if let Some(mapped) = plain
+    let matched_roman: Vec<Option<&str>> = (0..lines.len())
+        .map(|i| match_timed(&lines, i, &roman))
+        .collect();
+    let word_rubies = furigana::annotate_lines(
+        lines
             .iter()
-            .filter(|other| (other.time - line.time).abs() <= NEAR)
-            .filter_map(|other| {
-                furigana::remap(&other.text, &line.text, &other.ruby)
-                    .map(|ruby| ((other.time - line.time).abs(), ruby))
-            })
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-        {
-            line.ruby = mapped.1;
+            .zip(&matched_roman)
+            .map(|(line, r)| (line.text.as_str(), r.unwrap_or(""))),
+    );
+    for i in 0..lines.len() {
+        if matched_roman[i].is_some() {
+            lines[i].ruby = word_rubies[i].clone();
+        } else {
+            let (start, end) = line_span(&lines, i);
+            if let Some(mapped) = plain
+                .iter()
+                .filter(|other| {
+                    (other.time - start).abs() <= NEAR
+                        || (other.time > start
+                            && other.time <= end
+                            && !lines
+                                .iter()
+                                .enumerate()
+                                .any(|(k, l)| k != i && (other.time - l.time).abs() <= NEAR))
+                })
+                .filter_map(|other| {
+                    furigana::remap(&other.text, &lines[i].text, &other.ruby)
+                        .map(|ruby| ((other.time - start).abs(), ruby))
+                })
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+            {
+                lines[i].ruby = mapped.1;
+            } else {
+                lines[i].ruby = word_rubies[i].clone();
+            }
         }
     }
     lines
 }
 
-fn nearest(lines: &[(f64, String)], time: f64) -> Option<&str> {
-    lines
+fn line_span(lines: &[Line], index: usize) -> (f64, f64) {
+    let start = lines[index].time;
+    let end = lines[index]
+        .words
+        .last()
+        .map_or(start, |w| w.time + w.length);
+    let end = lines
+        .get(index + 1)
+        .map_or(end, |next| end.min(next.time))
+        .max(start);
+    (start, end)
+}
+
+fn match_timed<'a>(lines: &[Line], index: usize, entries: &'a [(f64, String)]) -> Option<&'a str> {
+    let (start, end) = line_span(lines, index);
+    let near_start = entries
         .iter()
-        .min_by(|a, b| (a.0 - time).abs().total_cmp(&(b.0 - time).abs()))
-        .filter(|(at, _)| (at - time).abs() <= NEAR)
+        .min_by(|a, b| (a.0 - start).abs().total_cmp(&(b.0 - start).abs()))
+        .filter(|(at, _)| {
+            let d = (at - start).abs();
+            d <= NEAR
+                && !lines
+                    .iter()
+                    .enumerate()
+                    .any(|(k, other)| k != index && (at - other.time).abs() + 1e-6 < d)
+        });
+    if let Some((_, text)) = near_start {
+        return Some(text.as_str());
+    }
+    // A word-timed line whose first vocal enters early can carry its line-timed
+    // reading or translation later inside the line's own sung span.
+    entries
+        .iter()
+        .filter(|(at, _)| {
+            *at > start
+                && *at <= end
+                && !lines
+                    .iter()
+                    .enumerate()
+                    .any(|(k, other)| k != index && (at - other.time).abs() <= NEAR)
+        })
+        .min_by(|a, b| (a.0 - start).abs().total_cmp(&(b.0 - start).abs()))
         .map(|(_, text)| text.as_str())
 }
 
@@ -110,14 +173,11 @@ const NEAR: f64 = 1.0;
 
 /// `lines`, each with the translation nearest to it, if any is near.
 fn translated(mut lines: Vec<Line>, translation: &[(f64, String)]) -> Vec<Line> {
-    for line in &mut lines {
-        let gap = |at: f64| (at - line.time).abs();
-        let nearest = translation
-            .iter()
-            .min_by(|a, b| gap(a.0).total_cmp(&gap(b.0)));
-        line.translation = nearest
-            .filter(|(at, _)| gap(*at) <= NEAR)
-            .map(|(_, text)| text.clone());
+    let matched: Vec<Option<String>> = (0..lines.len())
+        .map(|i| match_timed(&lines, i, translation).map(str::to_string))
+        .collect();
+    for (line, trans) in lines.iter_mut().zip(matched) {
+        line.translation = trans;
     }
     lines
 }
@@ -213,14 +273,13 @@ pub fn parse(lrc: &str, translation: &str) -> Vec<Line> {
         // Without a translation of their own, a second line at the same
         // moment is the first one's translation, as bilingual LRC files
         // write it.
-        if translated.is_empty() {
-            if let Some(last) = lines
+        if translated.is_empty()
+            && let Some(last) = lines
                 .last_mut()
                 .filter(|last| (last.time - time).abs() < 0.05 && last.translation.is_none())
-            {
-                last.translation = Some(text);
-                continue;
-            }
+        {
+            last.translation = Some(text);
+            continue;
         }
         lines.push(Line {
             time,
@@ -375,5 +434,30 @@ mod tests {
         assert_eq!(of_answer(&fallback, true)[0].ruby, plain[0].ruby);
         fallback["yrc"]["lyric"] = serde_json::json!("[750,1000](750,1000,0)違う歌詞");
         assert!(of_answer(&fallback, true)[0].ruby.is_empty());
+    }
+
+    #[test]
+    fn word_timed_lines_with_long_pickups_match_readings_inside_their_span() {
+        let body = serde_json::json!({
+            "lrc": { "lyric": "[03:22.620]ヤバ まさか赤点(Red Point)!? いや ギリクリア\n[03:27.710]それだけでなんて全能感\n" },
+            "tlyric": { "lyric": "[03:22.620]糟糕 难道不及格!? 不 勉强过关\n[03:27.710]光是那样就充满全能感\n" },
+            "yrc": { "lyric": concat!(
+                "[184950,23290](184950,410,0)ヤ(190150,580,0)バ (194950,100,0)まさか (201530,90,0)赤(201620,170,0)点（Red Point）!? いや (206300,1940,0)ギリクリア\n",
+                "[208240,5040](208240,350,0)それだけでなんて(211280,960,0)全能感\n"
+            ) },
+            "yromalrc": { "lyric": "[03:22.930]ya ba ma sa ka a ka te n !? i ya gi ri ku ri a\n[03:28.240]so re da ke de na n te ze n no u ka n\n" }
+        });
+        let lines = of_answer(&body, true);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(
+            lines[0].translation.as_deref(),
+            Some("糟糕 难道不及格!? 不 勉强过关")
+        );
+        assert!(lines[0].ruby.iter().any(|r| r.reading == "あかてん"));
+        assert_eq!(
+            lines[1].translation.as_deref(),
+            Some("光是那样就充满全能感")
+        );
+        assert!(lines[1].ruby.iter().any(|r| r.reading == "ぜんのうかん"));
     }
 }
