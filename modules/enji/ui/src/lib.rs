@@ -2136,56 +2136,58 @@ pub fn mini_player(app: enji::Client, #[session] draft: MainDraft) -> impl View 
 #[component]
 pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -> impl View {
     ui! {
-        Column(gap: 6, padding_x: 28, padding_y: 8) {
-            phone_progress(app: app, live: live)
-            Row(gap: 0, align: center) {
-                Spacer
-                IconButton(id: phone_previous, icon: "backward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
-                Spacer
-                if app.playing {
-                    IconButton(id: phone_pause, icon: "pause.fill", font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
-                } else {
-                    IconButton(id: phone_play, icon: "play.fill", font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
+        Column(gap: if window.compact { 32 } else { 6 }, padding_x: 28, padding_y: 8) {
+            Column(gap: 6) {
+                phone_progress(app: app, live: live)
+                Row(gap: 0, height: 52, align: center) {
+                    Spacer
+                    IconButton(id: phone_previous, icon: "backward.fill", height: 44, font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }) => app.previous_song()
+                    Spacer
+                    if app.playing {
+                        IconButton(id: phone_pause, icon: "pause.fill", height: 52, font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "暂停", "en" => "Pause" }) => app.toggle()
+                    } else {
+                        IconButton(id: phone_play, icon: "play.fill", height: 52, font_size: 42, prominence: plain, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
+                    }
+                    Spacer
+                    IconButton(id: phone_next, icon: "forward.fill", height: 44, font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
+                    Spacer
                 }
-                Spacer
-                IconButton(id: phone_next, icon: "forward.fill", font_size: 28, prominence: plain, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
-                Spacer
             }
             // What follows, and what shows in place of the cover.
-            Row(gap: 0, align: center) {
+            Row(gap: 0, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center) {
                 mode_button(app: app)
                 together_button(app: app)
                 Spacer
                 if app.panel_open && app.panel == Panel::Lyrics {
-                    IconButton(id: phone_lyrics_on, icon: "quote.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
+                    IconButton(id: phone_lyrics_on, icon: "quote.bubble.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
                 } else {
-                    IconButton(id: phone_lyrics_off, icon: "quote.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
+                    IconButton(id: phone_lyrics_off, icon: "quote.bubble", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
                 }
                 if app.current_id > 0 {
                     if app.netease && app.comments_enabled {
                         Spacer
                         if app.panel_open && app.panel == Panel::Comments {
-                            IconButton(id: phone_comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
+                            IconButton(id: phone_comments_on, icon: "text.bubble.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
                         } else {
-                            IconButton(id: phone_comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
+                            IconButton(id: phone_comments_off, icon: "text.bubble", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.toggle_panel(Panel::Comments)
                         }
                     }
                     if app.netease && app.details_enabled {
                         Spacer
                         if app.panel_open && app.panel == Panel::Details {
-                            IconButton(id: phone_details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.toggle_panel(Panel::Details)
+                            IconButton(id: phone_details_on, icon: "info.circle.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.toggle_panel(Panel::Details)
                         } else {
-                            IconButton(id: phone_details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.toggle_panel(Panel::Details)
+                            IconButton(id: phone_details_off, icon: "info.circle", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.toggle_panel(Panel::Details)
                         }
                     }
                     if song.file == "" || song.downloaded {
                         Spacer
                         if song.downloaded {
-                            Stack(variant: quiet) {
+                            Stack(width: if app.android { 48 } else if app.windows { 38 } else { 32 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center, variant: quiet) {
                                 Label(title: tr! { "zh-Hans" => "在本地", "en" => "On This Device" }, icon: "folder", display: icon, font_size: 18)
                             }
                         } else {
-                            IconButton(id: phone_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
+                            IconButton(id: phone_download, icon: "arrow.down.circle", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain,
                                 icon_progress: app.current_download,
                                 label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
                         }
@@ -2194,8 +2196,10 @@ pub fn phone_controls(app: enji::Client, live: live::Client, song: enji::Song) -
                 Spacer
                 // iPhone keeps a popover 19 from each side of the screen and
                 // Bern pads it by 16, which leaves 305 on the narrowest, 375 wide.
-                PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
-                    queue_list(app: app, width: 300.0)
+                Stack(width: if app.android { 48 } else if app.windows { 38 } else { 32 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center) {
+                    PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
+                        queue_list(app: app, width: 300.0)
+                    }
                 }
             }
         }
@@ -2330,20 +2334,6 @@ pub fn phone_now_playing(
                         // The cover keeps its available size; only the free
                         // space around it changes its distribution.
                         Column(gap: 0, padding_x: 28, align: center) {
-                            // Equal spacer shares: 13 above and 7 below keep
-                            // the old lower gap at 70%, without resizing the cover.
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
                             Spacer
                             // A spinner on the cover's place until a picture of
                             // it comes, the small one first, then the sharp one.
@@ -2373,12 +2363,6 @@ pub fn phone_now_playing(
                                 }
                                 Spacer
                             }
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
-                            Spacer
                             Spacer
                         }
                         Column(gap: 4, padding_x: 28, align: leading) {
@@ -2495,37 +2479,37 @@ pub fn now_playing(
                             Spacer
                         }
                         // What follows, and what shows beside the cover.
-                        Row(gap: if app.android { 0 } else if app.windows { 6 } else { 26 }, align: center) {
+                        Row(gap: if app.android { 0 } else if app.windows { 6 } else { 16 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center) {
                             Spacer
                             mode_button(app: app)
                             together_button(app: app)
                             if app.panel == Panel::Lyrics {
-                                IconButton(id: lyrics_on, icon: "quote.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.show_panel(Panel::Lyrics)
+                                IconButton(id: lyrics_on, icon: "quote.bubble.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.show_panel(Panel::Lyrics)
                             } else {
-                                IconButton(id: lyrics_off, icon: "quote.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.show_panel(Panel::Lyrics)
+                                IconButton(id: lyrics_off, icon: "quote.bubble", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.show_panel(Panel::Lyrics)
                             }
                             if app.current_id > 0 {
                                 if app.netease && app.comments_enabled {
                                     if app.panel == Panel::Comments {
-                                        IconButton(id: comments_on, icon: "text.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.show_panel(Panel::Comments)
+                                        IconButton(id: comments_on, icon: "text.bubble.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.show_panel(Panel::Comments)
                                     } else {
-                                        IconButton(id: comments_off, icon: "text.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.show_panel(Panel::Comments)
+                                        IconButton(id: comments_off, icon: "text.bubble", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }) => app.show_panel(Panel::Comments)
                                     }
                                 }
                                 if app.netease && app.details_enabled {
                                     if app.panel == Panel::Details {
-                                        IconButton(id: details_on, icon: "info.circle.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.show_panel(Panel::Details)
+                                        IconButton(id: details_on, icon: "info.circle.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.show_panel(Panel::Details)
                                     } else {
-                                        IconButton(id: details_off, icon: "info.circle", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.show_panel(Panel::Details)
+                                        IconButton(id: details_off, icon: "info.circle", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }) => app.show_panel(Panel::Details)
                                     }
                                 }
                                 if song.file == "" || song.downloaded {
                                     if song.downloaded {
-                                        Stack(variant: quiet) {
+                                        Stack(width: if app.android { 48 } else if app.windows { 38 } else { 32 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center, variant: quiet) {
                                             Label(title: tr! { "zh-Hans" => "在本地", "en" => "On This Device" }, icon: "folder", display: icon, font_size: 18)
                                         }
                                     } else {
-                                        IconButton(id: now_download, icon: "arrow.down.circle", font_size: 18, prominence: plain,
+                                        IconButton(id: now_download, icon: "arrow.down.circle", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain,
                                             icon_progress: app.current_download,
                                             label: tr! { "zh-Hans" => "下载", "en" => "Download" }) => app.download_current()
                                     }
@@ -2533,13 +2517,15 @@ pub fn now_playing(
                             }
                             if app.desktop_lyrics_supported {
                                 if app.desktop_lyrics {
-                                    IconButton(id: desktop_lyrics_on, icon: "captions.bubble.fill", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "关闭桌面歌词", "en" => "Hide Desktop Lyrics" }) => app.set_desktop_lyrics(false)
+                                    IconButton(id: desktop_lyrics_on, icon: "captions.bubble.fill", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "关闭桌面歌词", "en" => "Hide Desktop Lyrics" }) => app.set_desktop_lyrics(false)
                                 } else {
-                                    IconButton(id: desktop_lyrics_off, icon: "captions.bubble", font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }) => app.set_desktop_lyrics(true)
+                                    IconButton(id: desktop_lyrics_off, icon: "captions.bubble", height: if app.android { 48 } else if app.windows { 38 } else { 32 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }) => app.set_desktop_lyrics(true)
                                 }
                             }
-                            PopoverButton(id: now_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
-                                queue_list(app: app, width: 380.0)
+                            Stack(width: if app.android { 48 } else if app.windows { 38 } else { 32 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center) {
+                                PopoverButton(id: now_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
+                                    queue_list(app: app, width: 380.0)
+                                }
                             }
                             Spacer
                         }
@@ -2714,7 +2700,7 @@ pub fn mode_button(app: enji::Client) -> impl View {
         if window.watch {
             watch_mode_button(app: app)
         } else if app.fm {
-            IconButton(id: fm_dislike, icon: "trash", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "不喜欢", "en" => "Dislike" }) => app.fm_dislike()
+            IconButton(id: fm_dislike, icon: "trash", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "不喜欢", "en" => "Dislike" }) => app.fm_dislike()
         } else {
             mode_choice(app: app)
         }
@@ -2753,17 +2739,17 @@ pub fn mode_choice(app: enji::Client) -> impl View {
     ui! {
         match app.mode {
             PlayMode::RepeatAll => {
-                IconButton(id: repeat_all, icon: "repeat", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "列表循环", "en" => "Repeat All" }) => app.next_mode()
+                IconButton(id: repeat_all, icon: "repeat", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "列表循环", "en" => "Repeat All" }) => app.next_mode()
             }
             PlayMode::RepeatOne => {
-                IconButton(id: repeat_one, icon: "repeat.1", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "单曲循环", "en" => "Repeat One" }) => app.next_mode()
+                IconButton(id: repeat_one, icon: "repeat.1", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "单曲循环", "en" => "Repeat One" }) => app.next_mode()
             }
             PlayMode::Shuffle => {
-                IconButton(id: shuffle, icon: "shuffle", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }) => app.next_mode()
+                IconButton(id: shuffle, icon: "shuffle", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }) => app.next_mode()
             }
             PlayMode::Heart => {
                 Stack(variant: tint) {
-                    IconButton(id: heart, icon: "heart.fill", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }) => app.next_mode()
+                    IconButton(id: heart, icon: "heart.fill", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }) => app.next_mode()
                 }
             }
         }
@@ -3078,10 +3064,10 @@ pub fn together_button(app: enji::Client) -> impl View {
         if app.together && app.login == Login::In {
             if app.together_room != "" {
                 Stack(variant: tint) {
-                    IconButton(id: in_together, icon: "headphones", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "一起听中", "en" => "Listening Together" }) => app.open_together()
+                    IconButton(id: in_together, icon: "headphones", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "一起听中", "en" => "Listening Together" }) => app.open_together()
                 }
             } else {
-                IconButton(id: open_together, icon: "headphones", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }) => app.open_together()
+                IconButton(id: open_together, icon: "headphones", height: if app.android { 48 } else if app.windows { 36 } else { 32 }, font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }) => app.open_together()
             }
         }
     }
