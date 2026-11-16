@@ -47,19 +47,26 @@ pub mod search {
         pub search_tick: i64,
         pub searching: bool,
         /// The songs, albums, singers or playlists NetEase found.
+        #[keyed(index)]
         pub results: Vec<Song>,
+        #[keyed(id)]
         pub album_results: Vec<Album>,
+        #[keyed(id)]
         pub artist_results: Vec<Artist>,
+        #[keyed(id)]
         pub playlist_results: Vec<Playlist>,
         /// The songs of the local music that match.
+        #[keyed(index)]
         pub local_results: Vec<Song>,
         pub has_local_results: bool,
         /// A search found nothing.
         pub no_results: bool,
         /// What was searched here before, the latest first, and what is
         /// searched most on NetEase now.
+        #[keyed(key)]
         pub recent: Vec<SearchWord>,
         pub has_recent: bool,
+        #[keyed(key)]
         pub hot: Vec<SearchWord>,
         pub has_hot: bool,
         /// The most searched words are loading.

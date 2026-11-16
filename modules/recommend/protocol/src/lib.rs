@@ -22,9 +22,11 @@ pub mod recommend {
         /// The part of the day the page greets in.
         pub day_part: DayPart,
         /// Today's songs for the account.
+        #[keyed(index)]
         pub daily: Vec<Song>,
         pub has_daily: bool,
         /// The playlists NetEase recommends.
+        #[keyed(id)]
         pub picks: Vec<Playlist>,
         pub loading: bool,
     }
