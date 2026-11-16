@@ -258,8 +258,8 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bern"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-command",
  "bern-macros",
@@ -272,8 +272,8 @@ dependencies = [
 
 [[package]]
 name = "bern-command"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-protocol",
  "block2",
@@ -294,8 +294,8 @@ dependencies = [
 
 [[package]]
 name = "bern-ir"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-protocol",
  "serde",
@@ -304,8 +304,8 @@ dependencies = [
 
 [[package]]
 name = "bern-macros"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-ir",
  "bern-protocol",
@@ -318,16 +318,16 @@ dependencies = [
 
 [[package]]
 name = "bern-media"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-protocol"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "serde",
  "serde_json",
@@ -335,16 +335,16 @@ dependencies = [
 
 [[package]]
 name = "bern-runtime"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-protocol",
 ]
 
 [[package]]
 name = "bern-script"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "boa_engine",
  "boa_gc",
@@ -354,8 +354,8 @@ dependencies = [
 
 [[package]]
 name = "bern-syntax"
-version = "0.1.18"
-source = "git+https://github.com/AimesSoft/Bern.git?rev=d5dbebd9b65f117ee86df88d317781ac43ac4c92#d5dbebd9b65f117ee86df88d317781ac43ac4c92"
+version = "0.1.19"
+source = "git+https://github.com/AimesSoft/Bern.git?rev=4b04f96ddbe379756c88a64420e07c496e81be99#4b04f96ddbe379756c88a64420e07c496e81be99"
 dependencies = [
  "bern-media",
  "bern-protocol",
@@ -1236,9 +1236,6 @@ dependencies = [
  "enji-protocol",
  "enji-shell-protocol",
  "enji-ui",
- "live-protocol",
- "pulse-protocol",
- "sung-protocol",
 ]
 
 [[package]]
@@ -1247,9 +1244,6 @@ version = "0.3.18"
 dependencies = [
  "bern",
  "enji-protocol",
- "live-protocol",
- "pulse-protocol",
- "sung-protocol",
 ]
 
 [[package]]
@@ -2029,22 +2023,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
-name = "live-core"
-version = "0.3.18"
-dependencies = [
- "bern",
- "enji-kit",
- "live-protocol",
-]
-
-[[package]]
-name = "live-protocol"
-version = "0.3.18"
-dependencies = [
- "bern",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2816,22 +2794,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulse-core"
-version = "0.3.18"
-dependencies = [
- "bern",
- "enji-kit",
- "pulse-protocol",
-]
-
-[[package]]
-name = "pulse-protocol"
-version = "0.3.18"
-dependencies = [
- "bern",
-]
-
-[[package]]
 name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3550,22 +3512,6 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
-
-[[package]]
-name = "sung-core"
-version = "0.3.18"
-dependencies = [
- "bern",
- "enji-kit",
- "sung-protocol",
-]
-
-[[package]]
-name = "sung-protocol"
-version = "0.3.18"
-dependencies = [
- "bern",
-]
 
 [[package]]
 name = "symphonia"
@@ -5078,3 +5024,11 @@ dependencies = [
  "syn 3.0.9",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "bern"
+version = "0.1.15"
+
+[[patch.unused]]
+name = "bern-script"
+version = "0.1.15"

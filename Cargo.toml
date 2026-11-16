@@ -10,12 +10,6 @@ members = [
     "modules/enji/core",
     "modules/enji/ui",
     "modules/enji/kit",
-    "modules/live/protocol",
-    "modules/live/core",
-    "modules/sung/protocol",
-    "modules/sung/core",
-    "modules/pulse/protocol",
-    "modules/pulse/core",
     "modules/recommend/protocol",
     "modules/recommend/core",
     "modules/recommend/ui",
@@ -42,13 +36,10 @@ opt-level = 3
 
 [workspace.dependencies]
 # Framework and build tool use the same immutable source commit.
-bern = { git = "https://github.com/AimesSoft/Bern.git", rev = "d5dbebd9b65f117ee86df88d317781ac43ac4c92" }
-bern-script = { git = "https://github.com/AimesSoft/Bern.git", rev = "d5dbebd9b65f117ee86df88d317781ac43ac4c92" }
+bern = { git = "https://github.com/AimesSoft/Bern.git", rev = "4b04f96ddbe379756c88a64420e07c496e81be99" }
+bern-script = { git = "https://github.com/AimesSoft/Bern.git", rev = "4b04f96ddbe379756c88a64420e07c496e81be99" }
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
-live-protocol = { path = "modules/live/protocol" }
-sung-protocol = { path = "modules/sung/protocol" }
-pulse-protocol = { path = "modules/pulse/protocol" }
 enji-ui = { path = "modules/enji/ui" }
 ncm-api-rs = "0.1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }

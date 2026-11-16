@@ -10,6 +10,7 @@ pub mod charts {
         /// NetEase is on, so the page has something to show.
         pub available: bool,
         /// The charts, each with how often it is updated.
+        #[keyed(id)]
         pub charts: Vec<Playlist>,
         pub loading: bool,
     }

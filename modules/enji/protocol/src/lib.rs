@@ -453,12 +453,15 @@ pub mod enji {
         pub save_error: String,
 
         /// The account's own and saved playlists.
+        #[keyed(id)]
         pub mine: Vec<Playlist>,
         /// Of them: the songs the account likes, those it made, and those it
         /// saved from others.
         pub liked_list: Option<Playlist>,
+        #[keyed(id)]
         pub created: Vec<Playlist>,
         pub has_created: bool,
+        #[keyed(id)]
         pub collected: Vec<Playlist>,
         pub has_collected: bool,
         /// The playlist the account's page opens straight into; 0 for none.
@@ -468,6 +471,7 @@ pub mod enji {
         pub detail: Detail,
         /// An open album: its songs, what it says about itself, who sang it.
         pub album: Option<Album>,
+        #[keyed(index)]
         pub album_songs: Vec<Song>,
         #[content]
         pub album_description: String,
@@ -479,7 +483,9 @@ pub mod enji {
         pub album_loading: bool,
         /// An open singer: about them, their top songs and their albums.
         pub artist: Option<Artist>,
+        #[keyed(index)]
         pub artist_songs: Vec<Song>,
+        #[keyed(id)]
         pub artist_albums: Vec<Album>,
         #[content]
         pub artist_description: String,
@@ -487,6 +493,7 @@ pub mod enji {
 
         /// The playlist open in the main area, its songs and its description.
         pub opened: Option<Playlist>,
+        #[keyed(index)]
         pub opened_songs: Vec<Song>,
         #[content]
         pub opened_description: String,
@@ -507,11 +514,13 @@ pub mod enji {
 
         /// The local library: its songs, the newest first, how long they
         /// play together, and the folders they are found in.
+        #[keyed(id)]
         pub local: Vec<Song>,
         pub has_local: bool,
         pub local_count: i64,
         pub local_hours: i64,
         pub local_minutes: i64,
+        #[keyed(key)]
         pub folders: Vec<Folder>,
         pub has_folders: bool,
         /// The folders are being read; how many of how many files to read
@@ -526,6 +535,7 @@ pub mod enji {
         /// A local song whose NetEase song is being chosen by hand, and the
         /// songs NetEase found for it.
         pub matching: Option<Song>,
+        #[keyed(id)]
         pub match_candidates: Vec<Song>,
         pub match_loading: bool,
         pub has_match_candidates: bool,
@@ -534,6 +544,7 @@ pub mod enji {
         pub phone_folder: String,
 
         /// What was played, the latest first.
+        #[keyed(key)]
         pub history: Vec<Played>,
         pub has_history: bool,
 
@@ -550,6 +561,7 @@ pub mod enji {
         /// The account likes the playing song.
         pub current_liked: bool,
         /// What is played, in order, and the place of the playing song in it.
+        #[keyed(index)]
         pub queue: Vec<Song>,
         pub queue_at: i64,
         pub mode: PlayMode,
@@ -561,13 +573,16 @@ pub mod enji {
         /// The account page's profile, once read.
         pub profile: Option<Profile>,
         /// The account's years of listening, the latest first.
+        #[keyed(year)]
         pub listen_years: Vec<ListenYear>,
         pub has_listen_years: bool,
         /// What it listened to most, in `top_range`.
+        #[keyed(id)]
         pub top_songs: Vec<Song>,
         pub has_top_songs: bool,
         pub top_range: TopRange,
         /// Its medals, the first of them, and how many it has.
+        #[keyed(id)]
         pub medals: Vec<Medal>,
         pub has_medals: bool,
         pub medal_count: i64,
@@ -595,13 +610,16 @@ pub mod enji {
         /// The plugins' window is open.
         pub plugins_open: bool,
         /// The installed plugins, by name.
+        #[keyed(id)]
         pub plugins: Vec<Plugin>,
         pub has_plugins: bool,
         /// What the plugin market lists, once asked.
+        #[keyed(id)]
         pub offers: Vec<Offer>,
         pub has_offers: bool,
         pub offers_loading: bool,
         /// The songs being downloaded, the first started first.
+        #[keyed(id)]
         pub downloads: Vec<Download>,
         pub has_downloads: bool,
         /// The playing song is downloading, and how far it is, from 0 to 1.
@@ -628,9 +646,35 @@ pub mod enji {
         pub lyric_next_ruby: String,
         #[content]
         pub total: String,
+        /// How far the song is, from 0 to 1.
+        #[stream]
+        pub progress: f64,
+        #[stream]
+        #[content]
+        pub elapsed: String,
+        /// Zero while the sung line lights up word by word; below zero when
+        /// it is not timed by the word.
+        #[stream]
+        pub lyric_lit: f64,
+        /// The second of the song the words were last set by.
+        #[stream]
+        pub lyric_clock: f64,
+        /// When that was, in seconds since the Unix epoch; zero while the
+        /// song stands still.
+        #[stream]
+        pub lyric_since: f64,
+        /// Beat pulses for the playing cover, by strength.
+        #[stream]
+        pub cover_pulse_soft: i64,
+        #[stream]
+        pub cover_pulse: i64,
+        #[stream]
+        pub cover_pulse_strong: i64,
         pub volume: f64,
+        #[keyed(key)]
         pub lyrics: Vec<LyricLine>,
         /// The sung line and those around it, for a TV to show large.
+        #[keyed(key)]
         pub lyrics_near: Vec<LyricLine>,
         pub has_lyrics: bool,
         /// The key of the line being sung.
@@ -651,6 +695,7 @@ pub mod enji {
         /// Comments and song information are offered in the player.
         pub comments_enabled: bool,
         pub details_enabled: bool,
+        #[keyed(id)]
         pub comments: Vec<Comment>,
         pub comments_total: i64,
         pub comments_loading: bool,
@@ -700,6 +745,7 @@ pub mod enji {
         pub together_busy: bool,
         /// The room cannot be reached for now.
         pub together_struggling: bool,
+        #[keyed(id)]
         pub together_users: Vec<TogetherUser>,
         /// Nobody else is in the room yet.
         pub together_alone: bool,

@@ -74,6 +74,21 @@ impl EnjiEngine {
         }
     }
 
+    fn sync_live(&mut self) {
+        enji_kit::live::read(|live| {
+            self.state.progress = live.progress;
+            if self.state.elapsed != live.elapsed {
+                self.state.elapsed = live.elapsed.clone();
+            }
+            self.state.lyric_lit = live.lit;
+            self.state.lyric_clock = live.clock;
+            self.state.lyric_since = live.since;
+            self.state.cover_pulse_soft = live.pulse_soft;
+            self.state.cover_pulse = live.pulse;
+            self.state.cover_pulse_strong = live.pulse_strong;
+        });
+    }
+
     fn submit(&mut self, job: Job) -> Result<(), CommandError> {
         self.start();
         self.jobs
@@ -93,10 +108,12 @@ impl enji::Engine for EnjiEngine {
         self.start();
         self.quiet = !self.changed.swap(false, Ordering::Acquire);
         if self.quiet {
+            self.sync_live();
             return;
         }
         let (signed_in, netease, hot_search) = (self.state.login == Login::In, self.state.netease, self.state.hot_search);
         self.state = self.shared.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        self.sync_live();
         // The modules follow the account and the NetEase switch.
         if (self.state.login == Login::In) != signed_in {
             enji::emit::account_changed(!signed_in);
