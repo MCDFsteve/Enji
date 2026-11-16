@@ -34,6 +34,8 @@ use std::{
 const THUMB: u32 = 256;
 /// Read files are reported at least this often while a scan goes on.
 const REPORT_EVERY: Duration = Duration::from_millis(400);
+/// Bump when tag-reading semantics change so affected cached entries re-read once.
+const LIBRARY_VERSION: u64 = 2;
 
 /// The kinds of files read as music.
 const KINDS: &[&str] = &["mp3", "flac", "m4a", "aac", "wav", "ogg", "oga", "aif", "aiff", "alac"];
@@ -69,6 +71,9 @@ pub struct Track {
     modified: i64,
     /// When it came into the library, in milliseconds since 1970.
     pub added: i64,
+    /// True when loaded from an older library cache and carrying Latin-1
+    /// bytes that may have been GBK/UTF-8 mojibake, so the next scan re-reads it.
+    reread: bool,
 }
 
 /// The library as it is kept: the folders and what was found in them.
@@ -128,6 +133,7 @@ impl Library {
     }
 
     fn from_json(saved: &Value) -> Self {
+        let version = saved["version"].as_u64().unwrap_or(1);
         let text = |value: &Value, key: &str| value[key].as_str().unwrap_or("").to_string();
         let folders: Vec<Folder> = saved["folders"]
             .as_array()
@@ -166,25 +172,33 @@ impl Library {
                             };
                             (one, url, name, folder)
                         })
-                        .map(|(one, url, name, folder)| Track {
-                            url,
-                            name,
-                            folder,
-                            lyrics: one["lyrics"].as_str().filter(|url| !url.is_empty()).map(str::to_string),
-                            hash: text(one, "hash"),
-                            title: text(one, "title"),
-                            artists: text(one, "artists"),
-                            album: text(one, "album"),
-                            seconds: one["seconds"].as_f64().unwrap_or(0.0),
-                            cover: one["cover"].as_str().filter(|path| !path.is_empty()).map(PathBuf::from),
-                            online_cover: text(one, "online_cover"),
-                            netease_id: one["netease_id"].as_i64().unwrap_or(0),
-                            netease_album: one["netease_album"].as_i64().unwrap_or(0),
-                            netease_artist: one["netease_artist"].as_i64().unwrap_or(0),
-                            matched: text(one, "matched"),
-                            size: one["size"].as_u64().unwrap_or(0),
-                            modified: one["modified"].as_i64().unwrap_or(0),
-                            added: one["added"].as_i64().unwrap_or(0),
+                        .map(|(one, url, name, folder)| {
+                            let title = text(one, "title");
+                            let artists = text(one, "artists");
+                            let album = text(one, "album");
+                            let reread = version < LIBRARY_VERSION
+                                && [&title, &artists, &album].iter().any(|s| has_latin1_supplement(s));
+                            Track {
+                                url,
+                                name,
+                                folder,
+                                lyrics: one["lyrics"].as_str().filter(|url| !url.is_empty()).map(str::to_string),
+                                hash: text(one, "hash"),
+                                title,
+                                artists,
+                                album,
+                                seconds: one["seconds"].as_f64().unwrap_or(0.0),
+                                cover: one["cover"].as_str().filter(|path| !path.is_empty()).map(PathBuf::from),
+                                online_cover: text(one, "online_cover"),
+                                netease_id: one["netease_id"].as_i64().unwrap_or(0),
+                                netease_album: one["netease_album"].as_i64().unwrap_or(0),
+                                netease_artist: one["netease_artist"].as_i64().unwrap_or(0),
+                                matched: text(one, "matched"),
+                                size: one["size"].as_u64().unwrap_or(0),
+                                modified: one["modified"].as_i64().unwrap_or(0),
+                                added: one["added"].as_i64().unwrap_or(0),
+                                reread,
+                            }
                         })
                         .collect()
                 })
@@ -222,7 +236,7 @@ impl Library {
             .collect();
         let folders: Vec<Value> = self.folders.iter().map(|folder| json!({ "url": folder.url, "name": folder.name })).collect();
         let _ = fs::create_dir_all(store::dir());
-        let _ = fs::write(library_path(), json!({ "folders": folders, "tracks": tracks }).to_string());
+        let _ = fs::write(library_path(), json!({ "version": LIBRARY_VERSION, "folders": folders, "tracks": tracks }).to_string());
     }
 
     /// The folders read again: new and changed files read, files gone
@@ -248,7 +262,7 @@ impl Library {
             // is read again.
             let small = |track: &Track| track.cover.as_ref().is_none_or(|cover| cover.starts_with(thumbs_dir()));
             match known {
-                Some(track) if track.size == file.entry.size && track.modified == modified && small(track) => {
+                Some(track) if !track.reread && track.size == file.entry.size && track.modified == modified && small(track) => {
                     tracks[place] = Some(Track { folder: file.folder.clone(), lyrics: file.lyrics.clone(), ..track.clone() });
                 }
                 _ => wanted.push((place, modified, known)),
@@ -275,7 +289,10 @@ impl Library {
                                 track.netease_id = known.netease_id;
                                 track.netease_album = known.netease_album;
                                 track.netease_artist = known.netease_artist;
-                                track.matched = known.matched.clone();
+                                let changed = known.title != track.title || known.artists != track.artists || known.album != track.album;
+                                if !(known.matched == "none" && changed) {
+                                    track.matched = known.matched.clone();
+                                }
                             }
                             if send.send((place, track)).is_err() {
                                 break;
@@ -372,15 +389,272 @@ fn hash(file: impl Read) -> Option<String> {
     Some(Sha1::digest(&start).iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
+fn has_latin1_supplement(text: &str) -> bool {
+    text.chars().any(|c| ('\u{0080}'..='\u{00FF}').contains(&c))
+}
+
+/// Recover GBK/GB18030 (or UTF-8) text that `lofty` decoded byte-for-byte as Latin-1.
+///
+/// `lofty::util::text::latin1_decode` maps every byte `b` directly to `b as char`
+/// (`U+0000..=U+00FF`). This recovers the original bytes and decodes them when
+/// they are valid non-ASCII GB18030 (with at least one multi-byte high-byte pair,
+/// so Western Latin-1 like `Mötley Crüe` or `café` is never misread) or valid
+/// UTF-8 containing CJK/Kana/Hangul characters.
+fn repair_latin1(text: &str) -> Option<String> {
+    if text.is_ascii() || text.chars().any(|c| (c as u32) > 0xFF) {
+        return None;
+    }
+    let bytes: Vec<u8> = text.chars().map(|c| c as u8).collect();
+    if bytes.contains(&0) {
+        let mut repaired = false;
+        let parts: Vec<String> = bytes
+            .split(|&b| b == 0)
+            .map(|part| {
+                let s: String = part.iter().map(|&b| b as char).collect();
+                match repair_latin1_bytes(part) {
+                    Some(fixed) => {
+                        repaired = true;
+                        fixed
+                    }
+                    None => s,
+                }
+            })
+            .collect();
+        return repaired.then(|| parts.join("\0"));
+    }
+    repair_latin1_bytes(&bytes)
+}
+
+fn repair_latin1_bytes(bytes: &[u8]) -> Option<String> {
+    if bytes.iter().all(u8::is_ascii) {
+        return None;
+    }
+    // Check UTF-8 only when it decodes to real CJK/Kana/Hangul (>= U+3000) without
+    // accidental 2-byte Latin/Cyrillic sequences that collide with GBK bytes (e.g. "魔").
+    if let Ok(utf8) = std::str::from_utf8(bytes)
+        && utf8.chars().any(is_cjk_or_kana_or_hangul)
+        && utf8.chars().all(|c| c.is_ascii() || !('\u{0080}'..'\u{0800}').contains(&c))
+    {
+        return Some(utf8.to_string());
+    }
+    if let Some(decoded) = decode_gb18030_strict(bytes) {
+        return Some(decoded);
+    }
+    // ID3v1 fields cap at 28 or 30 bytes and buggy taggers sometimes slice a
+    // trailing multi-byte GBK character in half at the field boundary.
+    if bytes.len() >= 28 {
+        return decode_gb18030_strict(&bytes[..bytes.len() - 1]);
+    }
+    None
+}
+
+fn is_cjk_or_kana_or_hangul(c: char) -> bool {
+    matches!(
+        c,
+        '\u{3000}'..='\u{9FFF}'
+            | '\u{AC00}'..='\u{D7AF}'
+            | '\u{F900}'..='\u{FAFF}'
+            | '\u{FF00}'..='\u{FFEF}'
+    )
+}
+
+fn decode_gb18030_strict(bytes: &[u8]) -> Option<String> {
+    if !has_gbk_high_pair(bytes) {
+        return None;
+    }
+    let (decoded, had_errors) = encoding_rs::GB18030.decode_without_bom_handling(bytes);
+    (!had_errors).then(|| decoded.into_owned())
+}
+
+/// True when `bytes` contains at least one two-byte sequence whose lead byte is
+/// in `0x81..=0xFE` and whose trail byte is `>= 0x80`. Western Latin-1 text
+/// (`Mötley Crüe`, `Céline Dion`, `Señorita`) places accented bytes (`>= 0x80`)
+/// beside ASCII letters (`< 0x80`), so requiring a high-high pair keeps it safe.
+fn has_gbk_high_pair(bytes: &[u8]) -> bool {
+    let mut i = 0;
+    let mut high_high = false;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b < 0x80 {
+            i += 1;
+        } else if (0x81..=0xFE).contains(&b) && i + 1 < bytes.len() {
+            if bytes[i + 1] >= 0x80 {
+                high_high = true;
+            }
+            i += 2;
+        } else {
+            return false;
+        }
+    }
+    high_high
+}
+
+fn repair_id3v1(tag: &mut lofty::id3::v1::Id3v1Tag) {
+    for field in [&mut tag.title, &mut tag.artist, &mut tag.album, &mut tag.comment] {
+        if let Some(text) = field.as_mut()
+            && let Some(fixed) = repair_latin1(text)
+        {
+            *text = fixed;
+        }
+    }
+}
+
+fn repair_id3v2(tag: &mut lofty::id3::v2::Id3v2Tag) {
+    use lofty::{TextEncoding, id3::v2::Frame};
+
+    tag.retain_mut(|frame| {
+        match frame {
+            Frame::Text(f) if f.encoding == TextEncoding::Latin1 => {
+                if let Some(fixed) = repair_latin1(&f.value) {
+                    f.value = fixed.into();
+                    f.encoding = TextEncoding::UTF8;
+                }
+            }
+            Frame::UserText(f) if f.encoding == TextEncoding::Latin1 => {
+                if let Some(fixed) = repair_latin1(&f.content) {
+                    f.content = fixed.into();
+                }
+                if let Some(fixed) = repair_latin1(&f.description) {
+                    f.description = fixed.into();
+                }
+                f.encoding = TextEncoding::UTF8;
+            }
+            Frame::Comment(f) if f.encoding == TextEncoding::Latin1 => {
+                if let Some(fixed) = repair_latin1(&f.content) {
+                    f.content = fixed.into();
+                }
+                if let Some(fixed) = repair_latin1(&f.description) {
+                    f.description = fixed.into();
+                }
+                f.encoding = TextEncoding::UTF8;
+            }
+            Frame::UnsynchronizedText(f) if f.encoding == TextEncoding::Latin1 => {
+                if let Some(fixed) = repair_latin1(&f.content) {
+                    f.content = fixed.into();
+                }
+                if let Some(fixed) = repair_latin1(&f.description) {
+                    f.description = fixed.into();
+                }
+                f.encoding = TextEncoding::UTF8;
+            }
+            _ => {}
+        }
+        true
+    });
+}
+
+fn decode_lrc_bytes(bytes: &[u8]) -> String {
+    if let Some((encoding, bom_len)) = encoding_rs::Encoding::for_bom(bytes) {
+        return encoding.decode_without_bom_handling(&bytes[bom_len..]).0.into_owned();
+    }
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return text.to_string();
+    }
+    encoding_rs::GB18030.decode_without_bom_handling(bytes).0.into_owned()
+}
+
+fn ordered_tags(file: &lofty::file::TaggedFile) -> Vec<&lofty::tag::Tag> {
+    let primary = file.primary_tag();
+    let mut tags = Vec::with_capacity(file.tags().len());
+    if let Some(tag) = primary {
+        tags.push(tag);
+    }
+    for tag in file.tags() {
+        if primary.is_none_or(|p| !std::ptr::eq(p, tag)) {
+            tags.push(tag);
+        }
+    }
+    tags
+}
+
 /// The tags, length and pictures of the music file `file`, named `name`:
 /// of the kind its name says, or else the one its first bytes show.
+/// ID3v1 and ID3v2 Latin-1 frames carrying GBK/GB18030 (or UTF-8) bytes are
+/// repaired before converting to a generic `TaggedFile`.
 fn tagged(file: impl Read + Seek, name: &str) -> Option<lofty::file::TaggedFile> {
+    use lofty::{config::ParseOptions, file::FileType};
+
     let probe = lofty::probe::Probe::new(BufReader::new(file));
-    let probe = match lofty::file::FileType::from_ext(extension(name)) {
+    let probe = match FileType::from_ext(extension(name)) {
         Some(kind) => probe.set_file_type(kind),
         None => probe.guess_file_type().ok()?,
     };
-    probe.read().ok()
+    let kind = probe.file_type()?;
+    let mut reader = probe.into_inner();
+    let options = ParseOptions::default();
+
+    let tagged = match kind {
+        FileType::Mpeg => {
+            let mut file = lofty::mpeg::MpegFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            if let Some(tag) = file.id3v1_mut() {
+                repair_id3v1(tag);
+            }
+            file.into()
+        }
+        FileType::Flac => {
+            let mut file = lofty::flac::FlacFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            file.into()
+        }
+        FileType::Aac => {
+            let mut file = lofty::aac::AacFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            if let Some(tag) = file.id3v1_mut() {
+                repair_id3v1(tag);
+            }
+            file.into()
+        }
+        FileType::Wav => {
+            let mut file = lofty::iff::wav::WavFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            file.into()
+        }
+        FileType::Aiff => {
+            let mut file = lofty::iff::aiff::AiffFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            file.into()
+        }
+        FileType::Ape => {
+            let mut file = lofty::ape::ApeFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            if let Some(tag) = file.id3v1_mut() {
+                repair_id3v1(tag);
+            }
+            file.into()
+        }
+        FileType::Mpc => {
+            let mut file = lofty::musepack::MpcFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v2_mut() {
+                repair_id3v2(tag);
+            }
+            if let Some(tag) = file.id3v1_mut() {
+                repair_id3v1(tag);
+            }
+            file.into()
+        }
+        FileType::WavPack => {
+            let mut file = lofty::wavpack::WavPackFile::read_from(&mut reader, options).ok()?;
+            if let Some(tag) = file.id3v1_mut() {
+                repair_id3v1(tag);
+            }
+            file.into()
+        }
+        _ => lofty::probe::Probe::new(reader).set_file_type(kind).read().ok()?,
+    };
+    Some(tagged)
 }
 
 /// A music file's tags, length and picture; its name for a title when it
@@ -408,20 +682,26 @@ fn read(found: &Found, modified: i64, added: i64) -> Option<Track> {
         size: found.entry.size,
         modified,
         added,
+        reread: false,
     };
     let Some(file) = file.seek(SeekFrom::Start(0)).ok().and_then(|_| tagged(file, &track.name)) else {
         return Some(track);
     };
     track.seconds = file.properties().duration().as_secs_f64();
-    if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
-        if let Some(title) = tag.title().filter(|title| !title.trim().is_empty()) {
-            track.title = title.trim().to_string();
-        }
-        track.artists = tag.artist().map(|artist| artist.trim().to_string()).unwrap_or_default();
-        track.album = tag.album().map(|album| album.trim().to_string()).unwrap_or_default();
-        if let Some(picture) = tag.pictures().first() {
-            track.cover = thumbnail(picture.data());
-        }
+    let tags = ordered_tags(&file);
+    if let Some(title) = tags.iter().find_map(|tag| tag.title().map(|t| t.trim().to_string()).filter(|t| !t.is_empty())) {
+        track.title = title;
+    }
+    track.artists = tags
+        .iter()
+        .find_map(|tag| tag.artist().map(|a| a.trim().to_string()).filter(|a| !a.is_empty()))
+        .unwrap_or_default();
+    track.album = tags
+        .iter()
+        .find_map(|tag| tag.album().map(|a| a.trim().to_string()).filter(|a| !a.is_empty()))
+        .unwrap_or_default();
+    if let Some(picture) = tags.iter().find_map(|tag| tag.pictures().first()) {
+        track.cover = thumbnail(picture.data());
     }
     Some(track)
 }
@@ -528,17 +808,17 @@ pub fn artwork(url: &str, name: &str) -> Option<PathBuf> {
 /// beside it at `beside`, or timed lyrics in its tags.
 pub fn lyrics(url: &str, name: &str, beside: Option<&str>) -> Vec<lyrics::Line> {
     let beside = beside.and_then(|beside| {
-        let mut text = String::new();
-        bern::files::open(beside).ok()?.read_to_string(&mut text).ok()?;
-        Some(lyrics::parse(&text, ""))
+        let mut bytes = Vec::new();
+        bern::files::open(beside).ok()?.read_to_end(&mut bytes).ok()?;
+        Some(lyrics::parse(&decode_lrc_bytes(&bytes), ""))
     });
     if let Some(lines) = beside.filter(|lines| !lines.is_empty()) {
         return lines;
     }
     let Some(file) = tags_of(url, name) else { return Vec::new() };
-    let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) else { return Vec::new() };
-    tag.get_string(ItemKey::Lyrics)
-        .or_else(|| tag.get_string(ItemKey::UnsyncLyrics))
+    ordered_tags(&file)
+        .into_iter()
+        .find_map(|tag| tag.get_string(ItemKey::Lyrics).or_else(|| tag.get_string(ItemKey::UnsyncLyrics)))
         .map(|text| lyrics::parse(text, ""))
         .unwrap_or_default()
 }
@@ -672,6 +952,7 @@ mod tests {
             size,
             modified: 0,
             added: 0,
+            reread: false,
         }
     }
 
@@ -760,5 +1041,180 @@ mod tests {
     fn local_ids_are_below_zero_and_urls_are_escaped() {
         assert!(id("da39a3ee5e6b4b0d3255bfef95601890afd80709") < 0);
         assert_eq!(file_url(Path::new("/Music/a b#1.mp3")), "file:///Music/a%20b%231.mp3");
+    }
+
+    fn as_latin1(bytes: &[u8]) -> String {
+        bytes.iter().map(|&b| b as char).collect()
+    }
+
+    fn synchsafe(value: u32) -> [u8; 4] {
+        [
+            ((value >> 21) & 0x7F) as u8,
+            ((value >> 14) & 0x7F) as u8,
+            ((value >> 7) & 0x7F) as u8,
+            (value & 0x7F) as u8,
+        ]
+    }
+
+    fn id3v23_text_frame(id: &[u8; 4], encoding: u8, text_bytes: &[u8]) -> Vec<u8> {
+        let size = (1 + text_bytes.len()) as u32;
+        let mut frame = Vec::new();
+        frame.extend_from_slice(id);
+        frame.extend_from_slice(&size.to_be_bytes());
+        frame.extend_from_slice(&[0, 0]);
+        frame.push(encoding);
+        frame.extend_from_slice(text_bytes);
+        frame
+    }
+
+    fn id3v23_tag(frames: &[Vec<u8>]) -> Vec<u8> {
+        let body: Vec<u8> = frames.iter().flat_map(|f| f.iter().copied()).collect();
+        let mut tag = Vec::new();
+        tag.extend_from_slice(b"ID3\x03\x00\x00");
+        tag.extend_from_slice(&synchsafe(body.len() as u32));
+        tag.extend_from_slice(&body);
+        tag
+    }
+
+    fn id3v1_tag(title: &[u8], artist: &[u8], album: &[u8]) -> [u8; 128] {
+        let mut buf = [0u8; 128];
+        buf[..3].copy_from_slice(b"TAG");
+        let put = |dst: &mut [u8], src: &[u8]| {
+            let n = src.len().min(dst.len());
+            dst[..n].copy_from_slice(&src[..n]);
+        };
+        put(&mut buf[3..33], title);
+        put(&mut buf[33..63], artist);
+        put(&mut buf[63..93], album);
+        buf
+    }
+
+    fn minimal_mp3(id3v2: Option<&[u8]>, id3v1: Option<&[u8; 128]>) -> Vec<u8> {
+        let mut data = Vec::new();
+        if let Some(v2) = id3v2 {
+            data.extend_from_slice(v2);
+        }
+        // Two MPEG-1 Layer III 128 kbps 44.1 kHz frames (417 bytes each) so lofty's sync check passes.
+        for _ in 0..2 {
+            data.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]);
+            data.resize(data.len() + 413, 0);
+        }
+        if let Some(v1) = id3v1 {
+            data.extend_from_slice(v1);
+        }
+        data
+    }
+
+    #[test]
+    fn repairs_gbk_and_utf8_in_latin1_without_corrupting_western_latin1() {
+        // GBK Simplified & Traditional Chinese decoded as Latin-1
+        for sample in ["多成", "周杰伦", "01. 稻香 (Live)", "張學友", "劉德華", "雙截棍"] {
+            let gbk = encoding_rs::GB18030.encode(sample).0;
+            let mojibake = as_latin1(&gbk);
+            assert_eq!(repair_latin1(&mojibake).as_deref(), Some(sample), "failed for {sample}");
+        }
+
+        // UTF-8 CJK stuffed into Latin-1
+        for sample in ["周杰伦", "稻香", "十年"] {
+            let mojibake = as_latin1(sample.as_bytes());
+            assert_eq!(repair_latin1(&mojibake).as_deref(), Some(sample));
+        }
+
+        // Real Western Latin-1 and Unicode strings stay untouched
+        for intact in [
+            "café",
+            "Mötley Crüe",
+            "Beyoncé",
+            "Tiësto",
+            "Björk",
+            "Naïve",
+            "Céline Dion",
+            "Señorita",
+            "façade",
+            "© 2005",
+            "周杰伦",
+            "Dvořák",
+        ] {
+            assert_eq!(repair_latin1(intact), None, "false positive for {intact}");
+        }
+
+        // Truncated 30-byte ID3v1 field ending mid-GBK-character (1 ASCII + 14.5 Chinese chars)
+        let mut thirty = b"1".to_vec();
+        for _ in 0..14 {
+            thirty.extend_from_slice(&encoding_rs::GB18030.encode("周").0);
+        }
+        thirty.push(encoding_rs::GB18030.encode("周").0[0]);
+        assert_eq!(thirty.len(), 30);
+        let expected = format!("1{}", "周".repeat(14));
+        assert_eq!(repair_latin1(&as_latin1(&thirty)).as_deref(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn reads_gbk_tags_from_id3v1_and_id3v2_latin1_while_preserving_utf8_and_western_latin1() {
+        let gbk = |s: &str| encoding_rs::GB18030.encode(s).0.into_owned();
+
+        // 1. MP3 with ID3v1-only GBK tags
+        let v1_only = minimal_mp3(None, Some(&id3v1_tag(&gbk("稻香"), &gbk("周杰伦"), &gbk("魔杰座"))));
+        let parsed = tagged(std::io::Cursor::new(v1_only), "a.mp3").unwrap();
+        let tag = parsed.primary_tag().or_else(|| parsed.first_tag()).unwrap();
+        assert_eq!(tag.title().as_deref(), Some("稻香"));
+        assert_eq!(tag.artist().as_deref(), Some("周杰伦"));
+        assert_eq!(tag.album().as_deref(), Some("魔杰座"));
+
+        // 2. MP3 with ID3v2 Latin-1 (encoding=0) containing GBK + ID3v1
+        let v2_gbk = id3v23_tag(&[
+            id3v23_text_frame(b"TIT2", 0, &gbk("青花瓷")),
+            id3v23_text_frame(b"TPE1", 0, &gbk("周杰伦")),
+            id3v23_text_frame(b"TALB", 0, &gbk("我很忙")),
+        ]);
+        let both = minimal_mp3(Some(&v2_gbk), Some(&id3v1_tag(&gbk("旧标题"), &gbk("旧歌手"), &gbk("旧专辑"))));
+        let parsed = tagged(std::io::Cursor::new(both), "b.mp3").unwrap();
+        let tag = parsed.primary_tag().unwrap();
+        assert_eq!(tag.title().as_deref(), Some("青花瓷"));
+        assert_eq!(tag.artist().as_deref(), Some("周杰伦"));
+        assert_eq!(tag.album().as_deref(), Some("我很忙"));
+
+        // 3. MP3 with ID3v2 Latin-1 (encoding=0) containing genuine Western Latin-1
+        let v2_latin1 = id3v23_tag(&[
+            id3v23_text_frame(b"TIT2", 0, &b"Caf\xe9 del Mar"[..]),
+            id3v23_text_frame(b"TPE1", 0, &b"M\xf6tley Cr\xfce"[..]),
+        ]);
+        let western = minimal_mp3(Some(&v2_latin1), None);
+        let parsed = tagged(std::io::Cursor::new(western), "c.mp3").unwrap();
+        let tag = parsed.primary_tag().unwrap();
+        assert_eq!(tag.title().as_deref(), Some("Café del Mar"));
+        assert_eq!(tag.artist().as_deref(), Some("Mötley Crüe"));
+
+        // 4. MP3 with ID3v2 UTF-8 (encoding=3, using ID3v2.4 header) stays untouched
+        let mut v2_utf8 = id3v23_tag(&[
+            id3v23_text_frame(b"TIT2", 3, "富士山下".as_bytes()),
+            id3v23_text_frame(b"TPE1", 3, "陈奕迅".as_bytes()),
+        ]);
+        v2_utf8[3] = 4; // ID3v2.4
+        let utf8_mp3 = minimal_mp3(Some(&v2_utf8), None);
+        let parsed = tagged(std::io::Cursor::new(utf8_mp3), "d.mp3").unwrap();
+        let tag = parsed.primary_tag().unwrap();
+        assert_eq!(tag.title().as_deref(), Some("富士山下"));
+        assert_eq!(tag.artist().as_deref(), Some("陈奕迅"));
+    }
+
+    #[test]
+    fn old_library_cache_marks_latin1_mojibake_tracks_for_reread_and_decodes_gbk_lrc() {
+        let mojibake = as_latin1(&encoding_rs::GB18030.encode("多成").0);
+        let saved = json!({
+            "folders": ["/Music"],
+            "tracks": [
+                { "url": "file:///Music/a.mp3", "name": "a.mp3", "folder": "file:///Music", "hash": "1", "title": mojibake, "artists": "", "album": "", "size": 5, "modified": 10 },
+                { "url": "file:///Music/b.mp3", "name": "b.mp3", "folder": "file:///Music", "hash": "2", "title": "十年", "artists": "陈奕迅", "album": "", "size": 5, "modified": 10 },
+            ],
+        });
+        let loaded = Library::from_json(&saved);
+        assert!(loaded.tracks[0].reread);
+        assert!(!loaded.tracks[1].reread);
+
+        let gbk_lrc = encoding_rs::GB18030.encode("[00:01.00]多成").0;
+        let lines = lyrics::parse(&decode_lrc_bytes(&gbk_lrc), "");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].text, "多成");
     }
 }

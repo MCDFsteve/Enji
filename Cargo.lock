@@ -1158,6 +1158,7 @@ dependencies = [
  "block2",
  "chrono",
  "dirs",
+ "encoding_rs",
  "enji-kit",
  "enji-protocol",
  "image",

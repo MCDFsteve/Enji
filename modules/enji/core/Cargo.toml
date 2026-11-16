@@ -22,6 +22,7 @@ png = "0.17"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 dirs = "6"
 lofty = "0.25.5"
+encoding_rs = "0.8"
 sha1 = "0.11.0"
 # Plugins: their packages.
 zip = { version = "2", default-features = false, features = ["deflate"] }
