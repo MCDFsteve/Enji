@@ -50,12 +50,16 @@ pub struct MainDraft {
 pub fn account(app: enji::Client) -> impl View {
     ui! {
         if app.login == Login::In {
-            Row(gap: 10, align: center) {
+            Row(gap: if window.rail { 4 } else { 10 }, align: center) {
                 Image(source: app.avatar, width: 30, height: 30, fit: cover, corner: 15)
-                Text(content: app.nickname, style: headline, lines: 1)
-                Spacer
+                if !window.rail {
+                    Text(content: app.nickname, style: headline, lines: 1)
+                    Spacer
+                }
                 IconButton(id: sign_out, icon: "rectangle.portrait.and.arrow.right", prominence: plain, label: tr! { "zh-Hans" => "退出登录", "en" => "Sign Out" }) => app.sign_out()
             }
+        } else if window.rail {
+            IconButton(id: sign_in_rail, icon: "person.crop.circle", prominence: prominent, height: 48, font_size: 20, label: tr! { "zh-Hans" => "登录网易云音乐", "en" => "Sign In" }) => app.sign_in()
         } else {
             Button(id: sign_in, label: tr! { "zh-Hans" => "登录网易云音乐", "en" => "Sign In" }, icon: "person.crop.circle", prominence: prominent, width: fill) => app.sign_in()
         }
@@ -814,7 +818,7 @@ pub fn history_row(app: enji::Client, played: enji::Played) -> impl View {
                 Spacer
                 if !window.watch {
                     Column(width: 96, align: trailing) {
-                        Text(content: played.when, style: caption, emphasis: tertiary)
+                        Text(content: played.when, style: caption, emphasis: tertiary, lines: 1)
                     }
                 }
             }
@@ -1862,7 +1866,7 @@ pub fn song_line(app: enji::Client, song: enji::Song, full: bool, marked: bool) 
             }
             if !window.watch {
                 Column(width: if window.tv { 104 } else { 44 }, align: trailing) {
-                    Text(content: song.duration, style: caption, emphasis: tertiary)
+                    Text(content: song.duration, style: caption, emphasis: tertiary, lines: 1)
                 }
             }
         }
@@ -1967,7 +1971,7 @@ pub fn song_skeleton() -> impl View {
 #[component]
 pub fn bar_time(app: enji::Client, live: live::Client) -> impl View {
     ui! {
-        Text(content: tr! { "zh-Hans" => "{elapsed} / {total}", "en" => "{elapsed} / {total}"; elapsed: live.elapsed, total: app.total }, style: caption, emphasis: secondary)
+        Text(content: tr! { "zh-Hans" => "{elapsed} / {total}", "en" => "{elapsed} / {total}"; elapsed: live.elapsed, total: app.total }, style: caption, emphasis: secondary, lines: 1)
     }
 }
 
@@ -1984,9 +1988,9 @@ pub fn phone_progress(app: enji::Client, live: live::Client) -> impl View {
         Column(gap: 2) {
             Slider(id: phone_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
             Row {
-                Text(content: live.elapsed, style: caption, emphasis: secondary)
+                Text(content: live.elapsed, style: caption, emphasis: secondary, lines: 1)
                 Spacer
-                Text(content: app.total, style: caption, emphasis: secondary)
+                Text(content: app.total, style: caption, emphasis: secondary, lines: 1)
             }
         }
     }
@@ -1996,9 +2000,9 @@ pub fn phone_progress(app: enji::Client, live: live::Client) -> impl View {
 pub fn now_progress(app: enji::Client, live: live::Client) -> impl View {
     ui! {
         Row(gap: 10, align: center) {
-            Text(content: live.elapsed, style: caption, emphasis: secondary)
+            Text(content: live.elapsed, style: caption, emphasis: secondary, lines: 1)
             Slider(id: now_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
-            Text(content: app.total, style: caption, emphasis: secondary)
+            Text(content: app.total, style: caption, emphasis: secondary, lines: 1)
         }
     }
 }
@@ -2009,9 +2013,9 @@ pub fn tv_progress(app: enji::Client, live: live::Client) -> impl View {
         Column(gap: 4) {
             Slider(id: tv_progress, label: tr! { "zh-Hans" => "播放进度", "en" => "Progress" }, label_hidden: true, current: live.progress, min: 0, max: 1) => app.seek(live.progress)
             Row {
-                Text(content: live.elapsed, style: caption, emphasis: secondary)
+                Text(content: live.elapsed, style: caption, emphasis: secondary, lines: 1)
                 Spacer
-                Text(content: app.total, style: caption, emphasis: secondary)
+                Text(content: app.total, style: caption, emphasis: secondary, lines: 1)
             }
         }
     }
@@ -2049,13 +2053,15 @@ pub fn player_bar(app: enji::Client, live: live::Client, #[session] draft: MainD
                 Column(gap: 4) {
                     Row(gap: 8, align: center) {
                         if let Some(song) = app.current {
-                            Text(content: song.name, style: callout, bold: true, lines: 1)
-                            Text(content: song.artists, style: callout, emphasis: secondary, lines: 1)
-                            if app.preview {
-                                Text(content: tr! { "zh-Hans" => "试听", "en" => "Preview" }, style: caption2, color: accent)
+                            Row(gap: 8, align: center) {
+                                Text(content: song.name, style: callout, bold: true, lines: 1)
+                                Text(content: song.artists, style: callout, emphasis: secondary, lines: 1)
+                                if app.preview {
+                                    Text(content: tr! { "zh-Hans" => "试听", "en" => "Preview" }, style: caption2, color: accent)
+                                }
                             }
                         } else {
-                            Text(content: tr! { "zh-Hans" => "未在播放", "en" => "Not Playing" }, style: callout, emphasis: secondary)
+                            Text(content: tr! { "zh-Hans" => "未在播放", "en" => "Not Playing" }, style: callout, emphasis: secondary, lines: 1)
                         }
                         Spacer
                         if app.current_id != 0 {
@@ -3182,7 +3188,7 @@ pub fn queue_list(app: enji::Client, width: f64) -> impl View {
                                     Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
                                 }
                                 Spacer
-                                Text(content: song.duration, style: caption, emphasis: tertiary)
+                                Text(content: song.duration, style: caption, emphasis: tertiary, lines: 1)
                             }
                             ContextMenu {
                                 MenuItem(id: unqueue, label: tr! { "zh-Hans" => "从播放队列中删除", "en" => "Remove from Queue" }, icon: "trash", role: destructive, enabled: song.index != app.queue_at) => app.remove_from_queue(song.index)
@@ -3305,7 +3311,7 @@ pub fn match_dialog(app: enji::Client, song: enji::Song, #[session] draft: MainD
                                                     Label(title: tr! { "zh-Hans" => "当前匹配", "en" => "Current match" }, icon: "checkmark", display: icon, font_size: 14)
                                                 }
                                             }
-                                            Text(content: found.duration, style: caption, emphasis: tertiary)
+                                            Text(content: found.duration, style: caption, emphasis: tertiary, lines: 1)
                                         }
                                     } => app.choose_match(found.id)
                                 }
