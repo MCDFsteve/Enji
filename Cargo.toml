@@ -36,8 +36,8 @@ opt-level = 3
 
 [workspace.dependencies]
 # Framework and build tool use the same immutable source commit.
-bern = { git = "https://github.com/AimesSoft/Bern.git", rev = "3b8890eb97d43f34c4ad0369d6675820a251b3de" }
-bern-script = { git = "https://github.com/AimesSoft/Bern.git", rev = "3b8890eb97d43f34c4ad0369d6675820a251b3de" }
+bern = { git = "https://github.com/AimesSoft/Bern.git", rev = "8eb99cac1efc63d2aa3670db0da636e16ef2ca1e" }
+bern-script = { git = "https://github.com/AimesSoft/Bern.git", rev = "8eb99cac1efc63d2aa3670db0da636e16ef2ca1e" }
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
 enji-ui = { path = "modules/enji/ui" }

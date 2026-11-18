@@ -5,7 +5,7 @@
 //! own pages.
 
 use bern::prelude::*;
-use enji_protocol::enji::{self, Detail, Login, Panel, PlayMode, Source};
+use enji_protocol::enji::{self, DesktopLyricValue, Detail, Login, Panel, PlayMode, Source};
 
 /// What a phone's own tab shows: its overview, or one of the lists it
 /// leads to.
@@ -17,6 +17,18 @@ pub enum Shelf {
     Local,
     #[label(tr! { "zh-Hans" => "播放记录", "en" => "History" })]
     History,
+}
+
+#[bern::value]
+pub enum SettingsRoute {
+    Playback,
+    Lyrics,
+    DesktopLyrics,
+    PrimaryColor,
+    SecondaryColor,
+    LocalMusic,
+    Appearance,
+    Features,
 }
 
 #[bern::session]
@@ -34,6 +46,8 @@ pub struct MainDraft {
     pub browsing: bool,
     /// On a phone, what its own tab shows.
     pub shelf: Shelf,
+    /// Navigation stack for Settings subpages.
+    pub settings_path: Vec<SettingsRoute>,
     /// A folder chosen to add to the local library.
     pub folder: MediaSource,
     /// A plugin package chosen to install.
@@ -3657,7 +3671,13 @@ pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl Vi
                                 }
                             }
                             Column(gap: 6) {
-                                Text(content: tr! { "zh-Hans" => "插件商店", "en" => "Plugin Market" }, style: footnote, bold: true, emphasis: secondary)
+                                Row(gap: 6, align: center) {
+                                    Text(content: tr! { "zh-Hans" => "插件商店", "en" => "Plugin Market" }, style: footnote, bold: true, emphasis: secondary)
+                                    Spacer
+                                    if !app.offers_loading {
+                                        IconButton(id: refresh_plugin_market, icon: "arrow.clockwise", label: tr! { "zh-Hans" => "刷新插件目录", "en" => "Refresh Catalog" }, prominence: plain) => app.load_offers()
+                                    }
+                                }
                                 if app.offers_loading {
                                     Column(padding_y: 24, align: center) {
                                         Progress(label: tr! { "zh-Hans" => "正在读取插件商店", "en" => "Reading the market" })
@@ -3845,25 +3865,337 @@ pub fn loudness_settings(app: enji::Client) -> impl View {
 /// The settings in cards under the account, as wide as reads well on a
 /// large window.
 #[component]
-pub fn settings_page(app: enji::Client) -> impl View {
+pub fn settings_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
     ui! {
         if window.watch {
             watch_settings_list(app: app)
         } else {
-            ScrollView {
-                if window.compact {
-                    Column(padding_x: 16, padding_y: 12) {
-                        settings_list(app: app)
+            Navigation(id: settings_navigation, path: draft.settings_path) {
+                Form(title: tr! { "zh-Hans" => "设置", "en" => "Settings" }) {
+                    Section(style: plain) {
+                        settings_identity(app: app)
                     }
-                } else {
-                    Row(padding_x: 32, padding_y: 28) {
-                        Spacer
-                        Column(width: if window.tv { 1040 } else { 620 }) {
-                            settings_list(app: app)
+                    if app.netease {
+                        Section { settings_account_entry(app: app) }
+                    }
+                    Section {
+                        NavLink(id: settings_playback, route: SettingsRoute::Playback) {
+                            Label(title: tr! { "zh-Hans" => "播放与音频", "en" => "Playback & Audio" }, icon: "headphones")
                         }
-                        Spacer
+                        NavLink(id: settings_lyrics, route: SettingsRoute::Lyrics) {
+                            Label(title: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }, icon: "quote.bubble")
+                        }
+                        if app.desktop_lyrics_supported || app.desktop_style_supported {
+                            NavLink(id: settings_desktop_lyrics, route: SettingsRoute::DesktopLyrics) {
+                                Label(title: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, icon: "captions.bubble")
+                            }
+                        }
+                        if !window.tv {
+                            NavLink(id: settings_local_music, route: SettingsRoute::LocalMusic) {
+                                Label(title: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, icon: "folder")
+                            }
+                        }
+                        NavLink(id: settings_appearance, route: SettingsRoute::Appearance) {
+                            Label(title: tr! { "zh-Hans" => "外观与语言", "en" => "Appearance & Language" }, icon: "paintpalette")
+                        }
+                    }
+                    Section {
+                        NavLink(id: settings_features, route: SettingsRoute::Features) {
+                            Label(title: tr! { "zh-Hans" => "可选功能", "en" => "Optional Features" }, icon: "switch.2")
+                        }
+                        Button(id: open_plugins, label: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, icon: "puzzlepiece.extension", prominence: plain) => app.open_plugins()
                     }
                 }
+                Destination |route| {
+                    match route {
+                        SettingsRoute::Playback => { playback_settings(app: app) }
+                        SettingsRoute::Lyrics => { lyrics_settings(app: app) }
+                        SettingsRoute::DesktopLyrics => {
+                            Form(title: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }) {
+                                if app.desktop_lyrics_supported {
+                                    Section {
+                                        Switch(id: desktop_lyrics, label: tr! { "zh-Hans" => "显示桌面歌词", "en" => "Show Desktop Lyrics" }, checked: app.desktop_lyrics, style: switch) => app.set_desktop_lyrics(app.desktop_lyrics)
+                                        Switch(id: desktop_lyrics_locked, label: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, checked: app.desktop_lyrics_locked, style: switch) => app.set_desktop_lyrics_locked(app.desktop_lyrics_locked)
+                                    }
+                                }
+                                if app.desktop_style_supported {
+                                    desktop_lyric_type(app: app)
+                                    Section {
+                                        NavLink(id: settings_primary_color, route: SettingsRoute::PrimaryColor) {
+                                            Text(content: tr! { "zh-Hans" => "主行颜色", "en" => "Primary Line Color" })
+                                        }
+                                        NavLink(id: settings_secondary_color, route: SettingsRoute::SecondaryColor) {
+                                            Text(content: tr! { "zh-Hans" => "副行颜色", "en" => "Secondary Line Color" })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        SettingsRoute::PrimaryColor => {
+                            Form(title: tr! { "zh-Hans" => "主行颜色", "en" => "Primary Line Color" }) {
+                                desktop_lyric_rgb(
+                                    app: app,
+                                    red: app.desktop_style.primary_red, red_field: DesktopLyricValue::PrimaryRed,
+                                    green: app.desktop_style.primary_green, green_field: DesktopLyricValue::PrimaryGreen,
+                                    blue: app.desktop_style.primary_blue, blue_field: DesktopLyricValue::PrimaryBlue
+                                )
+                            }
+                        }
+                        SettingsRoute::SecondaryColor => {
+                            Form(title: tr! { "zh-Hans" => "副行颜色", "en" => "Secondary Line Color" }) {
+                                desktop_lyric_rgb(
+                                    app: app,
+                                    red: app.desktop_style.secondary_red, red_field: DesktopLyricValue::SecondaryRed,
+                                    green: app.desktop_style.secondary_green, green_field: DesktopLyricValue::SecondaryGreen,
+                                    blue: app.desktop_style.secondary_blue, blue_field: DesktopLyricValue::SecondaryBlue
+                                )
+                            }
+                        }
+                        SettingsRoute::LocalMusic => {
+                            if !window.tv {
+                                local_music_settings(app: app)
+                            }
+                        }
+                        SettingsRoute::Appearance => { appearance_settings(app: app) }
+                        SettingsRoute::Features => { optional_settings(app: app) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn settings_identity(app: enji::Client) -> impl View {
+    ui! {
+        Row(gap: 12, align: center) {
+            Image(source: "assets/mark.png", width: 42, height: 42, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
+            Column(gap: 3, align: leading) {
+                Text(content: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, style: headline)
+                Text(content: tr! { "zh-Hans" => "版本 {version}", "en" => "Version {version}"; version: window.app_version }, style: caption, emphasis: secondary)
+                if app.bern_credit {
+                    if app.bern_link_supported {
+                        Button(id: open_bern_homepage, label: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }) {
+                            Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, color: accent)
+                        } => app.open_bern_homepage()
+                    } else {
+                        Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn settings_account_entry(app: enji::Client) -> impl View {
+    ui! {
+        if app.login == Login::In {
+            Button(id: open_account, label: tr! { "zh-Hans" => "个人资料：{name}", "en" => "Profile: {name}"; name: app.nickname }, variant: row, width: fill) {
+                Row(gap: 10, align: center) {
+                    Image(source: app.avatar, width: 40, height: 40, fit: cover, corner: 20)
+                    Text(content: app.nickname, style: headline, lines: 1)
+                    Spacer
+                    Label(title: tr! { "zh-Hans" => "个人资料", "en" => "Profile" }, icon: "chevron.right", display: icon, font_size: 13)
+                }
+            } => app.open_account()
+        } else {
+            Button(id: settings_sign_in, label: tr! { "zh-Hans" => "扫码登录网易云音乐", "en" => "Sign In to NetEase" }, icon: "qrcode", width: fill) => app.sign_in()
+        }
+    }
+}
+
+#[component]
+pub fn desktop_lyric_type(app: enji::Client) -> impl View {
+    ui! {
+        Section {
+            Column(gap: 4) {
+                Text(content: tr! { "zh-Hans" => "主行字号：{size}", "en" => "Primary text size: {size}"; size: app.desktop_style.primary_size })
+                Slider(id: desktop_primary_size, label: tr! { "zh-Hans" => "主行字号", "en" => "Primary text size" }, label_hidden: true, current: app.desktop_style.primary_size, min: 10, max: 72, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::PrimarySize, app.desktop_style.primary_size)
+            }
+            Column(gap: 4) {
+                Text(content: tr! { "zh-Hans" => "副行字号：{size}", "en" => "Secondary text size: {size}"; size: app.desktop_style.secondary_size })
+                Slider(id: desktop_secondary_size, label: tr! { "zh-Hans" => "副行字号", "en" => "Secondary text size" }, label_hidden: true, current: app.desktop_style.secondary_size, min: 10, max: 72, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::SecondarySize, app.desktop_style.secondary_size)
+            }
+            Column(gap: 4) {
+                Text(content: tr! { "zh-Hans" => "整体不透明度：{value}%", "en" => "Overall opacity: {value}%"; value: app.desktop_style.opacity })
+                Slider(id: desktop_opacity, label: tr! { "zh-Hans" => "整体不透明度", "en" => "Overall opacity" }, label_hidden: true, current: app.desktop_style.opacity, min: 0, max: 100, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::Opacity, app.desktop_style.opacity)
+            }
+            Picker(id: desktop_lyric_effect, label: tr! { "zh-Hans" => "文字效果", "en" => "Text Effect" }, selected: app.desktop_style.effect, style: menu) => app.set_desktop_lyric_effect(app.desktop_style.effect)
+        }
+    }
+}
+
+#[component]
+pub fn desktop_lyric_rgb(
+    app: enji::Client,
+    red: f64,
+    red_field: DesktopLyricValue,
+    green: f64,
+    green_field: DesktopLyricValue,
+    blue: f64,
+    blue_field: DesktopLyricValue,
+) -> impl View {
+    ui! {
+        Section(title: tr! { "zh-Hans" => "RGB（0–255）", "en" => "RGB (0–255)" }) {
+            Column(gap: 4) {
+                Text(content: tr! { "zh-Hans" => "红（R）：{value}", "en" => "Red (R): {value}"; value: red })
+                Slider(id: desktop_color_red, label: tr! { "zh-Hans" => "红（R）", "en" => "Red (R)" }, label_hidden: true, current: red, min: 0, max: 255, step: 1) => app.set_desktop_lyric_value(red_field, red)
+            }
+            Column(gap: 4) {
+                Text(content: tr! { "zh-Hans" => "绿（G）：{value}", "en" => "Green (G): {value}"; value: green })
+                Slider(id: desktop_color_green, label: tr! { "zh-Hans" => "绿（G）", "en" => "Green (G)" }, label_hidden: true, current: green, min: 0, max: 255, step: 1) => app.set_desktop_lyric_value(green_field, green)
+            }
+            Column(gap: 4) {
+                Text(content: tr! { "zh-Hans" => "蓝（B）：{value}", "en" => "Blue (B): {value}"; value: blue })
+                Slider(id: desktop_color_blue, label: tr! { "zh-Hans" => "蓝（B）", "en" => "Blue (B)" }, label_hidden: true, current: blue, min: 0, max: 255, step: 1) => app.set_desktop_lyric_value(blue_field, blue)
+            }
+        }
+    }
+}
+
+#[component]
+pub fn optional_settings(app: enji::Client) -> impl View {
+    ui! {
+        Form(title: tr! { "zh-Hans" => "可选功能", "en" => "Optional Features" }) {
+            Section {
+                Switch(id: netease, label: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, checked: app.netease, style: switch) => app.set_netease(app.netease)
+            }
+            if app.netease {
+                Section {
+                    Switch(id: heart_mode, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }, checked: app.heart_mode, style: switch) => app.set_heart_mode(app.heart_mode)
+                    Switch(id: together, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, checked: app.together, style: switch) => app.set_together(app.together)
+                    if !window.tv {
+                        Switch(id: annual_report, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, checked: app.annual_report, style: switch) => app.set_annual_report(app.annual_report)
+                    }
+                    Switch(id: comments_enabled, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }, checked: app.comments_enabled, style: switch) => app.set_comments_enabled(app.comments_enabled)
+                    Switch(id: details_enabled, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }, checked: app.details_enabled, style: switch) => app.set_details_enabled(app.details_enabled)
+                }
+            }
+            Slot(id: feature_switches)
+            Section {
+                Switch(id: bern_credit, label: tr! { "zh-Hans" => "显示 Bern 框架署名", "en" => "Show Bern Credit" }, checked: app.bern_credit, style: switch) => app.set_bern_credit(app.bern_credit)
+            }
+        }
+    }
+}
+
+#[component]
+pub fn playback_settings(app: enji::Client) -> impl View {
+    ui! {
+        Form(title: tr! { "zh-Hans" => "播放与音频", "en" => "Playback & Audio" }) {
+            Section {
+                Picker(id: quality, label: tr! { "zh-Hans" => "音质", "en" => "Quality" }, selected: app.quality, style: menu) => app.set_quality(app.quality)
+                Switch(id: show_format, label: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" }, checked: app.show_format, style: switch) => app.set_show_format(app.show_format)
+                Switch(id: play_counts, label: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" }, checked: app.show_plays, style: switch) => app.set_show_plays(app.show_plays)
+            }
+            Section { loudness_settings(app: app) }
+            if app.usb_available {
+                Section(footer: tr! { "zh-Hans" => "启用独占输出时，系统音量不再生效，请先调低设备音量。", "en" => "In exclusive mode, system volume no longer applies. Turn down the device volume first." }) {
+                    Switch(id: usb_exclusive, label: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" }, checked: app.usb_exclusive, style: switch) => app.set_usb_exclusive(app.usb_exclusive)
+                    if app.usb_exclusive {
+                        if app.usb_format != "" {
+                            Text(content: app.usb_format, style: caption, emphasis: secondary)
+                        } else if app.usb_refused {
+                            Text(content: tr! { "zh-Hans" => "这台设备无法独占播放这首歌", "en" => "This device can't play this song exclusively" }, style: caption, emphasis: secondary)
+                        } else if !app.usb_plugged {
+                            Text(content: tr! { "zh-Hans" => "未连接 USB 音频设备", "en" => "No USB audio device" }, style: caption, emphasis: secondary)
+                        }
+                    }
+                }
+            }
+            if app.netease {
+                Section {
+                    Switch(id: report_listening, label: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" }, checked: app.report_listening, style: switch) => app.set_report_listening(app.report_listening)
+                    Switch(id: fm_on_start, label: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" }, checked: app.fm_on_start, style: switch) => app.set_fm_on_start(app.fm_on_start)
+                }
+            }
+            if app.desktop {
+                Section {
+                    Picker(id: on_close, label: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" }, selected: app.on_close, style: menu) => app.set_on_close(app.on_close)
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn local_music_settings(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+    ui! {
+        Form(title: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }) {
+            if app.phone_folder != "" {
+                Section {
+                    Row(gap: 8, align: center) {
+                        Label(title: tr! { "zh-Hans" => "「文件」App 中的 Enji", "en" => "Enji in the Files App" }, icon: "folder")
+                        Spacer
+                        Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: app.local_count }, emphasis: secondary)
+                    }
+                }
+            } else {
+                if app.has_folders {
+                    Section {
+                        ForEach(items: app.folders, key: key) |folder| {
+                            Row(gap: 10, align: center) {
+                                Column(gap: 2, align: leading) {
+                                    Text(content: folder.name, lines: 1)
+                                    if folder.path != "" {
+                                        Text(content: folder.path, style: caption, emphasis: secondary, lines: 1)
+                                    }
+                                }
+                                Spacer
+                                Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: folder.count }, emphasis: secondary)
+                                IconButton(id: remove_folder, icon: "xmark", prominence: plain, label: tr! { "zh-Hans" => "移除文件夹", "en" => "Remove Folder" }) => app.remove_folder(folder.key)
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Button(id: settings_add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
+                    if app.has_folders {
+                        Button(id: settings_rescan, label: tr! { "zh-Hans" => "重新扫描", "en" => "Scan Again" }, icon: "arrow.clockwise") => app.rescan()
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn lyrics_settings(app: enji::Client) -> impl View {
+    ui! {
+        Form(title: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) {
+            Section {
+                Switch(id: translation, label: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, checked: app.show_translation, style: switch) => app.set_show_translation(app.show_translation)
+                Switch(id: furigana, label: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" }, checked: app.show_furigana, style: switch) => app.set_show_furigana(app.show_furigana)
+                if app.phone && !window.tv {
+                    Switch(id: cover_lyrics, label: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, checked: app.cover_lyrics, style: switch) => app.set_cover_lyrics(app.cover_lyrics)
+                }
+            }
+            if app.netease {
+                Section {
+                    Switch(id: online_info, label: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" }, checked: app.online_info, style: switch) => app.set_online_info(app.online_info)
+                    Switch(id: word_lyrics, label: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" }, checked: app.word_lyrics, style: switch) => app.set_word_lyrics(app.word_lyrics)
+                }
+            }
+            if app.windows {
+                Section {
+                    Switch(id: speaker_lyrics, label: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" }, checked: app.speaker_lyrics, style: switch) => app.set_speaker_lyrics(app.speaker_lyrics)
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn appearance_settings(app: enji::Client) -> impl View {
+    ui! {
+        Form(title: tr! { "zh-Hans" => "外观与语言", "en" => "Appearance & Language" }) {
+            Section {
+                Picker(id: appearance, label: tr! { "zh-Hans" => "外观", "en" => "Appearance" }, selected: app.appearance, style: menu) => app.set_appearance(app.appearance)
+                Switch(id: backdrop, label: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" }, checked: app.backdrop, style: switch) => app.set_backdrop(app.backdrop)
+            }
+            Section {
+                LanguagePicker(id: language, label: tr! { "zh-Hans" => "语言", "en" => "Language" })
             }
         }
     }
@@ -3892,6 +4224,7 @@ pub fn watch_settings_list(app: enji::Client) -> impl View {
                 Switch(id: fm_on_start, label: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" }, checked: app.fm_on_start, style: switch) => app.set_fm_on_start(app.fm_on_start)
             }
             Slot(id: feature_switches)
+            Switch(id: bern_credit, label: tr! { "zh-Hans" => "显示 Bern 框架署名", "en" => "Show Bern Credit" }, checked: app.bern_credit, style: switch) => app.set_bern_credit(app.bern_credit)
             Picker(id: quality, label: tr! { "zh-Hans" => "音质", "en" => "Quality" }, selected: app.quality, style: menu) => app.set_quality(app.quality)
             loudness_settings(app: app)
             Switch(id: translation, label: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, checked: app.show_translation, style: switch) => app.set_show_translation(app.show_translation)
@@ -3905,451 +4238,8 @@ pub fn watch_settings_list(app: enji::Client) -> impl View {
             Picker(id: appearance, label: tr! { "zh-Hans" => "外观", "en" => "Appearance" }, selected: app.appearance, style: menu) => app.set_appearance(app.appearance)
             LanguagePicker(id: language, label: tr! { "zh-Hans" => "语言", "en" => "Language" })
             Text(content: tr! { "zh-Hans" => "版本 {version}", "en" => "Version {version}"; version: window.app_version }, style: caption, emphasis: secondary)
-        }
-    }
-}
-
-#[component]
-pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl View {
-    ui! {
-        Column(gap: 24) {
-            Text(content: tr! { "zh-Hans" => "设置", "en" => "Settings" }, style: large_title)
-            if app.netease {
-                Stack(variant: card) {
-                    if app.login == Login::In {
-                        Button(id: open_account, label: tr! { "zh-Hans" => "账号", "en" => "Account" }, variant: row) {
-                            Row(gap: 14, padding: 16, align: center) {
-                                Image(source: app.avatar, width: 52, height: 52, fit: cover, corner: 26)
-                                Column(gap: 2, align: leading) {
-                                    Text(content: app.nickname, style: title3, bold: true, lines: 1)
-                                    Text(content: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, style: caption, emphasis: secondary, lines: 1)
-                                }
-                                Spacer
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "打开", "en" => "Open" }, icon: "chevron.right", display: icon, font_size: 13)
-                                }
-                            }
-                        } => app.open_account()
-                    } else {
-                        Row(gap: 14, padding: 16, align: center) {
-                            Image(source: "assets/mark.png", width: 44, height: 44, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
-                            Text(content: tr! { "zh-Hans" => "未登录", "en" => "Not Signed In" }, style: headline)
-                            Spacer
-                            Button(id: settings_sign_in, label: tr! { "zh-Hans" => "扫码登录", "en" => "Sign In" }, icon: "qrcode", prominence: prominent, shape: capsule) => app.sign_in()
-                        }
-                    }
-                }
-            }
-            Column(gap: 8) {
-                Column(padding_x: 16) {
-                    Text(content: tr! { "zh-Hans" => "可选功能", "en" => "Features" }, style: footnote, bold: true, emphasis: secondary)
-                }
-                Stack(variant: card) {
-                    Column(gap: 0) {
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, icon: "music.note.list", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" })
-                            Spacer
-                            Switch(id: netease, label: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, label_hidden: true, checked: app.netease, style: switch) => app.set_netease(app.netease)
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" }, icon: "quote.bubble", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" })
-                                Spacer
-                                Switch(id: online_info, label: tr! { "zh-Hans" => "在线歌词与封面", "en" => "Online Lyrics and Covers" }, label_hidden: true, checked: app.online_info, style: switch) => app.set_online_info(app.online_info)
-                            }
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" }, icon: "text.bubble", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" })
-                                Spacer
-                                Switch(id: word_lyrics, label: tr! { "zh-Hans" => "逐字歌词", "en" => "Word-by-Word Lyrics" }, label_hidden: true, checked: app.word_lyrics, style: switch) => app.set_word_lyrics(app.word_lyrics)
-                            }
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }, icon: "heart", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" })
-                                Spacer
-                                Switch(id: heart_mode, label: tr! { "zh-Hans" => "心动模式", "en" => "Heart Mode" }, label_hidden: true, checked: app.heart_mode, style: switch) => app.set_heart_mode(app.heart_mode)
-                            }
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, icon: "headphones", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" })
-                                Spacer
-                                Switch(id: together, label: tr! { "zh-Hans" => "一起听", "en" => "Listen Together" }, label_hidden: true, checked: app.together, style: switch) => app.set_together(app.together)
-                            }
-                            if !window.tv {
-                                Column(padding_x: 16) { Divider }
-                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                    Column(width: 22, align: center) {
-                                        Stack(variant: quiet) {
-                                            Label(title: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, icon: "calendar", display: icon, font_size: 15)
-                                        }
-                                    }
-                                    Text(content: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" })
-                                    Spacer
-                                    Switch(id: annual_report, label: tr! { "zh-Hans" => "年度听歌报告", "en" => "Annual Report" }, label_hidden: true, checked: app.annual_report, style: switch) => app.set_annual_report(app.annual_report)
-                                }
-                            }
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "评论区", "en" => "Comments" }, icon: "text.bubble", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "评论区", "en" => "Comments" })
-                                Spacer
-                                Switch(id: comments_enabled, label: tr! { "zh-Hans" => "评论区", "en" => "Comments" }, label_hidden: true, checked: app.comments_enabled, style: switch) => app.set_comments_enabled(app.comments_enabled)
-                            }
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }, icon: "info.circle", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" })
-                                Spacer
-                                Switch(id: details_enabled, label: tr! { "zh-Hans" => "歌曲介绍", "en" => "Song Information" }, label_hidden: true, checked: app.details_enabled, style: switch) => app.set_details_enabled(app.details_enabled)
-                            }
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" }, icon: "dot.radiowaves.left.and.right", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" })
-                                Spacer
-                                Switch(id: fm_on_start, label: tr! { "zh-Hans" => "启动时打开私人漫游", "en" => "Start with Roaming" }, label_hidden: true, checked: app.fm_on_start, style: switch) => app.set_fm_on_start(app.fm_on_start)
-                            }
-                        }
-                        if app.usb_available {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" }, icon: "headphones", display: icon, font_size: 15)
-                                    }
-                                }
-                                Column(gap: 2, align: leading) {
-                                    Text(content: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" })
-                                    if app.usb_exclusive {
-                                        if app.usb_format != "" {
-                                            Text(content: app.usb_format, style: caption, emphasis: secondary)
-                                            Text(content: tr! { "zh-Hans" => "系统音量不再生效，请先调低设备音量", "en" => "System volume no longer applies. Turn the device down first." }, style: caption, emphasis: secondary)
-                                        } else if app.usb_refused {
-                                            Text(content: tr! { "zh-Hans" => "这台设备无法独占播放这首歌", "en" => "This device can't play this song exclusively" }, style: caption, emphasis: secondary)
-                                        } else if !app.usb_plugged {
-                                            Text(content: tr! { "zh-Hans" => "未连接 USB 音频设备", "en" => "No USB audio device" }, style: caption, emphasis: secondary)
-                                        }
-                                    }
-                                }
-                                Spacer
-                                Switch(id: usb_exclusive, label: tr! { "zh-Hans" => "USB 独占输出", "en" => "USB Exclusive Output" }, label_hidden: true, checked: app.usb_exclusive, style: switch) => app.set_usb_exclusive(app.usb_exclusive)
-                            }
-                        }
-                        // The switches of the modules that can be turned off.
-                        Slot(id: feature_switches)
-                    }
-                }
-            }
-            if !window.tv {
-                Column(gap: 8) {
-                    Column(padding_x: 16) {
-                        Text(content: tr! { "zh-Hans" => "本地音乐", "en" => "Local Music" }, style: footnote, bold: true, emphasis: secondary)
-                    }
-                    Stack(variant: card) {
-                        Column(gap: 0) {
-                            if app.phone_folder != "" {
-                                Row(gap: 12, padding_x: 16, padding_y: 12, align: center) {
-                                    Column(width: 22, align: center) {
-                                        Stack(variant: quiet) {
-                                            Label(title: tr! { "zh-Hans" => "文件夹", "en" => "Folder" }, icon: "folder", display: icon, font_size: 15)
-                                        }
-                                    }
-                                    Text(content: tr! { "zh-Hans" => "「文件」App 中的 Enji", "en" => "Enji in the Files App" })
-                                    Spacer
-                                    Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: app.local_count }, emphasis: secondary)
-                                }
-                            } else {
-                                ForEach(items: app.folders, key: key) |folder| {
-                                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                        Column(width: 22, align: center) {
-                                            Stack(variant: quiet) {
-                                                Label(title: folder.name, icon: "folder", display: icon, font_size: 15)
-                                            }
-                                        }
-                                        Column(gap: 2, align: leading) {
-                                            Text(content: folder.name, lines: 1)
-                                            if folder.path != "" {
-                                                Text(content: folder.path, style: caption, emphasis: secondary, lines: 1)
-                                            }
-                                        }
-                                        Spacer
-                                        Text(content: tr! { "zh-Hans" => "{count} 首", "en" => "{count} songs"; count: folder.count }, emphasis: secondary)
-                                        IconButton(id: remove_folder, icon: "xmark", font_size: 13, prominence: plain, label: tr! { "zh-Hans" => "移除文件夹", "en" => "Remove Folder" }) => app.remove_folder(folder.key)
-                                    }
-                                    Column(padding_x: 16) { Divider }
-                                }
-                                Row(gap: 10, padding_x: 16, padding_y: 10, align: center) {
-                                    Button(id: settings_add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", shape: capsule, pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
-                                    Spacer
-                                    if app.has_folders {
-                                        Button(id: settings_rescan, label: tr! { "zh-Hans" => "重新扫描", "en" => "Scan Again" }, icon: "arrow.clockwise", prominence: plain) => app.rescan()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Column(gap: 8) {
-                Column(padding_x: 16) {
-                    Text(content: tr! { "zh-Hans" => "播放", "en" => "Playback" }, style: footnote, bold: true, emphasis: secondary)
-                }
-                Stack(variant: card) {
-                    Column(gap: 0) {
-                        if app.desktop {
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" }, icon: "xmark", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" })
-                                Spacer
-                                Picker(id: on_close, label: tr! { "zh-Hans" => "关闭窗口时", "en" => "When the Window Closes" }, label_hidden: true, selected: app.on_close, style: menu) => app.set_on_close(app.on_close)
-                            }
-                            Column(padding_x: 16) { Divider }
-                        }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "音质", "en" => "Quality" }, icon: "music.note", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "音质", "en" => "Quality" })
-                            Spacer
-                            Picker(id: quality, label: tr! { "zh-Hans" => "音质", "en" => "Quality" }, label_hidden: true, selected: app.quality, style: menu) => app.set_quality(app.quality)
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Column(padding_x: 16, padding_y: 10) {
-                            loudness_settings(app: app)
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, icon: "captions.bubble", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" })
-                            Spacer
-                            Switch(id: translation, label: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, label_hidden: true, checked: app.show_translation, style: switch) => app.set_show_translation(app.show_translation)
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" }, icon: "textformat", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" })
-                            Spacer
-                            Switch(id: furigana, label: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" }, label_hidden: true, checked: app.show_furigana, style: switch) => app.set_show_furigana(app.show_furigana)
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" }, icon: "info.circle", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" })
-                            Spacer
-                            Switch(id: show_format, label: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" }, label_hidden: true, checked: app.show_format, style: switch) => app.set_show_format(app.show_format)
-                        }
-                        if app.phone {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, icon: "quote.bubble", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" })
-                                Spacer
-                                Switch(id: cover_lyrics, label: tr! { "zh-Hans" => "封面下的歌词", "en" => "Lyrics Under the Cover" }, label_hidden: true, checked: app.cover_lyrics, style: switch) => app.set_cover_lyrics(app.cover_lyrics)
-                            }
-                        }
-                        if app.desktop_lyrics_supported {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, icon: "captions.bubble", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" })
-                                Spacer
-                                Switch(id: desktop_lyrics, label: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, label_hidden: true, checked: app.desktop_lyrics, style: switch) => app.set_desktop_lyrics(app.desktop_lyrics)
-                            }
-                            // Elsewhere the lyrics unlock where they are.
-                            if app.desktop_lyrics && app.phone {
-                                Column(padding_x: 16) { Divider }
-                                Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                    Column(width: 22, align: center) {
-                                        Stack(variant: quiet) {
-                                            Label(title: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, icon: "checkmark.circle", display: icon, font_size: 15)
-                                        }
-                                    }
-                                    Text(content: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" })
-                                    Spacer
-                                    Switch(id: desktop_lyrics_locked, label: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, label_hidden: true, checked: app.desktop_lyrics_locked, style: switch) => app.set_desktop_lyrics_locked(app.desktop_lyrics_locked)
-                                }
-                            }
-                        }
-                        if app.windows {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" }, icon: "speaker.wave.2", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" })
-                                Spacer
-                                Switch(id: speaker_lyrics, label: tr! { "zh-Hans" => "音响歌词", "en" => "Speaker Lyrics" }, label_hidden: true, checked: app.speaker_lyrics, style: switch) => app.set_speaker_lyrics(app.speaker_lyrics)
-                            }
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" }, icon: "chart.bar", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" })
-                            Spacer
-                            Switch(id: play_counts, label: tr! { "zh-Hans" => "播放次数", "en" => "Play Counts" }, label_hidden: true, checked: app.show_plays, style: switch) => app.set_show_plays(app.show_plays)
-                        }
-                        if app.netease {
-                            Column(padding_x: 16) { Divider }
-                            Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                                Column(width: 22, align: center) {
-                                    Stack(variant: quiet) {
-                                        Label(title: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" }, icon: "clock.arrow.circlepath", display: icon, font_size: 15)
-                                    }
-                                }
-                                Text(content: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" })
-                                Spacer
-                                Switch(id: report_listening, label: tr! { "zh-Hans" => "同步听歌记录", "en" => "Sync Listening" }, label_hidden: true, checked: app.report_listening, style: switch) => app.set_report_listening(app.report_listening)
-                            }
-                        }
-                    }
-                }
-            }
-            Stack(variant: card) {
-                Button(id: open_plugins, label: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, variant: row) {
-                    Row(gap: 12, padding_x: 16, padding_y: 12, align: center) {
-                        Column(width: 22, align: center) {
-                            Stack(variant: quiet) {
-                                Label(title: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, icon: "puzzlepiece.extension", display: icon, font_size: 15)
-                            }
-                        }
-                        Text(content: tr! { "zh-Hans" => "插件", "en" => "Plugins" })
-                        Spacer
-                        Stack(variant: quiet) {
-                            Label(title: tr! { "zh-Hans" => "打开", "en" => "Open" }, icon: "chevron.right", display: icon, font_size: 13)
-                        }
-                    }
-                } => app.open_plugins()
-            }
-            Column(gap: 8) {
-                Column(padding_x: 16) {
-                    Text(content: tr! { "zh-Hans" => "外观", "en" => "Appearance" }, style: footnote, bold: true, emphasis: secondary)
-                }
-                Stack(variant: card) {
-                    Column(gap: 0) {
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "外观", "en" => "Appearance" }, icon: "paintpalette", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "外观", "en" => "Appearance" })
-                            Spacer
-                            Picker(id: appearance, label: tr! { "zh-Hans" => "外观", "en" => "Appearance" }, label_hidden: true, selected: app.appearance, style: segmented) => app.set_appearance(app.appearance)
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" }, icon: "photo", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" })
-                            Spacer
-                            Switch(id: backdrop, label: tr! { "zh-Hans" => "封面背景", "en" => "Cover Backdrop" }, label_hidden: true, checked: app.backdrop, style: switch) => app.set_backdrop(app.backdrop)
-                        }
-                        Column(padding_x: 16) { Divider }
-                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
-                            Column(width: 22, align: center) {
-                                Stack(variant: quiet) {
-                                    Label(title: tr! { "zh-Hans" => "语言", "en" => "Language" }, icon: "globe", display: icon, font_size: 15)
-                                }
-                            }
-                            Text(content: tr! { "zh-Hans" => "语言", "en" => "Language" })
-                            Spacer
-                            LanguagePicker(id: language, label: tr! { "zh-Hans" => "语言", "en" => "Language" }, label_hidden: true)
-                        }
-                    }
-                }
-            }
-            Stack(variant: card) {
-                Row(gap: 12, padding: 16, align: center) {
-                    Image(source: "assets/mark.png", width: 36, height: 36, label: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" })
-                    Column(gap: 2, align: leading) {
-                        Text(content: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, style: headline)
-                        Text(content: tr! { "zh-Hans" => "版本 {version}", "en" => "Version {version}"; version: window.app_version }, style: caption, emphasis: secondary)
-                    }
-                    Spacer
-                }
+            if app.bern_credit {
+                Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: secondary)
             }
         }
     }

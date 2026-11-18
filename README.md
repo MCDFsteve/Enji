@@ -118,9 +118,9 @@
 - **本地音乐**：MP3、FLAC、M4A、WAV 等常见格式都能放，播放时写出格式和码率，例如“FLAC · 921 kbps · 44.1 kHz · 16 bit”。电脑上添加文件夹；iPhone 上把歌放进“文件”App 的 Enji 文件夹；Android 上选一个文件夹。
 - **下载**：把歌连同歌词和封面存到本机，电脑上在“音乐”文件夹的 Enji 里。下载过的歌和本机的歌在列表里都有标记。
 - **系统的播放控件**：键盘上的媒体键、macOS 菜单栏、iPhone 的灵动岛与锁屏和控制中心、Windows 的媒体浮窗、Linux 桌面的媒体控件、Android 的通知栏与支持媒体胶囊的厂商灵动岛，都能看到正在放的歌并控制播放，登录后还能直接在灵动岛和通知里点红心收藏。切到别的 App 或锁屏后音乐不停。
-- **桌面歌词**：电脑和 Android 上，歌词可以浮在所有窗口上面，拖到哪里就停在哪里。鼠标移上去（Android 上点一下）就能切歌、暂停和锁定；锁定后鼠标点击会穿过它。
+- **桌面歌词**：电脑和 Android 上，歌词可以浮在所有窗口上面，拖到哪里就停在哪里。鼠标移上去（Android 上点一下）就能切歌、暂停、锁定，或点齿轮在旁边弹出小窗口实时调整主副行字号、颜色、透明度与阴影/描边效果（也可以在「设置 › 桌面歌词」子页面调整）；锁定后鼠标点击会穿过它。
 - **音响歌词**：Windows 上通过 USB 连接支持显示歌词的屏幕音响时，正在唱的歌词会直接显示在音响屏幕上，保留音响上设好的字体和动画，可在设置里开关。
-- **插件**：在设置里的插件商店安装 [Windows 任务栏歌词、鼓点封面等插件](https://github.com/MCDFsteve/enji-plugins)。想用 JavaScript 写自己的插件，见 [插件 API v2 中文参考](docs/plugins/README.md)，附编辑器类型声明、响度策略和歌曲书签示例。
+- **插件**：在设置里的插件商店安装 [Windows 任务栏歌词、鼓点封面等插件](https://github.com/MCDFsteve/enji-plugins)（直连不上 GitHub 时自动回退到镜像/加速节点）。想用 JavaScript 写自己的插件，见 [插件 API v2 中文参考](docs/plugins/README.md)，附编辑器类型声明、响度策略和歌曲书签示例。
 - **播放记录**：最近听过什么，每首歌听了几次。听过的歌同步到网易云账号（可在设置里关闭），计入听歌排行和年度报告。
 - **心动模式**：在设置里打开后，它和列表循环、随机播放在一起，从正在放的歌开始，接上网易云为你挑的歌。
 - **一起听**：在设置里打开后，用网易云的房间和朋友一起听：切歌、暂停、拖进度都会同步。
@@ -202,7 +202,7 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 3b8890eb97d43f34c4ad0369d6675820a251b3de bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 8eb99cac1efc63d2aa3670db0da636e16ef2ca1e bern-cli
 ```
 
 构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；请使用上面的版本构建当前源码。

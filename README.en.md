@@ -118,9 +118,9 @@
 - **Your own music**: MP3, FLAC, M4A, WAV and other common formats, with the format and bitrate shown as it plays, such as "FLAC · 921 kbps · 44.1 kHz · 16 bit". On a computer, add a folder; on iPhone, put songs in Enji's folder in the Files app; on Android, pick a folder.
 - **Downloads**: keep songs on your device with their lyrics and covers; on a computer they go to Enji in your Music folder. Downloaded songs and your own files are marked in every list.
 - **The system's media controls**: the media keys on your keyboard, the macOS menu bar, the iPhone Dynamic Island, lock screen and Control Center, the Windows media flyout, the Linux desktop's media controls, and the Android notification and maker islands all show what's playing and control it, with a favorite button right in the island and notification when signed in. The music keeps playing when you switch apps or lock the screen.
-- **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them. Hover over them (tap on Android) to skip, pause or lock them; locked, clicks go through them.
+- **Desktop lyrics**: on a computer and on Android, the lyrics can float above every window and stay wherever you drag them. Hover over them (tap on Android) to skip, pause, lock, or open the gear panel beside the lyrics to adjust primary/secondary font size, colors, opacity, and shadow/outline effects (also available under Settings › Desktop Lyrics); locked, clicks go through them.
 - **Speaker lyrics**: on Windows with a supported USB speaker with a screen plugged in, the line being sung shows on the speaker's own screen in the font and animation set on it, with a switch in Settings.
-- **Plugins**: install [Windows taskbar lyrics, a cover that pulses with the beat, and other plugins](https://github.com/MCDFsteve/enji-plugins) from the plugin market in Settings. To write your own in JavaScript, see the [Plugin API v2 reference (Chinese)](docs/plugins/README.md), with editor typings, a loudness policy and a song bookmark example.
+- **Plugins**: install [Windows taskbar lyrics, a cover that pulses with the beat, and other plugins](https://github.com/MCDFsteve/enji-plugins) from the plugin market in Settings (automatically falls back to mirrors when GitHub is unreachable). To write your own in JavaScript, see the [Plugin API v2 reference (Chinese)](docs/plugins/README.md), with editor typings, a loudness policy and a song bookmark example.
 - **History**: what you played recently, and how many times you played each song. What you listen to goes to your NetEase account (you can turn this off in Settings), for its rankings and annual report.
 - **Heart Mode**: once on in Settings, it sits with Repeat and Shuffle: from the playing song, songs NetEase picks for you.
 - **Listen Together**: once on in Settings, listen with a friend in NetEase's rooms: skipping, pausing and seeking stay in step.
@@ -202,7 +202,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 3b8890eb97d43f34c4ad0369d6675820a251b3de bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 8eb99cac1efc63d2aa3670db0da636e16ef2ca1e bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.

@@ -3,8 +3,12 @@
 //! that writes the shared state; each change wakes the engine, which copies
 //! it for the interface.
 
+mod desktop_style;
 mod normalization;
 mod plugin_api;
+
+pub use desktop_style::Edit as DesktopEdit;
+const BERN_HOMEPAGE: &str = "https://bern.aimes-soft.com";
 
 use normalization::{Normalization, SourceLevel};
 use crate::{
@@ -110,6 +114,10 @@ pub enum Job {
     SetCoverLyrics(bool),
     SetDesktopLyrics(bool),
     SetDesktopLyricsLocked(bool),
+    EditDesktopStyle(DesktopEdit, bool),
+    DesktopPanelEvents(Vec<bern::overlay::PanelEvent>),
+    SetBernCredit(bool),
+    OpenBernHomepage,
     SetSpeakerLyrics(bool),
     Download(Source, usize),
     DownloadCurrent,
@@ -138,7 +146,7 @@ pub enum Job {
     /// The address of the latest annual report.
     SetPluginsOpen(bool),
     LoadOffers,
-    Offers(Vec<plugins::Listing>),
+    Offers(Vec<plugins::Listing>, Option<String>),
     InstallPlugin(String),
     ImportPlugin(String),
     /// A plugin package was unpacked, or why it was not.
@@ -418,6 +426,10 @@ fn state_from_settings(saved: &Value) -> State {
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
+        desktop_style_supported: bern::overlay::panel_supported(),
+        desktop_style: desktop_style::load(&saved["desktop_style"]),
+        bern_credit: saved["bern_credit"].as_bool().unwrap_or(true),
+        bern_link_supported: false,
         speaker_lyrics: saved["speaker_lyrics"].as_bool().unwrap_or(true),
         phone: cfg!(any(target_os = "ios", target_os = "android")),
         appearance: match pick("appearance").as_str() {
@@ -458,6 +470,8 @@ fn settings_value(state: &State) -> Value {
         "hot_search": state.hot_search,
         "desktop_lyrics": state.desktop_lyrics,
         "desktop_lyrics_locked": state.desktop_lyrics_locked,
+        "desktop_style": desktop_style::save(&state.desktop_style),
+        "bern_credit": state.bern_credit,
         "speaker_lyrics": state.speaker_lyrics,
         "plugins": state.plugins.iter().filter(|plugin| plugin.enabled).map(|plugin| plugin.id.clone()).collect::<Vec<_>>(),
         "plugin_writes": state.plugins.iter().filter(|p| p.enabled).map(|p| (p.id.clone(), json!({
@@ -648,6 +662,9 @@ struct Worker {
     plugins: plugins::Plugins,
     /// The ids of the enabled plugins, kept in the settings.
     enabled_plugins: Vec<String>,
+    /// Debounce disk writes while dragging sliders on the desktop lyrics panel.
+    desktop_save_after: Option<Instant>,
+    desktop_panel_language: String,
     /// What the plugin market lists.
     listings: Vec<plugins::Listing>,
     /// The overlays plugins put up, to take down with them.
@@ -790,6 +807,12 @@ pub async fn run(
     waker: Option<Waker>,
 ) {
     let shared = Shared { state, waker, changed };
+    let opens_links = bern::platform::can_open_https(BERN_HOMEPAGE);
+    shared.update(|s| {
+        s.bern_link_supported = opens_links;
+        s.desktop_style_supported = bern::overlay::panel_supported();
+        s.desktop_lyrics_supported = bern::overlay::supported();
+    });
     let (volume, exclusive) = shared.read(|s| (s.volume as f32, s.usb_exclusive));
     let cookie = store::cookie();
     let mut worker = Worker {
@@ -835,6 +858,8 @@ pub async fn run(
             .as_array()
             .map(|ids| ids.iter().filter_map(|id| id.as_str().map(String::from)).collect())
             .unwrap_or_default(),
+        desktop_save_after: None,
+        desktop_panel_language: String::new(),
         listings: Vec::new(),
         plugin_overlays: std::collections::HashSet::new(),
         beats_told: 0,
@@ -1344,6 +1369,37 @@ impl Worker {
                 });
                 self.desktop_lyrics();
             }
+            Job::EditDesktopStyle(edit, committed) => self.edit_desktop_style(edit, committed),
+            Job::DesktopPanelEvents(events) => {
+                for event in events {
+                    match event {
+                        bern::overlay::PanelEvent::Changed {
+                            control,
+                            value,
+                            committed,
+                            ..
+                        } => {
+                            if let Some(edit) = DesktopEdit::native(&control, value) {
+                                self.edit_desktop_style(edit, committed);
+                            }
+                        }
+                        bern::overlay::PanelEvent::Dismissed { .. } => self.flush_desktop_style(),
+                    }
+                }
+            }
+            Job::SetBernCredit(on) => self.shared.update(|s| {
+                s.bern_credit = on;
+                save_settings(s);
+            }),
+            Job::OpenBernHomepage => {
+                if self.shared.read(|s| s.bern_credit && s.bern_link_supported)
+                    && let Err(error) = bern::platform::open_https(BERN_HOMEPAGE)
+                {
+                    let supported = bern::platform::can_open_https(BERN_HOMEPAGE);
+                    self.shared.update(|s| s.bern_link_supported = supported);
+                    self.shared.fail(error.message);
+                }
+            }
             Job::SetSpeakerLyrics(shown) => {
                 self.shared.update(|s| {
                     s.speaker_lyrics = shown;
@@ -1642,27 +1698,38 @@ impl Worker {
                 }
             }
             Job::LoadOffers => {
+                if self.shared.read(|s| s.offers_loading) { return; }
                 self.shared.update(|s| s.offers_loading = true);
-                let (http, jobs) = (self.http.clone(), self.jobs.clone());
+                let jobs = self.jobs.clone();
                 tokio::spawn(async move {
                     let mut found = Vec::new();
+                    let mut error = None;
                     for index in plugins::indexes() {
-                        let text = if index.starts_with("http") {
-                            match http.get(&index).send().await.and_then(|r| r.error_for_status()) {
-                                Ok(response) => response.text().await.unwrap_or_default(),
-                                Err(_) => String::new(),
+                        let text = if index.starts_with("http://") || index.starts_with("https://") {
+                            match plugins::download::read_index(&index).await {
+                                Ok(text) => text,
+                                Err(e) => {
+                                    error.get_or_insert(e);
+                                    String::new()
+                                }
                             }
                         } else {
-                            std::fs::read_to_string(&index).unwrap_or_default()
+                            match std::fs::read_to_string(&index) {
+                                Ok(text) => text,
+                                Err(e) => {
+                                    error.get_or_insert_with(|| e.to_string());
+                                    String::new()
+                                }
+                            }
                         };
                         found.extend(plugins::listings(&index, &text));
                     }
-                    let _ = jobs.send(Job::Offers(found));
+                    let _ = jobs.send(Job::Offers(found, error));
                 });
             }
-            Job::Offers(listings) => {
+            Job::Offers(listings, error) => {
                 if listings.is_empty() {
-                    self.shared.fail("连不上插件商店，稍后再试");
+                    self.shared.fail(error.unwrap_or_else(|| "连不上插件商店，稍后再试".into()));
                 }
                 self.listings = listings;
                 self.shared.update(|s| s.offers_loading = false);
@@ -1671,13 +1738,10 @@ impl Worker {
             Job::InstallPlugin(id) => {
                 let Some(listing) = self.listings.iter().find(|listing| listing.pack.id == id).cloned() else { return };
                 if let Err(message) = listing.pack.check_compatibility() { return self.shared.fail(message); }
-                let (http, jobs) = (self.http.clone(), self.jobs.clone());
+                let jobs = self.jobs.clone();
                 tokio::spawn(async move {
-                    let package = if listing.package.starts_with("http") {
-                        match http.get(&listing.package).send().await.and_then(|r| r.error_for_status()) {
-                            Ok(response) => response.bytes().await.map(|bytes| bytes.to_vec()).map_err(|e| e.to_string()),
-                            Err(e) => Err(e.to_string()),
-                        }
+                    let package = if listing.package.starts_with("http://") || listing.package.starts_with("https://") {
+                        plugins::download::read_package(&listing.package, &listing.pack).await
                     } else {
                         std::fs::read(&listing.package).map_err(|e| e.to_string())
                     };
@@ -2209,32 +2273,62 @@ impl Worker {
                 && !(s.show_translation && !s.lyric_now_translation.is_empty()) {
                 s.lyric_next_ruby.clone()
             } else { String::new() };
-            Some((first, second, first_ruby, second_ruby, route, s.desktop_lyrics_locked, s.playing))
+            Some((first, second, first_ruby, second_ruby, route, s.desktop_lyrics_locked, s.playing, s.desktop_style.clone(), s.desktop_style_supported))
         });
-        let Some((first, second, first_ruby, second_ruby, route, locked, playing)) = shown else {
-            return bern::overlay::hide("lyrics");
+        let Some((first, second, first_ruby, second_ruby, route, locked, playing, style, adjustable)) = shown else {
+            return bern::overlay::hide(desktop_style::ID);
         };
-        // Phones show it smaller, over another app.
-        let (large, small) = if cfg!(target_os = "android") { (20.0, 14.0) } else { (30.0, 18.0) };
         let button = |id: &str, symbol: &str| Button { id: id.into(), symbol: symbol.into(), while_locked: false };
-        bern::overlay::show(
-            "lyrics",
+        let mut buttons = vec![
+            button("previous", "backward.fill"),
+            button("toggle", if playing { "pause.fill" } else { "play.fill" }),
+            button("next", "forward.fill"),
+        ];
+        if adjustable {
+            buttons.push(button("style", "gearshape"));
+        }
+        buttons.push(Button { id: "lock".into(), symbol: if locked { "lock.open.fill" } else { "lock.fill" }.into(), while_locked: true });
+        buttons.push(button("close", "xmark"));
+        bern::overlay::show_styled(
+            desktop_style::ID,
             &Overlay {
                 lines: vec![
-                    Line { text: first, ruby: first_ruby, size: large, bold: true, color: [255, 255, 255, 255], lit: None, route },
-                    Line { text: second, ruby: second_ruby, size: small, bold: false, color: [255, 255, 255, 215], lit: None, route: None },
+                    Line { text: first, ruby: first_ruby, size: style.primary_size, bold: true, color: desktop_style::color(&style, true), lit: None, route },
+                    Line { text: second, ruby: second_ruby, size: style.secondary_size, bold: false, color: desktop_style::color(&style, false), lit: None, route: None },
                 ],
                 place: bern::overlay::Place::Free,
                 locked,
-                buttons: vec![
-                    button("previous", "backward.fill"),
-                    button("toggle", if playing { "pause.fill" } else { "play.fill" }),
-                    button("next", "forward.fill"),
-                    Button { id: "lock".into(), symbol: if locked { "lock.open.fill" } else { "lock.fill" }.into(), while_locked: true },
-                    button("close", "xmark"),
-                ],
+                buttons,
             },
+            desktop_style::text(&style),
         );
+    }
+
+    fn open_desktop_panel(&mut self) {
+        self.desktop_panel_language = bern::platform::ui_language();
+        let panel = self.shared.read(|s| desktop_style::panel(&s.desktop_style, &self.desktop_panel_language));
+        bern::overlay::show_panel(desktop_style::ID, Some(&panel));
+    }
+
+    fn flush_desktop_style(&mut self) {
+        if self.desktop_save_after.take().is_some() {
+            self.shared.read(save_settings);
+        }
+    }
+
+    fn edit_desktop_style(&mut self, edit: DesktopEdit, committed: bool) {
+        if !self.shared.read(|s| s.desktop_style_supported) {
+            return;
+        }
+        self.shared.update(|s| edit.apply(&mut s.desktop_style));
+        self.desktop_save_after = Some(Instant::now() + Duration::from_millis(400));
+        if committed {
+            self.flush_desktop_style();
+        }
+        self.show_desktop_lyrics();
+        if bern::overlay::panel_open(desktop_style::ID) {
+            self.open_desktop_panel();
+        }
     }
 
     /// The sung line, or the song's name before singing starts, on a
@@ -4371,6 +4465,14 @@ impl Worker {
 
     /// Where the song is, its lyric line, and the next song when it ends.
     fn tick(&mut self) {
+        if self.desktop_save_after.is_some_and(|at| Instant::now() >= at) {
+            self.flush_desktop_style();
+        }
+        if bern::overlay::panel_open(desktop_style::ID)
+            && self.desktop_panel_language != bern::platform::ui_language()
+        {
+            self.open_desktop_panel();
+        }
         // Media keys, headphones, Control Center and the like.
         for command in bern::now_playing::take_commands() {
             use bern::now_playing::Command;
@@ -4403,6 +4505,11 @@ impl Worker {
                     let locked = self.shared.read(|s| s.desktop_lyrics_locked);
                     self.handle(Job::SetDesktopLyricsLocked(!locked));
                 }
+                "style" if bern::overlay::panel_open(desktop_style::ID) => {
+                    self.flush_desktop_style();
+                    bern::overlay::show_panel(desktop_style::ID, None);
+                }
+                "style" => self.open_desktop_panel(),
                 "close" => self.handle(Job::SetDesktopLyrics(false)),
                 _ => {}
             }
@@ -5165,9 +5272,9 @@ mod tests {
     #[test]
     fn panel_features_default_on_and_keep_independent_preferences() {
         let defaults = super::state_from_settings(&json!({}));
-        assert!(defaults.comments_enabled && defaults.details_enabled);
-        let kept = super::state_from_settings(&json!({"comments_enabled": false, "details_enabled": true}));
-        assert!(!kept.comments_enabled && kept.details_enabled);
+        assert!(defaults.comments_enabled && defaults.details_enabled && defaults.bern_credit);
+        let kept = super::state_from_settings(&json!({"comments_enabled": false, "details_enabled": true, "bern_credit": false}));
+        assert!(!kept.comments_enabled && kept.details_enabled && !kept.bern_credit);
         let kept = super::state_from_settings(&json!({"comments_enabled": true, "details_enabled": false}));
         assert!(kept.comments_enabled && !kept.details_enabled);
         for comments in [false, true] {

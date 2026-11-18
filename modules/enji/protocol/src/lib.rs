@@ -208,6 +208,44 @@ pub mod enji {
     }
 
     #[value]
+    pub enum DesktopLyricEffect {
+        #[label(tr! { "zh-Hans" => "无", "en" => "None" })]
+        None,
+        #[label(tr! { "zh-Hans" => "阴影", "en" => "Shadow" })]
+        Shadow,
+        #[label(tr! { "zh-Hans" => "描边", "en" => "Outline" })]
+        Outline,
+    }
+
+    #[value]
+    pub enum DesktopLyricValue {
+        PrimarySize,
+        SecondarySize,
+        Opacity,
+        PrimaryRed,
+        PrimaryGreen,
+        PrimaryBlue,
+        SecondaryRed,
+        SecondaryGreen,
+        SecondaryBlue,
+    }
+
+    #[value]
+    pub struct DesktopLyricStyle {
+        pub primary_size: f64,
+        pub secondary_size: f64,
+        pub primary_red: f64,
+        pub primary_green: f64,
+        pub primary_blue: f64,
+        pub secondary_red: f64,
+        pub secondary_green: f64,
+        pub secondary_blue: f64,
+        /// Percent (0–100), independent of the overlay button bar.
+        pub opacity: f64,
+        pub effect: DesktopLyricEffect,
+    }
+
+    #[value]
     pub enum Appearance {
         #[label(tr! { "zh-Hans" => "自动", "en" => "Auto" })]
         System,
@@ -841,6 +879,11 @@ pub mod enji {
         pub desktop_lyrics_locked: bool,
         /// This system shows desktop lyrics.
         pub desktop_lyrics_supported: bool,
+        pub desktop_style_supported: bool,
+        pub desktop_style: DesktopLyricStyle,
+        /// Show "Proudly built with Bern" below the app version.
+        pub bern_credit: bool,
+        pub bern_link_supported: bool,
         /// On Windows, the sung line on a connected speaker with a screen.
         pub speaker_lyrics: bool,
         /// A phone: its playing page can show the sung line under the
@@ -1038,6 +1081,10 @@ pub mod enji {
         fn set_hot_search(&mut self, on: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;
+        fn set_desktop_lyric_value(&mut self, field: DesktopLyricValue, value: f64) -> Result<(), CommandError>;
+        fn set_desktop_lyric_effect(&mut self, effect: DesktopLyricEffect) -> Result<(), CommandError>;
+        fn set_bern_credit(&mut self, on: bool) -> Result<(), CommandError>;
+        fn open_bern_homepage(&mut self) -> Result<(), CommandError>;
         fn set_speaker_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_appearance(&mut self, appearance: Appearance) -> Result<(), CommandError>;
         fn dismiss_error(&mut self) -> Result<(), CommandError>;

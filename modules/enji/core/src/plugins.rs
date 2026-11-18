@@ -17,6 +17,7 @@ use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 
 mod bridge;
+pub mod download;
 mod install;
 mod manifest;
 mod settings;
