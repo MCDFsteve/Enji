@@ -1,6 +1,5 @@
 //! The protocol of Enji Music: what the interface shows, and the commands
-//! that change it. The interface, the command line and the MCP server all
-//! go through these commands.
+//! that change it. The interface and the command line use the same commands.
 
 #[bern::protocol(namespace = "enji", version = 1)]
 pub mod enji {

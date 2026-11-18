@@ -24,7 +24,7 @@
 <img alt="Android · Jetpack Compose" src="https://img.shields.io/badge/Android-Compose-555555?style=flat-square&logo=android&logoColor=white">
 <img alt="Wear OS · Jetpack Compose" src="https://img.shields.io/badge/Wear%20OS-Compose-555555?style=flat-square&logo=wearos&logoColor=white">
 <img alt="Linux · GTK 4" src="https://img.shields.io/badge/Linux-GTK%204-555555?style=flat-square&logo=gtk&logoColor=white">
-<img alt="MCP built in" src="https://img.shields.io/badge/AI-MCP%20built%20in-555555?style=flat-square">
+<img alt="CLI + Skill" src="https://img.shields.io/badge/AI-CLI%20%2B%20Skill-555555?style=flat-square">
 <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-E60026?style=flat-square"></a>
 </p>
 
@@ -103,7 +103,7 @@
 - **Light.** The macOS `.app` is 13.9 MiB, 7 MiB zipped, and uses 61 MiB of memory sitting on the Charts page.
 - **Lyrics with depth.** The line being sung is the sharpest; the lines around it blur away over the blurred cover.
 - **Lyrics and covers for your own files.** Local FLAC and MP3 files pick up the lyrics and cover of the same song on NetEase, and you search them together with your online playlists. Turn NetEase off and Enji is a plain local player.
-- **Usable by AI.** An MCP server and a command line come built in. An AI such as Claude can search, play and switch pages, reading the controls on screen rather than screenshots.
+- **Usable by AI.** With the built-in `enji` command line, an AI can search, play and switch pages by reading the controls rather than screenshots.
 
 ## Features
 
@@ -150,7 +150,7 @@ The macOS, iOS, watchOS, tvOS and Windows builds aren't signed by a developer: i
 
 ## For AI
 
-Every build puts an `enji` command line and `enji-mcp` in `target/bern/<platform>/bin/`, with every command described in `skills/enji/SKILL.md`.
+The build output includes the command line at `bin/enji` (`bin/enji.exe` on Windows) and its guide at `skills/enji/SKILL.md`. The old `enji-mcp` server is no longer bundled; point your agent at the guide to use the CLI instead.
 
 ```sh
 enji search search --text "GO GHOST"
@@ -193,7 +193,7 @@ pub trait Commands {
 
 If the interface names a command that doesn't exist, or a label is missing its English translation, `bern check` stops the build.
 
-**The AI interface comes from the same protocol.** Every command and every control has a name, so Bern generates the `enji` command line, the `enji-mcp` server and `SKILL.md` from them. An AI running `enji enji play` goes through the same command as your tap on Play.
+**The AI interface comes from the same protocol.** Every command and every control has a name, so Bern generates the `enji` command line and its `SKILL.md` guide from them. An AI running `enji enji play` goes through the same command as your tap on Play.
 
 To build your own app the same way, have a look at [Bern](https://github.com/AimesSoft/Bern).
 
@@ -202,7 +202,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev b11625ba0f975b983b8a203782a7181fa0e8fab2 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 3b8890eb97d43f34c4ad0369d6675820a251b3de bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.

@@ -24,7 +24,7 @@
 <img alt="Android · Jetpack Compose" src="https://img.shields.io/badge/Android-Compose-555555?style=flat-square&logo=android&logoColor=white">
 <img alt="Wear OS · Jetpack Compose" src="https://img.shields.io/badge/Wear%20OS-Compose-555555?style=flat-square&logo=wearos&logoColor=white">
 <img alt="Linux · GTK 4" src="https://img.shields.io/badge/Linux-GTK%204-555555?style=flat-square&logo=gtk&logoColor=white">
-<img alt="MCP built in" src="https://img.shields.io/badge/AI-MCP%20built%20in-555555?style=flat-square">
+<img alt="CLI + Skill" src="https://img.shields.io/badge/AI-CLI%20%2B%20Skill-555555?style=flat-square">
 <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-E60026?style=flat-square"></a>
 </p>
 
@@ -103,7 +103,7 @@
 - **轻。** macOS 版 `.app` 13.9 MiB，压缩后 7 MiB；停在排行榜页时占用 61 MiB 内存。
 - **有景深的歌词。** 正在唱的一行最清楚，上下几行逐渐虚化，背后铺着模糊的封面。
 - **本地音乐也有歌词和封面。** 本机的 FLAC、MP3 会自动配上网易云里同一首歌的歌词和封面，和在线歌单在一个曲库里搜索。关掉网易云，Enji 就是一个纯本地播放器。
-- **AI 能直接用。** 自带 MCP 服务器和命令行。Claude 这样的 AI 可以搜歌、放歌、切换页面，看的是界面上的控件，而不是截图。
+- **AI 能直接用。** 通过自带的 `enji` 命令行，AI 可以搜歌、放歌、切换页面，读取的是界面上的控件，而不是截图。
 
 ## 功能
 
@@ -150,7 +150,7 @@ macOS、iOS、watchOS、tvOS 和 Windows 版没有开发者签名：`.ipa` 需�
 
 ## 交给 AI
 
-每次构建都会在 `target/bern/<平台>/bin/` 生成 `enji` 命令行和 `enji-mcp`，`skills/enji/SKILL.md` 里是全部命令的说明。
+构建产物中，`bin/enji`（Windows 为 `bin/enji.exe`）是命令行，`skills/enji/SKILL.md` 是配套的使用说明。旧版的 `enji-mcp` 不再随附；让 AI 阅读这份说明，通过命令行操作即可。
 
 ```sh
 enji search search --text "GO GHOST"
@@ -193,7 +193,7 @@ pub trait Commands {
 
 界面引用了不存在的命令，或者某句文案缺了英文翻译，`bern check` 在构建前就会报错。
 
-**AI 接口来自同一份协议。** 协议里的每条命令、界面上的每个控件都有名字，Bern 据此生成 `enji` 命令行、`enji-mcp` 服务器和 `SKILL.md`。AI 执行 `enji enji play` 和你点播放按钮走的是同一条命令。
+**AI 接口来自同一份协议。** 协议里的每条命令、界面上的每个控件都有名字，Bern 据此生成 `enji` 命令行和配套的 `SKILL.md`。AI 执行 `enji enji play` 和你点播放按钮走的是同一条命令。
 
 想用同样的方式写自己的应用，可以看看 [Bern](https://github.com/AimesSoft/Bern)。
 
@@ -202,7 +202,7 @@ pub trait Commands {
 Enji 用 [Bern](https://github.com/AimesSoft/Bern) 构建。先装上 Bern 的构建工具 `bern`，版本和 Enji 用的 Bern 一致：
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev b11625ba0f975b983b8a203782a7181fa0e8fab2 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 3b8890eb97d43f34c4ad0369d6675820a251b3de bern-cli
 ```
 
 构建工具与 `Cargo.toml` 固定到同一份 Bern 提交；请使用上面的版本构建当前源码。
