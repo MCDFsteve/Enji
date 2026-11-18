@@ -15,7 +15,7 @@ use enji_kit::{
 };
 use bern::{files::Entry, media::MediaSource};
 use enji_protocol::enji::Song;
-use lofty::prelude::*;
+use lofty::{file::AudioFile as _, prelude::*};
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use std::{
