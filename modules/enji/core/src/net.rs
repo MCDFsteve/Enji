@@ -3,8 +3,12 @@
 //! that writes the shared state; each change wakes the engine, which copies
 //! it for the interface.
 
+mod normalization;
+mod plugin_api;
+
+use normalization::{Normalization, SourceLevel};
 use crate::{
-    audio::{self, Audio, Stream},
+    audio::{self, loudness, Audio, Stream},
     convert, downloads,
     listens,
     local, lyrics, plugins, resume,
@@ -113,6 +117,14 @@ pub enum Job {
     Downloaded { song: Song, path: PathBuf },
     /// The playing song's cover, read for the system's now playing.
     NowArtwork { token: u64, bytes: Arc<Vec<u8>> },
+    SetLoudnessEnabled(bool),
+    SetLoudnessProvider(String),
+    SetPluginBool(String, String, bool),
+    SetPluginNumberPosition(String, String, f64),
+    SetPluginChoice(String, String, String),
+    OpenPluginActions(Song, bool),
+    ClosePluginActions(i64),
+    RunPluginAction(String, String, i64),
     SetPluginEnabled(String, bool),
     RemovePlugin(String),
     OpenAccount,
@@ -189,6 +201,12 @@ pub enum Job {
     LocalInfo { token: u64, lines: Vec<lyrics::Line>, cover: String },
     SignedIn(String),
     Account(i64),
+    /// Identifies this particular encode before it opens; plugins must never hold up Ready.
+    SourcePrepared { token: u64, level: SourceLevel },
+    /// Only clean, complete, non-preview transfers are eligible for whole-track analysis.
+    SourceComplete { token: u64, stream: Stream },
+    SourceIncomplete { token: u64 },
+    SourceMeasured { token: u64, key: Option<String>, info: Option<loudness::Info> },
     Ready { token: u64, stream: Stream, preview: bool, lines: Vec<lyrics::Line>, format: String },
     /// How the playing local file is encoded, read from its header.
     Format { token: u64, format: String },
@@ -310,6 +328,14 @@ fn state_from_settings(saved: &Value) -> State {
         report_close: ".btn-close".into(),
         report_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 NeteaseMusic/9.4.30".into(),
         plugins_open: false,
+        loudness_enabled: saved["loudness_enabled"].as_bool().unwrap_or(false),
+        loudness_provider: pick("loudness_provider"),
+        has_gain_plugins: false,
+        has_track_actions: false,
+        has_player_actions: false,
+        plugin_action_song: None,
+        plugin_action_player: false,
+        plugin_action_token: 0,
         plugins: Vec::new(),
         has_plugins: false,
         offers: Vec::new(),
@@ -419,6 +445,8 @@ fn save_settings(state: &State) {
 fn settings_value(state: &State) -> Value {
     serde_json::json!({
         "volume": state.volume,
+        "loudness_enabled": state.loudness_enabled,
+        "loudness_provider": state.loudness_provider,
         "mode": format!("{:?}", state.mode),
         "quality": format!("{:?}", state.quality),
         "show_translation": state.show_translation,
@@ -432,6 +460,9 @@ fn settings_value(state: &State) -> Value {
         "desktop_lyrics_locked": state.desktop_lyrics_locked,
         "speaker_lyrics": state.speaker_lyrics,
         "plugins": state.plugins.iter().filter(|plugin| plugin.enabled).map(|plugin| plugin.id.clone()).collect::<Vec<_>>(),
+        "plugin_writes": state.plugins.iter().filter(|p| p.enabled).map(|p| (p.id.clone(), json!({
+            "playback_control": p.playback_control, "audio_gain": p.audio_gain
+        }))).collect::<serde_json::Map<String, Value>>(),
         "appearance": format!("{:?}", state.appearance),
         "netease": state.netease,
         "online_info": state.online_info,
@@ -564,6 +595,10 @@ struct Worker {
     jobs: mpsc::UnboundedSender<Job>,
     shared: Shared,
     audio: Audio,
+    normalization: Normalization,
+    queue_revision: u64,
+    lyrics_revision: u64,
+    menu_playback: Option<u64>,
     uid: i64,
     signing_in: Option<JoinHandle<()>>,
     queue: Vec<Song>,
@@ -765,6 +800,10 @@ pub async fn run(
         jobs,
         shared,
         audio: Audio::start(volume, exclusive),
+        normalization: Normalization::load(),
+        queue_revision: 0,
+        lyrics_revision: 0,
+        menu_playback: None,
         uid: 0,
         signing_in: None,
         queue: Vec::new(),
@@ -1099,6 +1138,7 @@ impl Worker {
                 // The song's own lines as the setting has them now.
                 if let Some(song) = self.queue.get(self.at).filter(|song| song.file.is_empty()).cloned() {
                     self.lines.clear();
+                    self.tell_lyrics();
                     self.lyrics_of(song.id);
                 }
             }
@@ -1509,6 +1549,23 @@ impl Worker {
                     self.show_now_playing(None);
                 }
             }
+            Job::SetLoudnessEnabled(on) => {
+                if !on { self.normalization.cancel_measurements(); }
+                self.shared.update(|s| { s.loudness_enabled = on; save_settings(s); });
+                self.tell_loudness();
+            }
+            Job::SetLoudnessProvider(id) => {
+                if id.is_empty() || self.plugins.has_permission(&id, "audio_gain") {
+                    self.shared.update(|s| { s.loudness_provider = id; save_settings(s); });
+                    self.tell_loudness();
+                }
+            }
+            Job::SetPluginBool(id, key, value) => self.change_plugin_setting(&id, &key, json!(value)),
+            Job::SetPluginChoice(id, key, value) => self.change_plugin_setting(&id, &key, json!(value)),
+            Job::SetPluginNumberPosition(id, key, position) => self.change_plugin_number(&id, &key, position),
+            Job::OpenPluginActions(song, player) => self.open_plugin_actions(song, player),
+            Job::ClosePluginActions(token) => self.close_plugin_actions(token),
+            Job::RunPluginAction(id, action, token) => self.run_plugin_action(&id, &action, token),
             Job::SetPluginEnabled(id, on) => {
                 if let Err(message) = self.plugins.set_running(&id, on) {
                     self.shared.fail(message);
@@ -1613,6 +1670,7 @@ impl Worker {
             }
             Job::InstallPlugin(id) => {
                 let Some(listing) = self.listings.iter().find(|listing| listing.pack.id == id).cloned() else { return };
+                if let Err(message) = listing.pack.check_compatibility() { return self.shared.fail(message); }
                 let (http, jobs) = (self.http.clone(), self.jobs.clone());
                 tokio::spawn(async move {
                     let package = if listing.package.starts_with("http") {
@@ -1625,7 +1683,7 @@ impl Worker {
                     };
                     let result = package
                         .map_err(|e| format!("下载插件「{}」失败：{e}", listing.pack.name))
-                        .and_then(|bytes| plugins::unpack(&bytes));
+                        .and_then(|bytes| plugins::unpack_for(&bytes, &listing.pack));
                     let _ = jobs.send(Job::PluginInstalled(result));
                 });
             }
@@ -1647,8 +1705,15 @@ impl Worker {
                 Ok(pack) => {
                     // A running plugin starts again in its new version.
                     if self.enabled_plugins.contains(&pack.id) {
+                        let authorized = plugin_api::writes_granted(&pack, |permission| self.plugins.has_permission(&pack.id, permission));
                         let _ = self.plugins.set_running(&pack.id, false);
                         self.hide_plugin_overlays(&pack.id);
+                        if !authorized {
+                            self.enabled_plugins.retain(|id| id != &pack.id);
+                            self.publish_plugins();
+                            self.shared.update(|s| save_settings(s));
+                            return self.shared.tell(format!("插件「{}」申请了新的播放权限，请查看权限后重新启用", pack.name));
+                        }
                         if let Err(message) = self.plugins.set_running(&pack.id, true) {
                             self.shared.fail(message);
                         }
@@ -1845,6 +1910,7 @@ impl Worker {
                         s.scroll_to = 0;
                         s.scroll_tick += 1;
                     });
+                    self.tell_lyrics();
                     self.desktop_lyrics();
                     self.speaker_lyrics();
                 }
@@ -1864,6 +1930,29 @@ impl Worker {
                     }
                 }
             }
+            Job::SourcePrepared { token, level } => {
+                if token == self.token {
+                    self.normalization.prepare(level);
+                    self.tell_loudness();
+                }
+            }
+            Job::SourceComplete { token, stream } => {
+                if token == self.token && self.shared.read(|s| s.loudness_enabled) {
+                    let seconds = self.shared.read(|s| s.current.as_ref().map_or(0.0, |song| song.seconds));
+                    self.normalization.analyze(token, stream, seconds, &self.jobs);
+                    self.tell_loudness();
+                }
+            }
+            Job::SourceIncomplete { token } => {
+                if token == self.token {
+                    self.normalization.incomplete();
+                    self.tell_loudness();
+                }
+            }
+            Job::SourceMeasured { token, key, info } => {
+                self.normalization.measured(token == self.token, key, info);
+                if token == self.token { self.tell_loudness(); }
+            }
             Job::Ready { token, stream, preview, lines, format } => {
                 if token != self.token {
                     stream.cancel();
@@ -1872,7 +1961,8 @@ impl Worker {
                 self.failures = 0;
                 self.paused = false;
                 self.stream = Some(stream.clone());
-                self.audio.play(token, stream);
+                let gain = self.shared.read(|s| self.normalization.gain_for_play(s.loudness_enabled, &s.loudness_provider));
+                self.audio.play(token, stream, gain);
                 let from = self.start_at.take().unwrap_or(0.0);
                 if from > 0.0 {
                     self.audio.seek(from);
@@ -1881,8 +1971,13 @@ impl Worker {
                 if let Some(song) = self.queue.get(self.at).cloned() {
                     self.record(song);
                 }
-                let shown = shown_lines(&lines);
-                self.lines = lines;
+                // A local lookup can finish while its audio file is opening. Do not erase
+                // those lines with an empty Ready payload.
+                if !lines.is_empty() {
+                    self.lines = lines;
+                    self.tell_lyrics();
+                }
+                let shown = shown_lines(&self.lines);
                 self.shared.update(|s| {
                     s.buffering = false;
                     s.playing = true;
@@ -1899,6 +1994,7 @@ impl Worker {
                     s.scroll_to = 0;
                     s.scroll_tick += 1;
                 });
+                self.tell_playback();
                 self.show_now_playing(Some(from));
                 self.desktop_lyrics();
                 self.speaker_lyrics();
@@ -1916,6 +2012,9 @@ impl Worker {
                     s.buffering = false;
                     s.playing = false;
                 });
+                self.normalization.incomplete();
+                self.tell_playback();
+                self.tell_loudness();
                 self.show_now_playing(None);
                 self.speaker_lyrics();
                 self.shared.fail(message);
@@ -2026,6 +2125,7 @@ impl Worker {
             s.queue = shown;
             s.queue_at = at;
         });
+        self.tell_queue();
         self.report_to_room(false);
     }
 
@@ -2176,6 +2276,13 @@ impl Worker {
 
     /// Start the enabled plugins, show them, and tell them what plays.
     fn start_plugins(&mut self) {
+        // Old releases did not grant playback or gain control. Neither an app upgrade nor
+        // replacing an installed package while Enji was closed constitutes user consent.
+        let saved = store::settings();
+        let installed = plugins::installed();
+        self.enabled_plugins.retain(|id| installed.iter().find(|(p, _)| &p.id == id).is_some_and(|(p, _)| {
+            plugin_api::writes_granted(p, |permission| saved["plugin_writes"][id.as_str()][permission].as_bool() == Some(true))
+        }));
         let (plugins, errors) = plugins::Plugins::start(&self.enabled_plugins);
         self.plugins = plugins;
         for message in errors {
@@ -2189,20 +2296,19 @@ impl Worker {
     /// newer.
     fn publish_plugins(&mut self) {
         let installed = plugins::installed();
-        let enabled = &self.enabled_plugins;
-        let shown: Vec<Plugin> = installed
-            .iter()
-            .map(|(pack, _)| Plugin {
-                id: pack.id.clone(),
-                name: pack.name.clone(),
-                version: pack.version.clone(),
-                description: pack.description.clone(),
-                author: pack.author.clone(),
-                enabled: enabled.contains(&pack.id) && pack.fits_here(),
-                fits: pack.fits_here(),
-                platforms: pack.platforms_label(),
-            })
-            .collect();
+        self.normalization.scopes.clear();
+        let shown: Vec<Plugin> = installed.iter().map(|(pack, _)| {
+            let enabled = self.plugins.is_running(&pack.id);
+            let values = plugins::setting_values(pack);
+            if enabled && pack.has("audio_gain") {
+                // A changed setting or upgraded policy must not reuse a stale suggestion.
+                let scope = normalization::digest(json!([pack.id, pack.version, values]).to_string().as_bytes());
+                self.normalization.scopes.insert(pack.id.clone(), scope);
+            }
+            plugin_api::installed_row(pack, enabled, &values)
+        }).collect();
+        // The last meter subscriber may just have been disabled: the quick tick then stops.
+        audio::follow_beat(self.plugins.wants_audio());
         let offers: Vec<Offer> = self
             .listings
             .iter()
@@ -2214,6 +2320,8 @@ impl Worker {
                     version: listing.pack.version.clone(),
                     description: listing.pack.description.clone(),
                     author: listing.pack.author.clone(),
+                    audio_gain: listing.pack.has("audio_gain"),
+                    playback_control: listing.pack.has("playback_control"),
                     installed: have.is_some(),
                     newer: have.is_some_and(|(pack, _)| plugins::is_newer(&listing.pack.version, &pack.version)),
                     fits: listing.pack.fits_here(),
@@ -2223,6 +2331,15 @@ impl Worker {
             .collect();
         self.shared.update(|s| {
             s.has_plugins = !shown.is_empty();
+            s.has_gain_plugins = shown.iter().any(|p| p.enabled && p.audio_gain);
+            s.has_player_actions = shown.iter().any(|p| p.enabled && !p.player_actions.is_empty());
+            s.has_track_actions = shown.iter().any(|p| p.enabled && !p.track_actions.is_empty());
+            if !shown.iter().any(|p| p.enabled && p.audio_gain && p.id == s.loudness_provider) {
+                s.loudness_provider.clear();
+            }
+            if !(if s.plugin_action_player { s.has_player_actions } else { s.has_track_actions }) {
+                s.plugin_action_song = None;
+            }
             s.plugins = shown;
             s.has_offers = !offers.is_empty();
             s.offers = offers;
@@ -2233,10 +2350,12 @@ impl Worker {
     fn plugin_snapshot(&self) -> Value {
         self.shared.read(|s| {
             json!({
-                "playing": s.playing,
-                "song": s.current.as_ref().map(|song| json!({
-                    "id": song.id, "name": song.name, "artists": song.artists, "album": song.album, "duration": song.seconds,
-                })),
+                "playing": s.playing, "position": self.position,
+                "duration": s.current.as_ref().map_or(0.0, |song| song.seconds),
+                "mode": plugin_api::mode_name(&s.mode),
+                "playbackToken": s.current.as_ref().map(|_| self.token.to_string()),
+                "song": s.current.as_ref().map(plugin_api::public_song),
+                "loudness": self.normalization.snapshot(self.token, s.loudness_enabled, &s.loudness_provider),
             })
         })
     }
@@ -2263,6 +2382,8 @@ impl Worker {
             json!({ "text": s.lyric_now, "translation": s.lyric_now_translation, "next": s.lyric_next, "index": s.line })
         });
         self.send_plugins("lyric", line);
+        self.tell_playback();
+        self.tell_loudness();
     }
 
     /// The music's loudness for the plugins that hear it, and what the
@@ -2308,6 +2429,16 @@ impl Worker {
                 }),
                 plugins::Call::Toast(message) => self.shared.tell(message),
                 plugins::Call::Log(message) => eprintln!("plugin {plugin}: {message}"),
+                plugins::Call::QueuePage { request_id, offset, limit } => self.plugin_queue_page(&plugin, &request_id, offset, limit),
+                plugins::Call::LyricsTimeline { request_id, playback_token, offset, limit } => {
+                    self.plugin_lyrics_page(&plugin, &request_id, &playback_token, offset, limit);
+                }
+                plugins::Call::PlaybackControl { operation, playback_token, seconds } => self.plugin_control(&operation, &playback_token, seconds),
+                plugins::Call::SuggestTrackGain { source_key, gain_db } => {
+                    if self.shared.read(|s| s.loudness_enabled && s.loudness_provider == plugin) {
+                        self.normalization.suggest(&plugin, &source_key, gain_db);
+                    }
+                }
                 plugins::Call::StorageSet(..) => {}
             }
         }
@@ -3197,9 +3328,8 @@ impl Worker {
         if index + 2 >= self.queue.len() && self.in_fm() {
             self.ask_fm();
         }
-        // The queue is shown from the playing song on.
-        self.publish_queue();
         self.token += 1;
+        self.normalization.reset_track();
         self.lines.clear();
         self.audio.stop();
         if let Some(stream) = self.stream.take() {
@@ -3245,6 +3375,9 @@ impl Worker {
             live.elapsed = "0:00".into();
             live.lit = -1.0;
         });
+        // Publish both the new play token and its current queue position together.
+        self.publish_queue();
+        self.tell_lyrics();
         self.show_now_playing(Some(0.0));
         self.desktop_lyrics();
         self.speaker_lyrics();
@@ -3269,21 +3402,27 @@ impl Worker {
                     .as_str()
                     .map(str::to_string)
                     .ok_or_else(|| format!("《{}》暂时不能播放", song.name))?;
-                // Only a preview of a song for members.
-                Ok::<_, String>((url, !data["freeTrialInfo"].is_null(), streamed(data)))
+                let preview = !data["freeTrialInfo"].is_null();
+                // The service's gain/peak have no verified reference or units. Identify
+                // the actual encode, then measure it; never treat a song id as a master.
+                let key = loudness::online_key(song.id, data);
+                let _ = jobs.send(Job::SourcePrepared {
+                    token, level: SourceLevel::new(key.clone(), None, preview),
+                });
+                Ok::<_, String>((url, preview, streamed(data), key))
             };
             let lyric_query = Query::new().param("id", &id);
             let lyric = client.lyric_new(&lyric_query);
             let (url, lyric) = tokio::join!(url, lyric);
             let lines = lyric.map(|r| lyrics::of_answer(&r.body, by_word)).unwrap_or_default();
             let response = match url {
-                Ok((url, preview, format)) => match http.get(&url).send().await.and_then(|r| r.error_for_status()) {
-                    Ok(response) => Ok((response, preview, format)),
+                Ok((url, preview, format, key)) => match http.get(&url).send().await.and_then(|r| r.error_for_status()) {
+                    Ok(response) => Ok((response, preview, format, key)),
                     Err(e) => Err(format!("下载《{}》失败：{e}", song.name)),
                 },
                 Err(message) => Err(message),
             };
-            let (mut response, preview, format) = match response {
+            let (mut response, preview, format, key) = match response {
                 Ok(found) => found,
                 Err(message) => {
                     let _ = jobs.send(Job::Failed { token, message });
@@ -3291,15 +3430,33 @@ impl Worker {
                 }
             };
             // It plays from the first bytes on; the rest follows.
+            let whole = !preview && response.status() == reqwest::StatusCode::OK
+                && !response.headers().contains_key(reqwest::header::CONTENT_RANGE);
+            if !whole && !preview {
+                let _ = jobs.send(Job::SourcePrepared { token, level: SourceLevel::partial() });
+            } else if whole && key.is_none()
+                && let Some(key) = normalization::etag_key(song.id, &response)
+            {
+                let _ = jobs.send(Job::SourcePrepared { token, level: SourceLevel::new(Some(key), None, false) });
+            }
             let stream = Stream::new(response.content_length());
             let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview, lines, format });
-            while let Ok(Some(chunk)) = response.chunk().await {
-                if stream.cancelled() {
-                    return;
+            loop {
+                match response.chunk().await {
+                    Ok(Some(chunk)) if !stream.cancelled() => stream.push(&chunk),
+                    Ok(Some(_)) => return,
+                    Ok(None) => {
+                        stream.finish();
+                        if whole { let _ = jobs.send(Job::SourceComplete { token, stream }); }
+                        break;
+                    }
+                    Err(_) => {
+                        stream.fail();
+                        let _ = jobs.send(Job::SourceIncomplete { token });
+                        break;
+                    }
                 }
-                stream.push(&chunk);
             }
-            stream.finish();
         });
     }
 
@@ -3307,10 +3464,10 @@ impl Worker {
     /// come with it, or else those of the same song on NetEase.
     fn start_local(&mut self, song: Song) {
         let (jobs, token) = (self.jobs.clone(), self.token);
-        let file = match bern::files::open(&song.file) {
+        let file = match local::open_audio(&song.file) {
             Ok(file) => file,
             Err(e) => {
-                let _ = jobs.send(Job::Failed { token, message: format!("打不开《{}》：{}", song.name, e.message) });
+                let _ = jobs.send(Job::Failed { token, message: format!("打不开《{}》：{e}", song.name) });
                 return;
             }
         };
@@ -3319,6 +3476,9 @@ impl Worker {
         let track = self.library.tracks.iter().find(|track| track.url == song.file);
         let name = track.map(|track| track.name.clone()).or_else(|| bern::files::name(&song.file)).unwrap_or_default();
         let lines = local::lyrics(&song.file, &name, track.and_then(|track| track.lyrics.as_deref()));
+        let scanned = track.cloned();
+        let inspect_loudness = self.shared.read(|s| s.loudness_enabled);
+        let source_url = song.file.clone();
         {
             let (jobs, url, name) = (jobs.clone(), song.file.clone(), name.clone());
             tokio::task::spawn_blocking(move || {
@@ -3327,7 +3487,7 @@ impl Worker {
         }
         // The full picture, which lists show small, is taken from the file.
         if song.cover.url.starts_with("file:") {
-            let (jobs, url) = (jobs.clone(), song.file.clone());
+            let (jobs, url, name) = (jobs.clone(), song.file.clone(), name.clone());
             tokio::task::spawn_blocking(move || {
                 if let Some(path) = local::artwork(&url, &name) {
                     let _ = jobs.send(Job::Artwork { token, path });
@@ -3342,18 +3502,36 @@ impl Worker {
         } else if online && netease && song.id < 0 && (lines.is_empty() || song.cover.url.is_empty()) {
             self.look_up(song.clone(), lines.is_empty());
         }
-        let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview: false, lines, format: String::new() });
         std::thread::spawn(move || {
             let mut file = file;
+            let (key, tag) = if inspect_loudness {
+                match local::opened_loudness(scanned.as_ref(), &source_url, &name, &mut file) {
+                    Ok(level) => level,
+                    Err(e) => {
+                        let _ = jobs.send(Job::Failed { token, message: format!("读完音频标签后无法回到《{name}》开头：{e}") });
+                        return;
+                    }
+                }
+            } else { (None, None) };
+            let _ = jobs.send(Job::SourcePrepared { token, level: SourceLevel::new(key.clone(), tag, false) });
+            let _ = jobs.send(Job::Ready { token, stream: stream.clone(), preview: false, lines, format: String::new() });
             let mut chunk = vec![0u8; 256 * 1024];
             loop {
                 match file.read(&mut chunk) {
-                    Ok(0) | Err(_) => break,
+                    Ok(0) if file.revision_matches(&source_url, key.as_deref()) => {
+                        stream.finish();
+                        let _ = jobs.send(Job::SourceComplete { token, stream });
+                        break;
+                    }
+                    Ok(0) | Err(_) => {
+                        stream.fail();
+                        let _ = jobs.send(Job::SourceIncomplete { token });
+                        break;
+                    }
                     Ok(n) if !stream.cancelled() => stream.push(&chunk[..n]),
-                    Ok(_) => return,
+                    Ok(_) => break,
                 }
             }
-            stream.finish();
         });
     }
 
@@ -3570,6 +3748,7 @@ impl Worker {
             self.shuffle.generate(self.queue.len(), self.at);
         }
         self.publish_queue();
+        self.tell_playback();
         if heart {
             self.enter_heart();
         }
@@ -3656,6 +3835,7 @@ impl Worker {
     fn moved_to(&mut self, position: f64) {
         self.position = position;
         self.seeking = Some((position, Instant::now()));
+        self.tell_playback();
         self.speaker_lyrics();
     }
 
@@ -4166,8 +4346,7 @@ impl Worker {
         self.show_now_playing(None);
         self.show_desktop_lyrics();
         self.speaker_lyrics();
-        let position = self.position;
-        self.send_plugins("playback", json!({ "playing": playing, "position": position }));
+        self.tell_playback();
         // Playing on ends browsing the lyrics.
         if playing && !self.scrolling {
             self.settle(None);
@@ -4234,7 +4413,11 @@ impl Worker {
         if browsing && !self.scrolling && !self.paused && self.scrolled_at.elapsed() >= Duration::from_secs(3) {
             self.settle(None);
         }
+        self.normalization.flush_hints();
         let status = self.audio.status();
+        if status.gain_token == Some(self.token)
+            && self.normalization.acknowledged(status.effective_gain_db, status.bit_perfect_bypass)
+        { self.tell_loudness(); }
         if let Some(message) = status.error {
             self.shared.fail(message);
         }
@@ -4274,7 +4457,9 @@ impl Worker {
         if (status.position - self.position).abs() < 0.05 {
             return;
         }
+        let next_second = self.position.floor() != status.position.floor();
         self.position = status.position;
+        if next_second { self.tell_playback(); }
         self.listens.heard(status.position);
         self.resume.heard(self.at, status.position);
         let line = self

@@ -13,97 +13,27 @@
 
 use crate::store;
 use serde_json::{json, Value};
-use std::collections::VecDeque;
-use std::io::Read;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
+
+mod bridge;
+mod install;
+mod manifest;
+mod settings;
+#[cfg(test)]
+mod sdk_tests;
+
+pub use bridge::Call;
+pub use install::{installed, remove, unpack, unpack_for};
+pub use manifest::{Action, Pack, Setting, SettingKind};
+pub use settings::setting_values;
 
 /// The plugin market's index.
 pub const INDEX: &str = "https://raw.githubusercontent.com/MCDFsteve/enji-plugins/main/plugins.json";
 /// More indexes, separated by `;`: addresses or local `plugins.json` files,
 /// for trying a market before it is published.
 pub const INDEX_VARIABLE: &str = "ENJI_PLUGIN_INDEX";
-/// The most a package may hold unpacked, against archives that inflate
-/// without end.
-const PACKAGE_LIMIT: u64 = 16 << 20;
-
 const HOST: &str = include_str!("plugin_host.js");
-
-/// What a plugin says it is: its `pack.json`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Pack {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-    pub description: String,
-    pub author: String,
-    /// `lyrics`, `audio`, `overlay`, `cover`.
-    pub permissions: Vec<String>,
-    /// The systems it works on (`windows`, `macos`, …); empty for all.
-    pub platforms: Vec<String>,
-    /// The script's file in the plugin's folder.
-    pub main: String,
-    /// The icon's file in the plugin's folder.
-    pub icon: Option<String>,
-}
-
-fn text(value: &Value, key: &str) -> String {
-    value[key].as_str().map(str::trim).unwrap_or("").to_string()
-}
-
-fn texts(value: &Value, key: &str) -> Vec<String> {
-    value[key]
-        .as_array()
-        .map(|list| list.iter().filter_map(Value::as_str).map(|item| item.trim().to_string()).filter(|item| !item.is_empty()).collect())
-        .unwrap_or_default()
-}
-
-impl Pack {
-    pub fn from_json(value: &Value) -> Result<Pack, String> {
-        let (id, name, version) = (text(value, "id"), text(value, "name"), text(value, "version"));
-        if id.is_empty() || name.is_empty() || version.is_empty() {
-            return Err("插件声明缺少 id、name 或 version".into());
-        }
-        if !id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')) {
-            return Err(format!("插件 id「{id}」只能有字母、数字、点、下划线和连字符"));
-        }
-        let main = Some(text(value, "main")).filter(|main| !main.is_empty()).unwrap_or_else(|| "main.js".into());
-        Ok(Pack {
-            id,
-            name,
-            version,
-            description: text(value, "description"),
-            author: text(value, "author"),
-            permissions: texts(value, "permissions"),
-            platforms: texts(value, "platforms"),
-            main,
-            icon: Some(text(value, "icon")).filter(|icon| !icon.is_empty()),
-        })
-    }
-
-    /// Whether it works on the system Enji runs on.
-    pub fn fits_here(&self) -> bool {
-        self.platforms.is_empty() || self.platforms.iter().any(|platform| platform == platform_name())
-    }
-
-    /// The systems it works on as people name them, such as `Windows /
-    /// macOS`; empty when it works on all.
-    pub fn platforms_label(&self) -> String {
-        self.platforms
-            .iter()
-            .map(|platform| match platform.as_str() {
-                "windows" => "Windows",
-                "macos" => "macOS",
-                "linux" => "Linux",
-                "android" => "Android",
-                "ios" => "iOS",
-                "tvos" => "tvOS",
-                "watchos" => "watchOS",
-                other => other,
-            })
-            .collect::<Vec<_>>()
-            .join(" / ")
-    }
-}
 
 /// Whether the version `offered` is later than `installed`, number by number.
 pub fn is_newer(offered: &str, installed: &str) -> bool {
@@ -133,76 +63,6 @@ pub fn platform_name() -> &'static str {
 /// Where plugins are installed, each in a folder named by its id.
 pub fn dir() -> PathBuf {
     store::dir().join("plugins")
-}
-
-/// The installed plugins and their folders, by name.
-pub fn installed() -> Vec<(Pack, PathBuf)> {
-    let mut found: Vec<(Pack, PathBuf)> = std::fs::read_dir(dir())
-        .into_iter()
-        .flatten()
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            let folder = entry.path();
-            let value: Value = serde_json::from_slice(&std::fs::read(folder.join("pack.json")).ok()?).ok()?;
-            Some((Pack::from_json(&value).ok()?, folder))
-        })
-        .collect();
-    found.sort_by(|a, b| a.0.name.cmp(&b.0.name));
-    found
-}
-
-/// Unpack a `.enj` package into the plugins folder, in place of an earlier
-/// version of the same plugin; its declaration.
-pub fn unpack(package: &[u8]) -> Result<Pack, String> {
-    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(package)).map_err(|_| "这不是 Enji 插件包（.enj）".to_string())?;
-    let pack = {
-        let mut file = archive.by_name("pack.json").map_err(|_| "插件包里没有 pack.json".to_string())?;
-        let mut text = String::new();
-        file.read_to_string(&mut text).map_err(|e| e.to_string())?;
-        Pack::from_json(&serde_json::from_str(&text).map_err(|e| format!("pack.json 不是有效的 JSON：{e}"))?)?
-    };
-    let staging = dir().join(format!(".{}.unpacking", pack.id));
-    let _ = std::fs::remove_dir_all(&staging);
-    let mut total = 0u64;
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
-        // Paths that would leave the plugin's folder are refused.
-        let Some(name) = file.enclosed_name() else {
-            let _ = std::fs::remove_dir_all(&staging);
-            return Err(format!("插件包里有越出插件文件夹的路径：{}", file.name()));
-        };
-        let path = staging.join(name);
-        if file.is_dir() {
-            std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
-            continue;
-        }
-        total += file.size();
-        if total > PACKAGE_LIMIT {
-            let _ = std::fs::remove_dir_all(&staging);
-            return Err("插件包解开后太大".into());
-        }
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
-    }
-    if !staging.join(&pack.main).is_file() {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err(format!("插件包里没有脚本 {}", pack.main));
-    }
-    let folder = dir().join(&pack.id);
-    let _ = std::fs::remove_dir_all(&folder);
-    std::fs::rename(&staging, &folder).map_err(|e| e.to_string())?;
-    Ok(pack)
-}
-
-/// Remove an installed plugin's folder.
-pub fn remove(id: &str) {
-    if !id.is_empty() && !id.contains(['/', '\\']) && id != "." && id != ".." {
-        let _ = std::fs::remove_dir_all(dir().join(id));
-    }
 }
 
 /// A plugin the market lists, and where its package is.
@@ -242,60 +102,61 @@ pub fn listings(index: &str, text: &str) -> Vec<Listing> {
         .flatten()
         .filter_map(|entry| {
             let pack = Pack::from_json(entry).ok()?;
-            let package = Some(text_of(entry, "package")).filter(|package| !package.is_empty())?;
+            let package = Some(manifest::text(entry, "package")).filter(|package| !package.is_empty())?;
             Some(Listing { pack, package: beside(index, &package) })
         })
         .collect()
 }
 
-fn text_of(value: &Value, key: &str) -> String {
-    text(value, key)
+struct Pending {
+    evaluation: bern::script::Evaluation,
+    /// The playback visible to this particular handler, not a later event's token.
+    token: Option<String>,
+    /// A late suggestion belongs to the settings the handler actually saw.
+    settings_revision: u64,
 }
 
-/// A call a plugin queued.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Call {
-    OverlayShow(String, Value),
-    OverlayHide(String),
-    /// How strong it is, from 0 to 1.
-    CoverPulse(f64),
-    Toast(String),
-    StorageSet(String, String),
-    Log(String),
-}
-
-impl Call {
-    fn parse(value: &Value) -> Option<Call> {
-        let name = value[0].as_str()?;
-        let args = &value[1];
-        let arg = |i: usize| args[i].as_str().unwrap_or("").to_string();
-        Some(match name {
-            "overlayShow" => Call::OverlayShow(arg(0), args[1].clone()),
-            "overlayHide" => Call::OverlayHide(arg(0)),
-            "coverPulse" => Call::CoverPulse(args[0].as_f64().unwrap_or(0.5).clamp(0.0, 1.0)),
-            "toast" => Call::Toast(arg(0)),
-            "storageSet" => Call::StorageSet(arg(0), arg(1)),
-            "log" => Call::Log(arg(0)),
-            _ => return None,
-        })
-    }
-
-    /// The permission it needs, if any.
-    fn permission(&self) -> Option<&'static str> {
-        match self {
-            Call::OverlayShow(..) | Call::OverlayHide(_) => Some("overlay"),
-            Call::CoverPulse(_) => Some("cover"),
-            _ => None,
-        }
-    }
-}
-
-/// An enabled plugin: its context, and the events handed to it whose calls
-/// are not taken yet.
 struct Running {
     pack: Pack,
     context: bern::script::Context,
-    pending: VecDeque<bern::script::Evaluation>,
+    pending: VecDeque<Pending>,
+    settings_revision: u64,
+    last_token: Option<String>,
+    request_prefix: String,
+    pages: HashMap<String, bridge::PageRequest>,
+}
+
+impl Running {
+    fn dispatch(&mut self, event: &str, data: Value, snapshot: Option<&Value>) {
+        let mut message = json!({ "type": event, "data": data });
+        if let Some(snapshot) = snapshot {
+            let snapshot = bridge::snapshot(&self.pack, snapshot);
+            self.last_token = snapshot["playbackToken"].as_str().filter(|s| !s.is_empty()).map(str::to_owned);
+            message["snapshot"] = snapshot;
+        }
+        let input = bridge::json_string(&message);
+        let evaluation = self.context.eval(format!("__enji.dispatch(JSON.parse({input}))"));
+        self.pending.push_back(Pending { evaluation, token: self.last_token.clone(), settings_revision: self.settings_revision });
+    }
+
+    fn setting_changed(&mut self, key: &str, value: Value) {
+        self.settings_revision = self.settings_revision.wrapping_add(1);
+        // The next handler sees the new value but retains this instance's last playback snapshot.
+        self.dispatch("settingChanged", json!({ "id": key, "value": value }), None);
+    }
+
+    fn accept(&mut self, call: &Call, token: Option<&str>) -> bool {
+        if call.permission().is_some_and(|p| !self.pack.has(p)) { return false; }
+        if let Call::PlaybackControl { playback_token, .. } | Call::LyricsTimeline { playback_token, .. } = call
+            && Some(playback_token.as_str()) != token { return false; }
+        if let Some((id, page)) = bridge::PageRequest::from_call(call) {
+            // New instance, new namespace. A delayed reply cannot fulfill the new instance's first request.
+            if !id.strip_prefix(&self.request_prefix).is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+                || self.pages.len() >= bridge::PAGES_IN_FLIGHT || self.pages.contains_key(id) { return false; }
+            self.pages.insert(id.to_owned(), page);
+        }
+        true
+    }
 }
 
 /// The enabled plugins.
@@ -310,7 +171,7 @@ fn storage_path() -> PathBuf {
 }
 
 fn storage() -> Value {
-    std::fs::read(storage_path()).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or_else(|| json!({}))
+    std::fs::read(storage_path()).ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok()).filter(Value::is_object).unwrap_or_else(|| json!({}))
 }
 
 fn keep(id: &str, key: &str, value: &str) {
@@ -329,10 +190,7 @@ impl Plugins {
         let mut plugins = Plugins::default();
         let mut errors = Vec::new();
         for (pack, folder) in installed() {
-            if enabled.contains(&pack.id)
-                && pack.fits_here()
-                && let Err(message) = plugins.run(pack, &folder)
-            {
+            if enabled.contains(&pack.id) && let Err(message) = plugins.run(pack, &folder) {
                 errors.push(message);
             }
         }
@@ -340,20 +198,22 @@ impl Plugins {
     }
 
     fn run(&mut self, pack: Pack, folder: &Path) -> Result<(), String> {
+        pack.check_compatibility()?;
         let script = std::fs::read_to_string(folder.join(&pack.main)).map_err(|e| format!("读不了插件「{}」的脚本：{e}", pack.name))?;
         let context = bern::script::Context::new().map_err(|e| format!("插件「{}」启动失败：{e}", pack.name))?;
-        let config = json!({
-            "id": pack.id,
-            "name": pack.name,
-            "version": pack.version,
-            "permissions": pack.permissions,
-            "platform": platform_name(),
-            "hostVersion": env!("CARGO_PKG_VERSION"),
-            "storage": storage()[&pack.id],
-        });
-        // Its answer is no call list, but an error in the script still shows in the log.
-        let started = context.eval(format!("var __enjiConfig = {config};\n{HOST}\n{script}\n;\"[]\""));
-        self.running.push(Running { pack, context, pending: VecDeque::from([started]) });
+        // Bind replies to this instance independently of the transport's evaluation id.
+        let prefix = format!("{:032x}:", rand::random::<u128>());
+        let config = bridge::json_string(&json!({
+            "id": pack.id, "name": pack.name, "version": pack.version,
+            "permissions": pack.permissions, "platform": platform_name(),
+            "hostVersion": env!("CARGO_PKG_VERSION"), "apiVersion": manifest::API_VERSION,
+            "storage": storage()[&pack.id], "settings": setting_values(&pack),
+            "requestPrefix": prefix, "pageLimit": bridge::PAGE_LIMIT, "pagesInFlight": bridge::PAGES_IN_FLIGHT, "maxOffset": bridge::MAX_OFFSET,
+        }));
+        // Only the installed script is executable source. Config/event/response values are JSON strings.
+        let started = context.eval(format!("var __enjiConfig = JSON.parse({config});\n{HOST}\n{script}\n;__enji.flush()"));
+        let pending = VecDeque::from([Pending { evaluation: started, token: None, settings_revision: 0 }]);
+        self.running.push(Running { pack, context, pending, settings_revision: 0, request_prefix: prefix, pages: HashMap::new(), last_token: None });
         Ok(())
     }
 
@@ -367,41 +227,77 @@ impl Plugins {
             return Ok(());
         }
         let (pack, folder) = installed().into_iter().find(|(pack, _)| pack.id == id).ok_or_else(|| format!("没有安装插件 {id}"))?;
-        if !pack.fits_here() {
-            return Err(format!("插件「{}」只能用在 {}", pack.name, pack.platforms_label()));
-        }
         self.run(pack, &folder)
     }
 
-    /// Whether a running plugin listens to the music's loudness.
+    pub fn is_running(&self, id: &str) -> bool {
+        self.running.iter().any(|r| r.pack.id == id)
+    }
+
+    /// An installed-but-disabled plugin has no runtime permissions.
+    pub fn has_permission(&self, id: &str, permission: &str) -> bool {
+        self.running.iter().any(|r| r.pack.id == id && r.pack.has(permission))
+    }
+
+    /// `loudness` and `audio_gain` do not opt into the high-rate meter or beat detection.
     pub fn wants_audio(&self) -> bool {
-        self.running.iter().any(|running| running.pack.permissions.iter().any(|p| p == "audio"))
+        self.running.iter().any(|r| r.pack.has("audio"))
     }
 
     pub fn is_empty(&self) -> bool {
         self.running.is_empty()
     }
 
-    /// Hand `event` with its `data` and what may be read to every running
-    /// plugin allowed to hear it: `audio` only to those with that
-    /// permission, `lyric` to those with `lyrics`.
+    /// A broadcast cannot deliver a targeted action, preference or page. No plugin sees another one's packet.
     pub fn send(&mut self, event: &str, data: &Value, snapshot: &Value) {
-        let needs = match event {
-            "audio" => Some("audio"),
-            "lyric" => Some("lyrics"),
-            _ => None,
-        };
-        let message = json!({ "type": event, "data": data, "snapshot": snapshot });
-        for running in &mut self.running {
-            if needs.is_some_and(|needed| !running.pack.permissions.iter().any(|p| p == needed)) {
-                continue;
-            }
-            // A plugin that falls behind loses its oldest events.
-            if running.pending.len() > 32 {
-                running.pending.pop_front();
-            }
-            running.pending.push_back(running.context.eval(format!("__enji.dispatch({message})")));
+        for r in &mut self.running {
+            // Only drop a *new* meter sample, before executing its handler. A result already submitted may
+            // contain a write or page request; never evict it in order to make room for another event.
+            if event == "audio" && r.pending.len() >= 4 { continue; }
+            if let Some(data) = bridge::broadcast(&r.pack, event, data) { r.dispatch(event, data, Some(snapshot)); }
         }
+    }
+
+    /// Editable while disabled; when enabled only this context is notified, after a successful change.
+    pub fn set_setting(&mut self, plugin: &str, key: &str, value: Value) -> Result<(), String> {
+        if let Some(r) = self.running.iter_mut().find(|r| r.pack.id == plugin) {
+            if let Some(value) = settings::set(&r.pack, key, &value)? { r.setting_changed(key, value); }
+        } else {
+            let (pack, _) = installed().into_iter().find(|(p, _)| p.id == plugin).ok_or_else(|| format!("没有安装插件 {plugin}"))?;
+            settings::set(&pack, key, &value)?;
+        }
+        Ok(())
+    }
+
+    /// `track` is resolved by the worker from the clicked row, not looked up from the player's current song.
+    pub fn dispatch_action(&mut self, plugin: &str, id: &str, context: &str, track: &Value, snapshot: &Value) -> Result<(), String> {
+        let r = self.running.iter_mut().find(|r| r.pack.id == plugin).ok_or_else(|| format!("插件「{plugin}」未启用"))?;
+        if !r.pack.actions.iter().any(|a| a.id == id && a.context == context) {
+            return Err(format!("插件「{plugin}」未声明用于 {context} 的动作「{id}」"));
+        }
+        if context == "track" && !track["trackKey"].as_str().is_some_and(|key| !key.is_empty()) { return Err("操作的曲目已不存在".into()); }
+        r.dispatch("action", json!({ "id": id, "context": context, "track": bridge::track(track) }), Some(snapshot));
+        Ok(())
+    }
+
+    /// Answer exactly one outstanding request of this instance. Wrong target/kind, duplicates and replies
+    /// arriving after the plugin stopped are ignored; a read failure still completes the request.
+    pub fn reply_page(&mut self, plugin: &str, kind: &str, request_id: &str, result: Result<Value, &str>, snapshot: &Value) {
+        let Some(r) = self.running.iter_mut().find(|r| r.pack.id == plugin) else { return };
+        let Some(page_kind) = bridge::PageKind::from_event(kind) else { return };
+        if !r.pack.has(page_kind.permission()) || !r.pages.get(request_id).is_some_and(|p| p.kind == page_kind) { return; }
+        let request = r.pages.remove(request_id).unwrap();
+        let result = result.and_then(|page| {
+            if request.kind == bridge::PageKind::Lyrics && request.token.as_deref() != snapshot["playbackToken"].as_str() {
+                return Err("stale_playback");
+            }
+            request.page(page)
+        });
+        let data = match result {
+            Ok(page) => json!({ "requestId": request_id, "ok": true, "page": page, "error": null }),
+            Err(error) => json!({ "requestId": request_id, "ok": false, "page": null, "error": error }),
+        };
+        r.dispatch(kind, data, Some(snapshot));
     }
 
     /// The calls of the events the plugins finished with, each with the
@@ -409,8 +305,8 @@ impl Plugins {
     pub fn calls(&mut self) -> Vec<(String, Call)> {
         let mut calls = Vec::new();
         for running in &mut self.running {
-            while let Some(result) = running.pending.front().and_then(|evaluation| evaluation.try_result()) {
-                running.pending.pop_front();
+            while let Some(result) = running.pending.front().and_then(|p| p.evaluation.try_result()) {
+                let pending = running.pending.pop_front().unwrap();
                 let text = match result {
                     Ok(Value::String(text)) => text,
                     Ok(_) => continue,
@@ -419,11 +315,12 @@ impl Plugins {
                         continue;
                     }
                 };
-                let Ok(Value::Array(queued)) = serde_json::from_str::<Value>(&text) else { continue };
+                let Ok(packet) = serde_json::from_str::<Value>(&text) else { continue };
+                if packet["instance"].as_str() != Some(running.request_prefix.as_str()) { continue; }
+                let Some(queued) = packet["calls"].as_array() else { continue };
                 for call in queued.iter().filter_map(Call::parse) {
-                    if call.permission().is_some_and(|needed| !running.pack.permissions.iter().any(|p| p == needed)) {
-                        continue;
-                    }
+                    if matches!(&call, Call::SuggestTrackGain { .. }) && pending.settings_revision != running.settings_revision { continue; }
+                    if !running.accept(&call, pending.token.as_deref()) { continue; }
                     if let Call::StorageSet(key, value) = &call {
                         keep(&running.pack.id, key, value);
                     }

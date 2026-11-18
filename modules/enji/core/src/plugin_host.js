@@ -1,118 +1,134 @@
-// Enji's side of a plugin's context: `__enjiConfig` comes first, then this,
-// then the plugin. The engine cannot be called from here: it hands each
-// event over with what the plugin may read, and takes back the calls the
-// plugin queued, which `__enji.dispatch` answers as JSON.
-var __enji = {
-  config: __enjiConfig,
-  snapshot: { storage: __enjiConfig.storage || {} },
-  outbox: [],
-  handlers: {},
-};
+// Each context owns one SDK. The engine sends JSON data and polls the returned call batches;
+// in particular a handler never awaits an engine reply on this evaluation's call stack.
+var plugin, enji, overlay, cover, ui, storage, console, playback, queue, lyrics, audio, settings;
+var __enji = (function (config) {
+  var stringify = JSON.stringify, parse = JSON.parse;
+  var permissions = config.permissions.slice();
+  var features = ['playback.state', 'playback.control', 'queue.page', 'lyrics.timeline',
+    'audio.levels', 'audio.loudness', 'audio.trackGain', 'plugin.settings', 'plugin.actions'];
+  var handlers = Object.create(null), pending = Object.create(null);
+  var pendingCount = 0, sequence = 0, outbox = [], state = {};
+  var instance = stringify(config.requestPrefix);
 
-function __enjiHas(permission) {
-  return __enji.config.permissions.indexOf(permission) >= 0;
-}
-
-function __enjiCall(name, args) {
-  __enji.outbox.push([name, args || []]);
-}
-
-var plugin = {
-  id: __enji.config.id,
-  name: __enji.config.name,
-  version: __enji.config.version,
-  permissions: __enji.config.permissions.slice(),
-  hasPermission: __enjiHas,
-};
-
-var enji = {
-  // macos, ios, windows, linux or android.
-  platform: __enji.config.platform,
-  hostVersion: __enji.config.hostVersion,
-  // `song`, `lyric`, `playback` and, with the `audio` permission, `audio`:
-  // `{ level, bass, beat, bpm, position }`, ten times a second and on each
-  // beat; `beat` the strength of a beat about to land, from 0 to 1, and 0
-  // between beats.
-  on: function (event, handler) {
-    (__enji.handlers[event] = __enji.handlers[event] || []).push(handler);
-  },
-  // What plays now, as the last event left it.
-  get song() {
-    return __enji.snapshot.song || null;
-  },
-  get playing() {
-    return !!__enji.snapshot.playing;
-  },
-};
-
-var overlay = {
-  // Text over the other windows: `{ lines: [{ text, size, bold, color }],
-  // place: "free" | "taskbar", locked }`; colours as `#rrggbb` or
-  // `#rrggbbaa`.
-  show: function (id, spec) {
-    if (!__enjiHas('overlay')) return false;
-    __enjiCall('overlayShow', [String(id), spec || {}]);
-    return true;
-  },
-  hide: function (id) {
-    if (!__enjiHas('overlay')) return false;
-    __enjiCall('overlayHide', [String(id)]);
-    return true;
-  },
-};
-
-var cover = {
-  // The playing page's cover gives a pulse, as strong as `strength`, from 0
-  // to 1; a middling one without it.
-  pulse: function (strength) {
-    if (!__enjiHas('cover')) return false;
-    __enjiCall('coverPulse', [strength === undefined ? 0.5 : Number(strength)]);
-    return true;
-  },
-};
-
-var ui = {
-  toast: function (message) {
-    __enjiCall('toast', [String(message)]);
-  },
-};
-
-var storage = {
-  get: function (key) {
-    var text = __enji.snapshot.storage[String(key)];
-    if (text == null) return null;
-    try {
-      return JSON.parse(text);
-    } catch (error) {
-      return text;
-    }
-  },
-  set: function (key, value) {
-    var text = JSON.stringify(value === undefined ? null : value);
-    __enji.snapshot.storage[String(key)] = text;
-    __enjiCall('storageSet', [String(key), text]);
-  },
-};
-
-var console = {
-  log: function () {
-    __enjiCall('log', [Array.prototype.slice.call(arguments).join(' ')]);
-  },
-};
-console.warn = console.error = console.log;
-
-__enji.dispatch = function (event) {
-  var snapshot = event.snapshot || {};
-  for (var key in snapshot) __enji.snapshot[key] = snapshot[key];
-  var handlers = __enji.handlers[event.type] || [];
-  for (var i = 0; i < handlers.length; i++) {
-    try {
-      handlers[i](event.data);
-    } catch (error) {
-      __enjiCall('log', [String(error && error.stack ? error.stack : error)]);
-    }
+  function dictionary(input) {
+    var dict = Object.create(null);
+    Object.keys(input || {}).forEach(function (key) { dict[key] = input[key]; });
+    return dict;
   }
-  var calls = __enji.outbox;
-  __enji.outbox = [];
-  return JSON.stringify(calls);
-};
+  var stored = dictionary(config.storage), preferences = dictionary(config.settings);
+  function has(name) { return permissions.indexOf(name) !== -1; }
+  function finite(n) { return typeof n === 'number' && Number.isFinite(n); }
+  function token() { return typeof state.playbackToken === 'string' && state.playbackToken ? state.playbackToken : null; }
+  function call(name, args) {
+    // Freeze a call's arguments at enqueue time. A circular overlay spec cannot break unrelated page requests.
+    try { outbox.push(stringify([name, args])); return true; } catch (_) { return false; }
+  }
+  function flush() {
+    var batch = outbox;
+    outbox = [];
+    return '{"instance":' + instance + ',"calls":[' + batch.join(',') + ']}';
+  }
+
+  plugin = { id: config.id, name: config.name, version: config.version,
+    permissions: permissions.slice(), hasPermission: has };
+
+  function control(operation, seconds) {
+    var t = token();
+    if (!has('playback_control') || !t) return false;
+    if (operation === 'seek') {
+      if (!finite(seconds) || seconds < 0) return false;
+      return call('playbackControl', [operation, t, seconds]);
+    }
+    return call('playbackControl', [operation, t]);
+  }
+  playback = {
+    get playing() { return !!state.playing; },
+    get position() { return finite(state.position) ? state.position : 0; },
+    get duration() { return finite(state.duration) ? state.duration : 0; },
+    get mode() { return typeof state.mode === 'string' ? state.mode : null; },
+    get playbackToken() { return token(); },
+    resume: function () { return control('resume'); },
+    pause: function () { return control('pause'); },
+    next: function () { return control('next'); },
+    previous: function () { return control('previous'); },
+    seekTo: function (seconds) { return control('seek', seconds); },
+  };
+  playback.play = playback.resume;
+  playback.seek = playback.seekTo;
+
+  function request(kind, permission, offset, limit) {
+    if (!has(permission) || pendingCount >= config.pagesInFlight) return null;
+    if (offset === undefined) offset = 0;
+    if (limit === undefined) limit = 50;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > config.maxOffset ||
+        !Number.isSafeInteger(limit) || limit < 1 || limit > config.pageLimit) return null;
+    var t = token();
+    if (kind === 'lyricsTimeline' && !t) return null;
+    var id = config.requestPrefix + (++sequence);
+    if (!call(kind, kind === 'queuePage' ? [id, offset, limit] : [id, t, offset, limit])) return null;
+    pending[id] = kind;
+    pendingCount++;
+    return id;
+  }
+  queue = { requestPage: function (offset, limit) { return request('queuePage', 'queue', offset, limit); } };
+  lyrics = { requestTimeline: function (offset, limit) { return request('lyricsTimeline', 'lyrics', offset, limit); } };
+  audio = {
+    // true means queued, not applied. The worker enforces source identity, authorization and next-play-only policy.
+    suggestTrackGain: function (sourceKey, gainDb) {
+      if (!has('audio_gain') || typeof sourceKey !== 'string' || !sourceKey.trim() || sourceKey.length > 4096 ||
+          !finite(gainDb) || gainDb < -24 || gainDb > 12) return false;
+      return call('suggestTrackGain', [sourceKey, gainDb]);
+    },
+  };
+  settings = { get: function (id) { return Object.prototype.hasOwnProperty.call(preferences, id) ? preferences[id] : null; } };
+  enji = {
+    platform: config.platform, hostVersion: config.hostVersion, apiVersion: config.apiVersion,
+    supports: function (feature) { return features.indexOf(feature) !== -1; },
+    on: function (event, handler) {
+      if (typeof event === 'string' && typeof handler === 'function') (handlers[event] || (handlers[event] = [])).push(handler);
+    },
+    get song() { return state.song || null; },
+    get playing() { return !!state.playing; },
+    get loudness() { return has('loudness') || has('audio_gain') ? state.loudness || null : null; },
+    playback: playback, queue: queue, lyrics: lyrics, audio: audio, settings: settings,
+  };
+
+  overlay = {
+    show: function (id, spec) { return has('overlay') && call('overlayShow', [String(id), spec || {}]); },
+    hide: function (id) { return has('overlay') && call('overlayHide', [String(id)]); },
+  };
+  cover = { pulse: function (strength) { return has('cover') && call('coverPulse', [strength === undefined ? 0.5 : Number(strength)]); } };
+  ui = { toast: function (message) { call('toast', [String(message)]); } };
+  storage = {
+    get: function (key) {
+      var text = stored[String(key)];
+      if (text == null) return null;
+      try { return parse(text); } catch (_) { return text; }
+    },
+    set: function (key, value) {
+      var text = stringify(value === undefined ? null : value);
+      stored[String(key)] = text;
+      call('storageSet', [String(key), text]);
+    },
+  };
+  console = { log: function () { call('log', [Array.prototype.slice.call(arguments).join(' ')]); } };
+  console.warn = console.error = console.log;
+
+  function dispatch(event) {
+    if (event.snapshot) state = event.snapshot;
+    var data = event.data, type = event.type;
+    if (type === 'settingChanged') preferences[data.id] = data.value;
+    if (type === 'queuePage' || type === 'lyricsTimeline') {
+      if (pending[data.requestId] !== type) return flush();
+      delete pending[data.requestId];
+      pendingCount--;
+    }
+    // Listeners added during delivery begin on the next event, never this one.
+    var listeners = (handlers[type] || []).slice();
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i](data); } catch (error) { call('log', [String(error && error.stack ? error.stack : error)]); }
+    }
+    return flush();
+  }
+  return { dispatch: dispatch, flush: flush };
+})(__enjiConfig);

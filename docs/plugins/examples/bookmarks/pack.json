@@ -1,0 +1,18 @@
+{
+  "id": "example.playback-bookmarks",
+  "name": "歌曲书签",
+  "version": "1.0.0",
+  "description": "为每首歌记一个位置，回听时可提前几秒，也能查看队列书签和书签处的歌词。",
+  "minHostVersion": "0.3.19",
+  "main": "main.js",
+  "permissions": ["playback_control", "queue", "lyrics"],
+  "settings": [
+    { "id": "leadSeconds", "label": "回听提前秒数", "type": "number", "min": 0, "max": 10, "default": 0 }
+  ],
+  "actions": [
+    { "id": "save", "label": "在此刻留下书签", "context": "player" },
+    { "id": "recall", "label": "回到这首歌的书签", "context": "track" },
+    { "id": "queueMarks", "label": "查看队首三首的书签", "context": "player" },
+    { "id": "lyricAtMark", "label": "查看书签处的歌词", "context": "player" }
+  ]
+}

@@ -80,6 +80,13 @@ fn best(offered: &[Format], rate: u32) -> Option<usize> {
         .map(|(at, _)| at)
 }
 
+/// AAudio can convert the app's PCM even when the builder got the requested
+/// format. Only bypass DSP when the accepted bit-perfect mixer also matches
+/// the underlying hardware (rate, channel count and encoding).
+fn negotiated_bit_perfect(accepted: bool, app: [i32; 3], hardware: Option<[i32; 3]>) -> bool {
+    accepted && hardware == Some(app)
+}
+
 #[cfg(target_os = "android")]
 pub use android::{available, Exclusive, Plugged};
 
@@ -137,10 +144,28 @@ mod android {
         fn AAudioStreamBuilder_setErrorCallback(builder: *mut c_void, callback: ErrorCallback, context: *mut c_void);
         fn AAudioStreamBuilder_openStream(builder: *mut c_void, stream: *mut *mut c_void) -> i32;
         fn AAudioStreamBuilder_delete(builder: *mut c_void) -> i32;
+        fn AAudioStream_getDeviceId(stream: *mut c_void) -> i32;
+        fn AAudioStream_getSampleRate(stream: *mut c_void) -> i32;
+        fn AAudioStream_getChannelCount(stream: *mut c_void) -> i32;
+        fn AAudioStream_getFormat(stream: *mut c_void) -> i32;
         fn AAudioStream_requestStart(stream: *mut c_void) -> i32;
         fn AAudioStream_requestPause(stream: *mut c_void) -> i32;
         fn AAudioStream_requestStop(stream: *mut c_void) -> i32;
         fn AAudioStream_close(stream: *mut c_void) -> i32;
+    }
+
+    /// The hardware getters are API 34 symbols. Do not add an unconditional
+    /// dynamic-link dependency on them: older Android hosts still load this library.
+    unsafe fn hardware_format(stream: *mut c_void) -> Option<[i32; 3]> {
+        type Getter = unsafe extern "C" fn(*mut c_void) -> i32;
+        // SAFETY: libaaudio is the system library already linked above; the three
+        // NDK signatures are int32_t (AAudioStream *). stream is an open stream.
+        unsafe {
+            let library = libloading::Library::new("libaaudio.so").ok()?;
+            let get = |name: &[u8]| Some(library.get::<Getter>(name).ok()?(stream));
+            Some([get(b"AAudioStream_getHardwareSampleRate\0")?, get(b"AAudioStream_getHardwareChannelCount\0")?,
+                  get(b"AAudioStream_getHardwareFormat\0")?])
+        }
     }
 
     fn message(error: impl std::fmt::Display) -> String {
@@ -320,7 +345,7 @@ mod android {
             opened
         }
 
-        fn stream(usb: &Plugged, format: Format) -> Option<Exclusive> {
+        fn stream(usb: &Plugged, mut format: Format) -> Option<Exclusive> {
             let (controller, source) = mixer::<f32>(CHANNELS, format.rate);
             let lost = Arc::new(AtomicBool::new(false));
             let feed = Box::into_raw(Box::new(Feed { mixer: source, encoding: format.encoding, lost: lost.clone() }));
@@ -349,7 +374,14 @@ mod android {
                 AAudioStreamBuilder_setErrorCallback(builder, failed, feed.cast());
                 let result = AAudioStreamBuilder_openStream(builder, &mut stream);
                 AAudioStreamBuilder_delete(builder);
-                result == 0 && AAudioStream_requestStart(stream) == 0
+                if result != 0 || stream.is_null() || AAudioStream_getDeviceId(stream) != usb.id {
+                    false
+                } else {
+                    let app = [AAudioStream_getSampleRate(stream), AAudioStream_getChannelCount(stream), AAudioStream_getFormat(stream)];
+                    let hardware = if format.untouched { hardware_format(stream) } else { None };
+                    format.untouched = super::negotiated_bit_perfect(format.untouched, app, hardware);
+                    app == [format.rate as i32, i32::from(CHANNELS), audio_format] && AAudioStream_requestStart(stream) == 0
+                }
             };
             if !opened {
                 // SAFETY: the stream, if it opened, never started.
@@ -362,6 +394,12 @@ mod android {
                 return None;
             }
             Some(Exclusive { format, device: usb.device.clone(), stream, feed, controller, lost })
+        }
+
+        /// Not the preference or just an open USB stream: this is the mixer
+        /// behavior that was accepted for this device and negotiated format.
+        pub fn bit_perfect(&self) -> bool {
+            self.format.untouched
         }
 
         pub fn rate(&self) -> u32 {
@@ -466,6 +504,16 @@ mod tests {
         let mut out = vec![0xFF; 6];
         fill(Encoding::I16, &mut [1.5f32].into_iter(), &mut out);
         assert_eq!(out, [0xFF, 0x7F, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn accepted_mixer_alone_cannot_bypass_normalization() {
+        let app = [44_100, 2, 3];
+        assert!(super::negotiated_bit_perfect(true, app, Some(app)));
+        assert!(!super::negotiated_bit_perfect(false, app, Some(app)));
+        for hardware in [None, Some([48_000, 2, 3]), Some([44_100, 1, 3]), Some([44_100, 2, 1])] {
+            assert!(!super::negotiated_bit_perfect(true, app, hardware));
+        }
     }
 
     #[test]

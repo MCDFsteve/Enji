@@ -264,6 +264,12 @@ impl enji::Commands for EnjiEngine {
     fn set_volume(&mut self, volume: f64) -> Result<(), CommandError> {
         self.submit(Job::Volume(volume))
     }
+    fn set_loudness_enabled(&mut self, on: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetLoudnessEnabled(on))
+    }
+    fn set_loudness_provider(&mut self, id: String) -> Result<(), CommandError> {
+        self.submit(Job::SetLoudnessProvider(id))
+    }
     fn toggle_mute(&mut self) -> Result<(), CommandError> {
         self.submit(Job::ToggleMute)
     }
@@ -368,6 +374,27 @@ impl enji::Commands for EnjiEngine {
     }
     fn set_plugin_enabled(&mut self, id: String, on: bool) -> Result<(), CommandError> {
         self.submit(Job::SetPluginEnabled(id, on))
+    }
+    fn set_plugin_bool(&mut self, plugin: String, id: String, value: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetPluginBool(plugin, id, value))
+    }
+    fn set_plugin_number_position(&mut self, plugin: String, id: String, position: f64) -> Result<(), CommandError> {
+        if !position.is_finite() || !(0.0..=1.0).contains(&position) {
+            return Err(CommandError::new("invalid_position", "the slider position must be between 0 and 1"));
+        }
+        self.submit(Job::SetPluginNumberPosition(plugin, id, position))
+    }
+    fn set_plugin_choice(&mut self, plugin: String, id: String, value: String) -> Result<(), CommandError> {
+        self.submit(Job::SetPluginChoice(plugin, id, value))
+    }
+    fn open_plugin_actions(&mut self, song: Song, player: bool) -> Result<(), CommandError> {
+        self.submit(Job::OpenPluginActions(song, player))
+    }
+    fn close_plugin_actions(&mut self, token: i64) -> Result<(), CommandError> {
+        self.submit(Job::ClosePluginActions(token))
+    }
+    fn run_plugin_action(&mut self, plugin: String, id: String, token: i64) -> Result<(), CommandError> {
+        self.submit(Job::RunPluginAction(plugin, id, token))
     }
     fn remove_plugin(&mut self, id: String) -> Result<(), CommandError> {
         self.submit(Job::RemovePlugin(id))

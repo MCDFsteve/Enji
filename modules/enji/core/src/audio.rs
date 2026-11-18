@@ -2,6 +2,9 @@
 //! plays while it downloads: reading waits for the bytes not here yet. The
 //! thread reports where the song is and when it has ended.
 
+#[path = "loudness.rs"]
+pub(crate) mod loudness;
+
 use crate::beats::{Beat, Beats};
 #[cfg(target_os = "tvos")]
 use crate::tv_audio::Output;
@@ -12,7 +15,7 @@ use crate::watch_audio::Output;
 use rodio::{Sink, Source};
 use symphonia::core::{
     audio::SampleBuffer,
-    codecs::{Decoder as Codec, DecoderOptions},
+    codecs::{CodecParameters, Decoder as Codec, DecoderOptions},
     formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
     io::{MediaSource, MediaSourceStream},
     meta::MetadataOptions,
@@ -136,6 +139,7 @@ impl Output {
     fn moved(&mut self) -> bool {
         false
     }
+    fn bit_perfect(&self) -> bool { false }
     fn rest(&self) {}
     fn wake(&self) {}
     fn report(&self, _: &mut Status, _: bool) {}
@@ -179,6 +183,10 @@ impl Output {
         moved
     }
 
+    fn bit_perfect(&self) -> bool {
+        self.exclusive.as_ref().is_some_and(Exclusive::bit_perfect)
+    }
+
     fn rest(&self) {
         self.exclusive.iter().for_each(Exclusive::rest);
     }
@@ -208,18 +216,30 @@ pub struct Stream {
     inner: Arc<(Mutex<Buffer>, Condvar)>,
 }
 
+#[derive(Default, PartialEq)]
+enum Receipt {
+    #[default]
+    Receiving,
+    Complete,
+    Failed,
+}
+
 #[derive(Default)]
 struct Buffer {
-    data: Vec<u8>,
+    // Unique while receiving. Only a successful EOF may publish another Arc,
+    // after which the bytes are immutable and need no second song-sized copy.
+    data: Arc<Vec<u8>>,
     total: Option<u64>,
-    done: bool,
-    /// Another song started: readers stop.
+    receipt: Receipt,
+    /// Another song started: playback readers stop, even for a complete file.
     cancelled: bool,
 }
 
 impl Stream {
     pub fn new(total: Option<u64>) -> Self {
-        let buffer = Buffer { total, data: Vec::with_capacity(total.unwrap_or(0) as usize), ..Buffer::default() };
+        // The length may come from an untrusted HTTP header or document provider.
+        let reserve = total.unwrap_or(0).min(256 * 1024) as usize;
+        let buffer = Buffer { total, data: Arc::new(Vec::with_capacity(reserve)), ..Buffer::default() };
         Self { inner: Arc::new((Mutex::new(buffer), Condvar::new())) }
     }
 
@@ -229,13 +249,48 @@ impl Stream {
     }
 
     pub fn push(&self, chunk: &[u8]) {
-        self.change(|b| b.data.extend_from_slice(chunk));
+        self.change(|b| {
+            if b.receipt == Receipt::Receiving {
+                Arc::get_mut(&mut b.data).expect("receiving bytes are private").extend_from_slice(chunk);
+            }
+        });
     }
+
+    /// The producer reached a successful EOF (not a read error or a cancelled
+    /// request). Known byte lengths must agree before analysis may use the data.
     pub fn finish(&self) {
-        self.change(|b| b.done = true);
+        self.change(|b| {
+            if b.receipt == Receipt::Receiving {
+                let len = b.data.len() as u64;
+                b.receipt = if len > 0 && b.total.is_none_or(|n| n == len) { Receipt::Complete } else { Receipt::Failed };
+                b.total.get_or_insert(len);
+            }
+        });
     }
+
+    /// Wake playback readers, but never publish a partial file for analysis.
+    pub fn fail(&self) {
+        self.change(|b| {
+            if b.receipt == Receipt::Receiving {
+                b.receipt = Receipt::Failed;
+            }
+        });
+    }
+
     pub fn cancel(&self) {
-        self.change(|b| b.cancelled = true);
+        self.change(|b| {
+            b.cancelled = true;
+            if b.receipt == Receipt::Receiving {
+                b.receipt = Receipt::Failed;
+            }
+        });
+    }
+
+    /// Does not wait for data. Switching songs after EOF doesn't revoke a
+    /// complete file; the analysis job has its own cancellation token.
+    fn complete_bytes(&self) -> Option<Arc<Vec<u8>>> {
+        let b = self.inner.0.lock().unwrap_or_else(|e| e.into_inner());
+        (b.receipt == Receipt::Complete).then(|| Arc::clone(&b.data))
     }
     pub fn cancelled(&self) -> bool {
         self.inner.0.lock().unwrap_or_else(|e| e.into_inner()).cancelled
@@ -257,6 +312,7 @@ struct Reader {
 
 impl Read for Reader {
     fn read(&mut self, into: &mut [u8]) -> std::io::Result<usize> {
+        if into.is_empty() { return Ok(0); }
         let (lock, arrived) = &*self.stream.inner;
         let mut buffer = lock.lock().unwrap_or_else(|e| e.into_inner());
         loop {
@@ -271,8 +327,10 @@ impl Read for Reader {
                 self.at += n as u64;
                 return Ok(n);
             }
-            if buffer.done {
-                return Ok(0);
+            match buffer.receipt {
+                Receipt::Complete => return Ok(0),
+                Receipt::Failed => return Err(std::io::ErrorKind::UnexpectedEof.into()),
+                Receipt::Receiving => {}
             }
             buffer = arrived.wait_timeout(buffer, Duration::from_millis(200)).unwrap_or_else(|e| e.into_inner()).0;
         }
@@ -287,7 +345,7 @@ impl Seek for Reader {
             if let Some(total) = buffer.total {
                 break total;
             }
-            if buffer.done || buffer.cancelled {
+            if buffer.receipt != Receipt::Receiving {
                 break buffer.data.len() as u64;
             }
             if !matches!(to, SeekFrom::End(_)) {
@@ -295,15 +353,11 @@ impl Seek for Reader {
             }
             buffer = arrived.wait_timeout(buffer, Duration::from_millis(200)).unwrap_or_else(|e| e.into_inner()).0;
         };
-        let target = match to {
-            SeekFrom::Start(at) => at as i64,
-            SeekFrom::Current(by) => self.at as i64 + by,
-            SeekFrom::End(by) => end as i64 + by,
-        };
-        if target < 0 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "before the start"));
-        }
-        self.at = target as u64;
+        self.at = match to {
+            SeekFrom::Start(at) => Some(at),
+            SeekFrom::Current(by) => self.at.checked_add_signed(by),
+            SeekFrom::End(by) => end.checked_add_signed(by),
+        }.ok_or(std::io::ErrorKind::InvalidInput)?;
         Ok(self.at)
     }
 }
@@ -320,12 +374,39 @@ impl MediaSource for Reader {
     }
 }
 
-/// A song's samples as symphonia decodes them, for the output. A packet
-/// that does not decode is skipped; past a few in a row the song ends.
-struct Decoded {
+/// Open the same track/codec, with the same gapless options, for playback
+/// and for a separate strict full-file pass. Opening this does not meter PCM.
+struct TrackDecoder {
     format: Box<dyn FormatReader>,
     codec: Box<dyn Codec>,
     track: u32,
+    params: CodecParameters,
+}
+
+impl TrackDecoder {
+    fn open(source: Box<dyn MediaSource>, verify: bool) -> Result<Self, String> {
+        let probed = symphonia::default::get_probe()
+            .format(
+                &Hint::new(),
+                MediaSourceStream::new(source, Default::default()),
+                &FormatOptions { enable_gapless: true, ..Default::default() },
+                &MetadataOptions::default(),
+            )
+            .map_err(|e| e.to_string())?;
+        let format = probed.format;
+        let track = format.tracks().iter()
+            .find(|track| track.codec_params.codec != symphonia::core::codecs::CODEC_TYPE_NULL)
+            .ok_or("没有音轨")?;
+        let (track, params) = (track.id, track.codec_params.clone());
+        let codec = symphonia::default::get_codecs().make(&params, &DecoderOptions { verify }).map_err(|e| e.to_string())?;
+        Ok(Self { format, codec, track, params })
+    }
+}
+
+/// A song's samples as symphonia decodes them, for the output. A packet
+/// that does not decode is skipped; past a few in a row the song ends.
+struct Decoded {
+    input: TrackDecoder,
     channels: u16,
     rate: u32,
     total: Option<Duration>,
@@ -341,27 +422,13 @@ struct Decoded {
 
 impl Decoded {
     fn open(stream: &Stream) -> Result<Self, String> {
-        let source = MediaSourceStream::new(Box::new(stream.reader()), Default::default());
-        let probed = symphonia::default::get_probe()
-            .format(&Hint::new(), source, &FormatOptions { enable_gapless: true, ..Default::default() }, &MetadataOptions::default())
-            .map_err(|e| e.to_string())?;
-        let format = probed.format;
-        let track = format
-            .tracks()
-            .iter()
-            .find(|track| track.codec_params.codec != symphonia::core::codecs::CODEC_TYPE_NULL)
-            .ok_or("没有音轨")?;
-        let (track_id, params) = (track.id, track.codec_params.clone());
-        let codec = symphonia::default::get_codecs()
-            .make(&params, &DecoderOptions::default())
-            .map_err(|e| e.to_string())?;
-        let rate = params.sample_rate.unwrap_or(44_100);
-        let total = params.n_frames.map(|frames| Duration::from_secs_f64(frames as f64 / f64::from(rate)));
+        let input = TrackDecoder::open(Box::new(stream.reader()), false)?;
+        let rate = input.params.sample_rate.unwrap_or(44_100);
+        let total = input.params.n_frames.map(|frames| Duration::from_secs_f64(frames as f64 / f64::from(rate)));
+        let channels = input.params.channels.map_or(2, |channels| channels.count() as u16);
         let mut decoded = Self {
-            format,
-            codec,
-            track: track_id,
-            channels: params.channels.map_or(2, |channels| channels.count() as u16),
+            input,
+            channels,
             rate,
             total,
             samples: Vec::new(),
@@ -409,14 +476,17 @@ impl Decoded {
     fn refill(&mut self) -> bool {
         let mut failures = 0;
         loop {
-            let packet = match self.format.next_packet() {
+            let packet = match self.input.format.next_packet() {
                 Ok(packet) => packet,
                 Err(_) => return false,
             };
-            if packet.track_id() != self.track {
+            if packet.track_id() != self.input.track {
                 continue;
             }
-            match self.codec.decode(&packet) {
+            // A RIFF data chunk may advertise bytes past physical EOF. In
+            // Symphonia 0.5 this can yield the same empty packet indefinitely.
+            if packet.buf().is_empty() { return false; }
+            match self.input.codec.decode(&packet) {
                 Ok(audio) => {
                     let spec = *audio.spec();
                     let mut buffer = SampleBuffer::<f32>::new(audio.capacity() as u64, spec);
@@ -432,7 +502,7 @@ impl Decoded {
                     }
                 }
                 Err(symphonia::core::errors::Error::DecodeError(_)) if failures < 8 => failures += 1,
-                Err(symphonia::core::errors::Error::ResetRequired) => self.codec.reset(),
+                Err(symphonia::core::errors::Error::ResetRequired) => self.input.codec.reset(),
                 Err(_) => return false,
             }
         }
@@ -471,11 +541,10 @@ impl Source for Decoded {
     }
     fn try_seek(&mut self, at: Duration) -> Result<(), rodio::source::SeekError> {
         let time = Time::new(at.as_secs(), f64::from(at.subsec_nanos()) / 1e9);
-        let seeked = self
-            .format
-            .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: Some(self.track) })
+        let seeked = self.input.format
+            .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: Some(self.input.track) })
             .map_err(|e| rodio::source::SeekError::Other(Box::new(e)))?;
-        self.codec.reset();
+        self.input.codec.reset();
         self.samples.clear();
         // The beat is found again from where it lands.
         self.beats = None;
@@ -486,7 +555,7 @@ impl Source for Decoded {
 }
 
 enum Command {
-    Play(u64, Stream),
+    Play(u64, Stream, f32),
     Pause,
     Resume,
     Seek(f64),
@@ -503,6 +572,12 @@ pub struct Status {
     /// The song of this token has played to its end.
     pub ended: Option<u64>,
     pub error: Option<String>,
+    /// The track whose sink actually opened (including while paused).
+    pub gain_token: Option<u64>,
+    /// Track gain applied in the signal path, before the user's independent volume.
+    pub effective_gain_db: f32,
+    /// The active USB route negotiated bit-perfect mixing, not merely a requested DAC.
+    pub bit_perfect_bypass: bool,
     /// A USB output is plugged in, as far as anything wanted one.
     pub usb_plugged: bool,
     /// It is plugged in, and the song plays without it.
@@ -527,8 +602,10 @@ impl Audio {
         Self { commands, status }
     }
 
-    pub fn play(&self, token: u64, stream: Stream) {
-        let _ = self.commands.send(Command::Play(token, stream));
+    /// Make one normalization decision for this play. Seeks and route changes
+    /// keep it; a bit-perfect route bypasses it only while that route is used.
+    pub fn play(&self, token: u64, stream: Stream, gain_db: f32) {
+        let _ = self.commands.send(Command::Play(token, stream, gain_db));
     }
     pub fn pause(&self) {
         let _ = self.commands.send(Command::Pause);
@@ -570,20 +647,30 @@ impl Audio {
     }
 }
 
-/// `stream` playing on `output` from its start.
-fn start(output: &mut Output, stream: &Stream, volume: f32) -> Result<Sink, String> {
+fn routed_gain(requested: f32, bit_perfect: bool) -> f32 {
+    if bit_perfect || !requested.is_finite() { 0.0 } else { requested.clamp(-120.0, 60.0) }
+}
+
+/// `stream` playing on `output` from its start. Choose the gain only after
+/// the sink opens: a requested USB route may really have fallen back.
+fn start(output: &mut Output, stream: &Stream, volume: f32, gain_db: f32) -> Result<Sink, String> {
     let source = Decoded::open(stream).map_err(|e| format!("无法解码这首歌：{e}"))?;
     let sink = output.sink(source.rate)?;
+    let gain_db = routed_gain(gain_db, output.bit_perfect());
     sink.set_volume(volume);
-    sink.append(source);
+    if gain_db == 0.0 {
+        sink.append(source);
+    } else {
+        sink.append(source.amplify(10.0f32.powf(gain_db / 20.0)));
+    }
     Ok(sink)
 }
 
 /// The song of `old` carrying on where it was, on what `output` gives now.
-fn moved_on(output: &mut Output, old: Sink, stream: &Stream, volume: f32) -> Result<Sink, String> {
+fn moved_on(output: &mut Output, old: Sink, stream: &Stream, volume: f32, gain_db: f32) -> Result<Sink, String> {
     let (at, paused) = (old.get_pos(), old.is_paused());
     drop(old);
-    let sink = start(output, stream, volume)?;
+    let sink = start(output, stream, volume, gain_db)?;
     sink.pause();
     let _ = sink.try_seek(at);
     if paused {
@@ -609,14 +696,17 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
     let mut current: Option<u64> = None;
     // What plays, to start it again on another output.
     let mut song: Option<Stream> = None;
+    let mut gain_db = 0.0;
     let mut looked = Instant::now();
     loop {
         let mut moving = false;
         match commands.recv_timeout(Duration::from_millis(30)) {
-            Ok(Command::Play(token, stream)) => {
+            Ok(Command::Play(token, stream, requested)) => {
                 sink = None;
                 current = None;
-                match start(&mut output, &stream, volume) {
+                song = None;
+                gain_db = requested;
+                match start(&mut output, &stream, volume, gain_db) {
                     Ok(next) => {
                         sink = Some(next);
                         current = Some(token);
@@ -666,9 +756,13 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
             && current.is_some()
             && let (Some(old), Some(stream)) = (sink.take(), &song)
         {
-            match moved_on(&mut output, old, stream, volume) {
+            match moved_on(&mut output, old, stream, volume, gain_db) {
                 Ok(next) => sink = Some(next),
-                Err(message) => report(&|s| s.error = Some(message.clone())),
+                Err(message) => {
+                    current = None;
+                    song = None;
+                    report(&|s| s.error = Some(message.clone()));
+                }
             }
         }
         let mut now = status.lock().unwrap_or_else(|e| e.into_inner());
@@ -681,6 +775,7 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                     && let Some(token) = current.take()
                 {
                     now.ended = Some(token);
+                    song = None;
                 }
             }
             None => {
@@ -688,6 +783,9 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                 now.playing = false;
             }
         }
+        now.gain_token = current;
+        now.bit_perfect_bypass = current.is_some() && output.bit_perfect();
+        now.effective_gain_db = if current.is_some() { routed_gain(gain_db, now.bit_perfect_bypass) } else { 0.0 };
     }
 }
 
@@ -720,6 +818,72 @@ mod tests {
             put(&((left / 2.0) as i16).to_le_bytes());
         }
         wav
+    }
+
+    #[test]
+    fn only_a_successful_complete_receipt_survives_playback_cancellation() {
+        use std::{io::Read, sync::Arc};
+        let stream = Stream::new(None);
+        assert_eq!(stream.reader().read(&mut []).unwrap(), 0);
+        stream.push(b"abcd");
+        assert!(stream.complete_bytes().is_none());
+        stream.finish();
+        let sealed = stream.complete_bytes().unwrap();
+        assert_eq!(stream.total(), Some(4));
+        stream.cancel();
+        stream.fail();
+        stream.push(b"late");
+        assert_eq!(stream.reader().read(&mut [0; 1]).unwrap(), 0);
+        assert_eq!(sealed.as_slice(), b"abcd");
+        assert!(Arc::ptr_eq(&sealed, &stream.complete_bytes().unwrap()));
+
+        for length in [Some(2), Some(6)] {
+            let wrong = Stream::new(length);
+            wrong.push(b"abcd");
+            wrong.finish();
+            assert!(wrong.complete_bytes().is_none());
+            assert_eq!(wrong.reader().read_to_end(&mut Vec::new()).unwrap_err().kind(), std::io::ErrorKind::UnexpectedEof);
+        }
+        for end in [Stream::fail, Stream::cancel] {
+            let partial = Stream::new(None);
+            partial.push(b"prefix");
+            end(&partial);
+            partial.finish();
+            assert!(partial.complete_bytes().is_none());
+        }
+        let empty = Stream::new(None);
+        empty.finish();
+        assert!(empty.complete_bytes().is_none());
+    }
+
+    #[test]
+    fn track_gain_is_bypassed_only_on_the_actual_bit_perfect_route() {
+        let locked = -7.5;
+        // Shared -> bit-perfect DAC -> ordinary USB mixer/shared fallback.
+        assert_eq!([false, true, false].map(|route| super::routed_gain(locked, route)), [locked, 0.0, locked]);
+        assert_eq!(super::routed_gain(f32::NAN, false), 0.0);
+    }
+
+    #[test]
+    fn a_seek_preserves_the_gain_on_the_actual_pcm_source() {
+        use rodio::Source;
+        use std::time::Duration;
+        let wav = tone();
+        let stream = Stream::new(Some(wav.len() as u64));
+        stream.push(&wav);
+        stream.finish();
+        let mut original = Decoded::open(&stream).unwrap();
+        let factor = 10.0f32.powf(-7.5 / 20.0);
+        let mut scaled = Decoded::open(&stream).unwrap().amplify(factor);
+        for millis in [270, 1_400, 420] {
+            let at = Duration::from_millis(millis);
+            original.try_seek(at).unwrap();
+            scaled.try_seek(at).unwrap();
+            let a: Vec<_> = original.by_ref().take(1000).collect();
+            let b: Vec<_> = scaled.by_ref().take(1000).collect();
+            assert_eq!((a.len(), b.len()), (1000, 1000));
+            assert!(a.iter().zip(b).all(|(x, y)| (x * factor - y).abs() < 1e-6));
+        }
     }
 
     #[test]

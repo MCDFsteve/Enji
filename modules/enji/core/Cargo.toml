@@ -22,6 +22,7 @@ png = "0.17"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 dirs = "6"
 lofty = "0.25.5"
+ebur128 = "0.1.11"
 encoding_rs = "0.8"
 sha1 = "0.11.0"
 # Plugins: their packages.
@@ -29,10 +30,16 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 rand = "0.8"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 
+# File ID and change time from the actual handle; std's Windows accessors are unstable.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }
+
 # A USB DAC to itself: asked of the system's audio service, through Java.
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 ndk-context = "0.1"
+# Resolve API 34 hardware-format queries only on hosts offering the USB mixer.
+libloading = "0.8.9"
 
 # Apple Watch has no AudioToolbox; AVAudioEngine pulls samples from rodio's mixer.
 [target.'cfg(target_os = "watchos")'.dependencies]

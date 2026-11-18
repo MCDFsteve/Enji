@@ -8,7 +8,7 @@
 //! are known by their URLs and read through `bern::files`: `file:` URLs,
 //! and on Android the documents of a folder from the system's picker.
 
-use crate::{lyrics, store};
+use crate::{audio::loudness::{self, Info}, lyrics, store};
 use enji_kit::{
     convert,
     copies::{name_key, near},
@@ -21,7 +21,7 @@ use sha1::{Digest, Sha1};
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    io::{BufReader, BufWriter, Read, Seek, SeekFrom},
+    io::{self, BufReader, BufWriter, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -35,7 +35,8 @@ const THUMB: u32 = 256;
 /// Read files are reported at least this often while a scan goes on.
 const REPORT_EVERY: Duration = Duration::from_millis(400);
 /// Bump when tag-reading semantics change so affected cached entries re-read once.
-const LIBRARY_VERSION: u64 = 2;
+const LIBRARY_VERSION: u64 = 3;
+const TEXT_REPAIR_VERSION: u64 = 2;
 
 /// The kinds of files read as music.
 const KINDS: &[&str] = &["mp3", "flac", "m4a", "aac", "wav", "ogg", "oga", "aif", "aiff", "alac"];
@@ -74,6 +75,22 @@ pub struct Track {
     /// True when loaded from an older library cache and carrying Latin-1
     /// bytes that may have been GBK/UTF-8 mojibake, so the next scan re-reads it.
     reread: bool,
+    /// None for pre-loudness library records. A missing tag in a completed scan
+    /// is a real result, not a reason to read the tags again on every play.
+    loudness: Option<ScannedLoudness>,
+}
+
+#[derive(Clone, Debug)]
+struct ScannedLoudness {
+    key: Option<String>,
+    tag: Option<Info>,
+}
+
+impl Track {
+    /// Scan snapshot, not a substitute for validating the file being played.
+    pub fn loudness(&self) -> (Option<String>, Option<Info>) {
+        self.loudness.as_ref().map_or((None, None), |s| (s.key.clone(), s.tag))
+    }
 }
 
 /// The library as it is kept: the folders and what was found in them.
@@ -176,7 +193,7 @@ impl Library {
                             let title = text(one, "title");
                             let artists = text(one, "artists");
                             let album = text(one, "album");
-                            let reread = version < LIBRARY_VERSION
+                            let reread = version < TEXT_REPAIR_VERSION
                                 && [&title, &artists, &album].iter().any(|s| has_latin1_supplement(s));
                             Track {
                                 url,
@@ -198,6 +215,12 @@ impl Library {
                                 modified: one["modified"].as_i64().unwrap_or(0),
                                 added: one["added"].as_i64().unwrap_or(0),
                                 reread,
+                                loudness: one["loudness"].as_object().map(|snapshot| ScannedLoudness {
+                                    key: snapshot.get("key").and_then(Value::as_str).filter(|k| {
+                                        k.strip_prefix("local-v1:").is_some_and(|hex| hex.len() == 40 && hex.bytes().all(|c| c.is_ascii_hexdigit()))
+                                    }).map(str::to_owned),
+                                    tag: snapshot.get("tag").and_then(Info::from_json).filter(|info| info.source() == "replaygain"),
+                                }),
                             }
                         })
                         .collect()
@@ -231,6 +254,7 @@ impl Library {
                     "size": track.size,
                     "modified": track.modified,
                     "added": track.added,
+                    "loudness": track.loudness.as_ref().map(|s| json!({ "key": s.key, "tag": s.tag.map(Info::to_json) })),
                 })
             })
             .collect();
@@ -262,7 +286,8 @@ impl Library {
             // is read again.
             let small = |track: &Track| track.cover.as_ref().is_none_or(|cover| cover.starts_with(thumbs_dir()));
             match known {
-                Some(track) if !track.reread && track.size == file.entry.size && track.modified == modified && small(track) => {
+                Some(track) if !track.reread && track.size == file.entry.size && track.modified == modified && small(track)
+                    && track.loudness.as_ref().is_some_and(|s| s.key == file_version(&file.entry.url, file.entry.size)) => {
                     tracks[place] = Some(Track { folder: file.folder.clone(), lyrics: file.lyrics.clone(), ..track.clone() });
                 }
                 _ => wanted.push((place, modified, known)),
@@ -567,6 +592,184 @@ fn ordered_tags(file: &lofty::file::TaggedFile) -> Vec<&lofty::tag::Tag> {
     tags
 }
 
+/// Keep the native handle available: stat'ing a URL after opening it can pair a
+/// replacement's version with the bytes of the old, still-open file. Other URL
+/// schemes continue through Bern (including Android document providers).
+pub struct AudioFile {
+    reader: AudioReader,
+    len: u64,
+}
+
+enum AudioReader {
+    Native(fs::File),
+    Provider(bern::files::SourceFile),
+}
+
+pub fn open_audio(url: &str) -> io::Result<AudioFile> {
+    if let Some(path) = bern::files::file_path(url) {
+        let file = fs::File::open(path)?;
+        let meta = file.metadata()?;
+        if meta.is_dir() { return Err(io::ErrorKind::IsADirectory.into()); }
+        Ok(AudioFile { reader: AudioReader::Native(file), len: meta.len() })
+    } else {
+        let file = bern::files::open(url).map_err(|e| io::Error::other(e.message))?;
+        let len = file.len();
+        Ok(AudioFile { reader: AudioReader::Provider(file), len })
+    }
+}
+
+impl AudioFile {
+    pub fn len(&self) -> u64 { self.len }
+
+    fn revision(&self, url: &str) -> Option<String> {
+        let AudioReader::Native(file) = &self.reader else { return None };
+        metadata_key(url, self.len, &file.metadata().ok()?, Some(file))
+    }
+
+    /// At EOF do not associate a mixture of revisions with the starting key.
+    /// An unversioned document can still be measured under a digest of its bytes.
+    pub fn revision_matches(&self, url: &str, key: Option<&str>) -> bool {
+        key.is_none_or(|key| self.revision(url).as_deref() == Some(key))
+    }
+}
+
+impl Read for AudioFile {
+    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+        match &mut self.reader { AudioReader::Native(f) => f.read(out), AudioReader::Provider(f) => f.read(out) }
+    }
+}
+
+impl Seek for AudioFile {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        match &mut self.reader { AudioReader::Native(f) => f.seek(pos), AudioReader::Provider(f) => f.seek(pos) }
+    }
+}
+
+/// Only the scan's cheap unchanged-file test uses a path, never an open reader.
+fn file_version(url: &str, len: u64) -> Option<String> {
+    let path = bern::files::file_path(url)?;
+    #[cfg(windows)]
+    {
+        let file = fs::File::open(path).ok()?;
+        metadata_key(url, len, &file.metadata().ok()?, Some(&file))
+    }
+    #[cfg(not(windows))]
+    { metadata_key(url, len, &fs::metadata(path).ok()?, None) }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn metadata_key(_: &str, _: u64, _: &fs::Metadata, _: Option<&fs::File>) -> Option<String> { None }
+
+#[cfg(any(unix, windows))]
+fn metadata_key(url: &str, len: u64, meta: &fs::Metadata, _file: Option<&fs::File>) -> Option<String> {
+    if !meta.is_file() || len == 0 || meta.len() != len { return None; }
+    let mtime = meta.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_nanos();
+    #[cfg(unix)]
+    let id = {
+        use std::os::unix::fs::MetadataExt;
+        if meta.ino() == 0 || (meta.ctime() == 0 && meta.ctime_nsec() == 0) { return None; }
+        format!("{}:{}:{}:{}", meta.dev(), meta.ino(), meta.ctime(), meta.ctime_nsec())
+    };
+    #[cfg(windows)]
+    let id = windows_revision(_file?)?;
+    Some(format!("local-v1:{}", loudness::hex_digest(format!("{url}\0{len}:{mtime}:{id}").as_bytes())))
+}
+
+/// Creation time alone is not identity: NTFS name tunneling may preserve it
+/// across a delete/rename. ChangeTime also detects edits that restore mtime.
+#[cfg(windows)]
+fn windows_revision(file: &fs::File) -> Option<String> {
+    use std::{mem::size_of, os::windows::io::AsRawHandle};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_BASIC_INFO, FILE_ID_INFO, FileBasicInfo, FileIdInfo, GetFileInformationByHandleEx,
+    };
+    let mut id = FILE_ID_INFO::default();
+    let mut times = FILE_BASIC_INFO::default();
+    let handle = file.as_raw_handle();
+    // SAFETY: both buffers have the requested information class, correct size,
+    // and outlive the synchronous call. The borrowed file keeps its handle open.
+    unsafe {
+        if GetFileInformationByHandleEx(handle, FileIdInfo, (&raw mut id).cast(), size_of::<FILE_ID_INFO>() as u32) == 0
+            || GetFileInformationByHandleEx(handle, FileBasicInfo, (&raw mut times).cast(), size_of::<FILE_BASIC_INFO>() as u32) == 0
+        { return None; }
+    }
+    if id.FileId.Identifier == [0; 16] || times.ChangeTime == 0 { return None; }
+    Some(format!("{}:{:032x}:{}", id.VolumeSerialNumber, u128::from_le_bytes(id.FileId.Identifier), times.ChangeTime))
+}
+
+fn track_gain(tags: &[&lofty::tag::Tag]) -> Option<Info> {
+    // Only a complete track-gain tag, with its own optional peak. Never marry
+    // an album peak or a second, potentially stale tag to this gain.
+    tags.iter().find_map(|tag| {
+        let mut gains = tag.get_strings(ItemKey::ReplayGainTrackGain);
+        let gain = gains.next()?;
+        if !gains.all(|s| s.trim().eq_ignore_ascii_case(gain.trim())) { return None; }
+        let mut peaks = tag.get_strings(ItemKey::ReplayGainTrackPeak);
+        let peak = peaks.next().filter(|p| peaks.all(|s| s.trim() == p.trim()));
+        Info::replaygain(gain, peak)
+    })
+}
+
+/// A pre-play probe can skip to tags at the end but must not scan a large
+/// document or read a whole picture before Ready. Exhausting this budget just
+/// means no tag decision; it does not change playback or the bytes to analyze.
+struct TagBudget<'a> {
+    file: &'a mut AudioFile,
+    left: usize,
+}
+impl Read for TagBudget<'_> {
+    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+        if out.is_empty() { return Ok(0); }
+        if self.left == 0 { return Err(io::Error::other("loudness tag byte budget")); }
+        let limit = out.len().min(self.left);
+        let read = self.file.read(&mut out[..limit])?;
+        self.left -= read;
+        Ok(read)
+    }
+}
+impl Seek for TagBudget<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> { self.file.seek(pos) }
+}
+
+/// On the producer's local I/O thread, before Ready, with the very file that
+/// will supply the playback stream. Prefer validated scan results. Otherwise
+/// probe tags only, not duration, art or all PCM. An unseekable document is
+/// untouched. If a previously seekable provider fails to restore its cursor,
+/// return an error instead of playing/measuring the remainder as a whole file.
+pub fn opened_loudness(
+    track: Option<&Track>, url: &str, name: &str, file: &mut AudioFile,
+) -> io::Result<(Option<String>, Option<Info>)> {
+    let key = file.revision(url);
+    if key.is_some() && let Some(track) = track.filter(|t| t.url == url && t.size == file.len()) {
+        let snapshot = track.loudness();
+        if snapshot.0 == key { return Ok(snapshot); }
+    }
+    let Ok(original) = file.stream_position() else { return Ok((key, None)); };
+    let restore = |file: &mut AudioFile| -> io::Result<()> {
+        if file.seek(SeekFrom::Start(original))? != original { return Err(io::Error::other("source did not restore its position")); }
+        Ok(())
+    };
+    match file.seek(SeekFrom::Start(0)) {
+        Ok(0) => {}
+        Err(_) => return Ok((key, None)), // no bytes consumed from a non-seekable source
+        Ok(_) => { restore(file)?; return Ok((key, None)); }
+    }
+    let tag = {
+        use lofty::{config::ParseOptions, file::FileType, probe::Probe};
+        let reader = BufReader::new(TagBudget { file, left: 512 * 1024 });
+        let options = ParseOptions::default().read_properties(false).read_cover_art(false);
+        let probe = Probe::new(reader).options(options);
+        let probe = match FileType::from_ext(extension(name)) {
+            Some(kind) => Some(probe.set_file_type(kind)),
+            None => probe.guess_file_type().ok(),
+        };
+        probe.and_then(|probe| probe.read().ok()).and_then(|tags| track_gain(&ordered_tags(&tags)))
+    };
+    restore(file)?;
+    if !file.revision_matches(url, key.as_deref()) { return Ok((None, None)); }
+    Ok((key, tag))
+}
+
 /// The tags, length and pictures of the music file `file`, named `name`:
 /// of the kind its name says, or else the one its first bytes show.
 /// ID3v1 and ID3v2 Latin-1 frames carrying GBK/GB18030 (or UTF-8) bytes are
@@ -660,7 +863,8 @@ fn tagged(file: impl Read + Seek, name: &str) -> Option<lofty::file::TaggedFile>
 /// A music file's tags, length and picture; its name for a title when it
 /// has none.
 fn read(found: &Found, modified: i64, added: i64) -> Option<Track> {
-    let mut file = bern::files::open(&found.entry.url).ok()?;
+    let mut file = open_audio(&found.entry.url).ok()?;
+    let key = file.revision(&found.entry.url);
     let hash = hash(&mut file)?;
     let name = found.entry.name.clone();
     let mut track = Track {
@@ -679,16 +883,18 @@ fn read(found: &Found, modified: i64, added: i64) -> Option<Track> {
         netease_album: 0,
         netease_artist: 0,
         matched: String::new(),
-        size: found.entry.size,
+        size: file.len(),
         modified,
         added,
         reread: false,
+        loudness: Some(ScannedLoudness { key: key.clone(), tag: None }),
     };
-    let Some(file) = file.seek(SeekFrom::Start(0)).ok().and_then(|_| tagged(file, &track.name)) else {
+    let Some(tagged) = file.seek(SeekFrom::Start(0)).ok().and_then(|_| tagged(&mut file, &track.name)) else {
         return Some(track);
     };
-    track.seconds = file.properties().duration().as_secs_f64();
-    let tags = ordered_tags(&file);
+    track.seconds = tagged.properties().duration().as_secs_f64();
+    let tags = ordered_tags(&tagged);
+    track.loudness = file.revision_matches(&track.url, key.as_deref()).then(|| ScannedLoudness { key, tag: track_gain(&tags) });
     if let Some(title) = tags.iter().find_map(|tag| tag.title().map(|t| t.trim().to_string()).filter(|t| !t.is_empty())) {
         track.title = title;
     }
@@ -953,6 +1159,7 @@ mod tests {
             modified: 0,
             added: 0,
             reread: false,
+            loudness: None,
         }
     }
 
@@ -1103,6 +1310,73 @@ mod tests {
             data.extend_from_slice(v1);
         }
         data
+    }
+
+    #[test]
+    fn loudness_probe_leaves_an_unseekable_document_at_its_first_byte() {
+        struct Pipe(io::Cursor<Vec<u8>>);
+        impl Read for Pipe {
+            fn read(&mut self, into: &mut [u8]) -> io::Result<usize> { self.0.read(into) }
+        }
+        impl Seek for Pipe {
+            fn seek(&mut self, _: SeekFrom) -> io::Result<u64> { Err(io::ErrorKind::NotSeekable.into()) }
+        }
+        let original = b"provider bytes, not a local path";
+        let provider = bern::files::SourceFile::new(Pipe(io::Cursor::new(original.to_vec())), 0);
+        let mut file = AudioFile { reader: AudioReader::Provider(provider), len: 0 };
+        assert_eq!(opened_loudness(None, "content://library/4", "a.mp3", &mut file).unwrap(), (None, None));
+        let mut played = Vec::new();
+        file.read_to_end(&mut played).unwrap();
+        assert_eq!(played.as_slice(), original);
+        assert!(file.revision_matches("content://library/4", None));
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn replaced_master_uses_its_own_tags_even_if_size_and_mtime_match() {
+        let folder = std::env::temp_dir().join(format!("enji-loudness-revision-{}-{:016x}", std::process::id(), rand::random::<u64>()));
+        fs::create_dir(&folder).unwrap();
+        let path = folder.join("private-name.mp3");
+        let url = file_url(&path);
+        let bytes = |gain| {
+            let tags = id3v23_tag(&[id3v23_text_frame(b"TXXX", 0, format!("REPLAYGAIN_TRACK_GAIN\0-{gain}.0 dB").as_bytes())]);
+            minimal_mp3(Some(&tags), None)
+        };
+        let old_bytes = bytes(8);
+        fs::write(&path, &old_bytes).unwrap();
+        let mut old = open_audio(&url).unwrap();
+        let (key, tag) = opened_loudness(None, &url, "private-name.mp3", &mut old).unwrap();
+        assert_eq!(tag.unwrap().gain_db(), -8.0);
+        assert!(!key.as_deref().unwrap().contains("private-name"));
+        let mut snapshot = track(&url, "same catalogue song", 180.0, 34, old.len());
+        snapshot.loudness = Some(ScannedLoudness { key: key.clone(), tag });
+        let original_mtime = fs::metadata(&path).unwrap().modified().unwrap();
+        // Keep the old handle open while the path begins naming a new inode/file ID.
+        fs::rename(&path, folder.join("old.mp3")).unwrap();
+        let replacement = bytes(3);
+        assert_eq!(replacement.len(), old_bytes.len());
+        fs::write(&path, &replacement).unwrap();
+        fs::OpenOptions::new().write(true).open(&path).unwrap().set_modified(original_mtime).unwrap();
+        let mut new = open_audio(&url).unwrap();
+        let (new_key, new_tag) = opened_loudness(Some(&snapshot), &url, "private-name.mp3", &mut new).unwrap();
+        assert!(new_key.is_some() && new_key != key);
+        assert_eq!(new_tag.unwrap().gain_db(), -3.0);
+        // Even after the rename an existing handle's probe must not use the new file's tags/key.
+        let mut new_snapshot = snapshot.clone();
+        new_snapshot.loudness = Some(ScannedLoudness { key: new_key.clone(), tag: new_tag });
+        let (old_key_now, old_tag) = opened_loudness(Some(&new_snapshot), &url, "private-name.mp3", &mut old).unwrap();
+        assert_ne!(old_key_now, new_key);
+        assert_eq!(old_tag.unwrap().gain_db(), -8.0);
+        let mut played = Vec::new();
+        new.read_to_end(&mut played).unwrap();
+        assert_eq!(played, replacement);
+        assert!(new.revision_matches(&url, new_key.as_deref()));
+        let next_mtime = original_mtime + Duration::from_secs(4);
+        fs::write(&path, bytes(6)).unwrap();
+        fs::OpenOptions::new().write(true).open(&path).unwrap().set_modified(next_mtime).unwrap();
+        assert!(!new.revision_matches(&url, new_key.as_deref()));
+        drop((old, new));
+        fs::remove_dir_all(folder).unwrap();
     }
 
     #[test]

@@ -1,0 +1,9 @@
+{
+  "id": "example.attenuation-only",
+  "name": "只减不增",
+  "version": "1.0.0",
+  "description": "采用宿主建议的衰减，不放大较安静的歌曲。",
+  "minHostVersion": "0.3.19",
+  "main": "main.js",
+  "permissions": ["audio_gain"]
+}

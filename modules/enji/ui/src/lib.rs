@@ -23,6 +23,11 @@ pub enum Shelf {
 pub struct MainDraft {
     /// The playing song is shown over everything.
     pub now: bool,
+    /// Close a queue popover when one of its songs opens a modal chooser.
+    /// The window bar and the full player may both be mounted, so their
+    /// presentation bindings must not be shared.
+    pub bar_queue_open: bool,
+    pub now_queue_open: bool,
     /// The lyric line the lyrics stand at.
     pub line: i64,
     /// The lyrics are being scrolled by hand.
@@ -798,37 +803,60 @@ pub fn watch_history_page(app: enji::Client) -> impl View {
 #[component]
 pub fn history_row(app: enji::Client, played: enji::Played) -> impl View {
     ui! {
-        Button(id: played_song, label: played.song.name, variant: row) {
-            Row(gap: if window.watch { 8 } else { 14 }, padding_x: if window.watch { 6 } else { 12 }, padding_y: if window.watch { 5 } else { 7 }, align: center) {
-                Stack(width: if window.watch { 34 } else { 44 }, height: if window.watch { 34 } else { 44 }) {
-                    cover_placeholder(side: if window.watch { 34.0 } else { 44.0 })
-                    Image(source: played.song.cover, width: if window.watch { 34 } else { 44 }, height: if window.watch { 34 } else { 44 }, fit: cover, corner: 6)
+        if app.has_track_actions {
+            Button(id: played_with_plugins, label: played.song.name, variant: row) {
+                history_line(app: app, played: played)
+                ContextMenu {
+                    MenuItem(id: played_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(Source::History, played.key)
+                    MenuItem(id: played_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(Source::History, played.key)
+                    MenuItem(id: played_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: played.song.id > 0 && app.login == Login::In) => app.choose_playlist(Source::History, played.key)
+                    MenuItem(id: played_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: played.song.artist_id > 0) => app.open_artist(played.song.artist_id)
+                    MenuItem(id: played_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: played.song.album_id > 0) => app.open_album(played.song.album_id)
+                    MenuItem(id: played_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(played.song, false)
+                    Divider
+                    MenuItem(id: played_remove, label: tr! { "zh-Hans" => "从播放记录中删除", "en" => "Remove from History" }, icon: "trash", role: destructive) => app.remove_history(played.key)
                 }
-                Column(gap: 3, align: leading) {
-                    if played.song.id == app.current_id {
-                        Text(content: played.song.name, lines: 1, color: accent, bold: true)
-                    } else {
-                        Text(content: played.song.name, lines: 1)
-                    }
-                    Text(content: played.song.artists, style: caption, emphasis: secondary, lines: 1)
+            } => app.play(Source::History, played.key)
+        } else {
+            Button(id: played_song, label: played.song.name, variant: row) {
+                history_line(app: app, played: played)
+                ContextMenu {
+                    MenuItem(id: history_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(Source::History, played.key)
+                    MenuItem(id: history_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(Source::History, played.key)
+                    MenuItem(id: history_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: played.song.id > 0 && app.login == Login::In) => app.choose_playlist(Source::History, played.key)
+                    MenuItem(id: history_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: played.song.artist_id > 0) => app.open_artist(played.song.artist_id)
+                    MenuItem(id: history_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: played.song.album_id > 0) => app.open_album(played.song.album_id)
+                    Divider
+                    MenuItem(id: history_remove, label: tr! { "zh-Hans" => "从播放记录中删除", "en" => "Remove from History" }, icon: "trash", role: destructive) => app.remove_history(played.key)
                 }
-                Spacer
-                if !window.watch {
-                    Column(width: 96, align: trailing) {
-                        Text(content: played.when, style: caption, emphasis: tertiary, lines: 1)
-                    }
+            } => app.play(Source::History, played.key)
+        }
+    }
+}
+
+#[component]
+pub fn history_line(app: enji::Client, played: enji::Played) -> impl View {
+    ui! {
+        Row(gap: if window.watch { 8 } else { 14 }, padding_x: if window.watch { 6 } else { 12 }, padding_y: if window.watch { 5 } else { 7 }, align: center) {
+            Stack(width: if window.watch { 34 } else { 44 }, height: if window.watch { 34 } else { 44 }) {
+                cover_placeholder(side: if window.watch { 34.0 } else { 44.0 })
+                Image(source: played.song.cover, width: if window.watch { 34 } else { 44 }, height: if window.watch { 34 } else { 44 }, fit: cover, corner: 6)
+            }
+            Column(gap: 3, align: leading) {
+                if played.song.id == app.current_id {
+                    Text(content: played.song.name, lines: 1, color: accent, bold: true)
+                } else {
+                    Text(content: played.song.name, lines: 1)
+                }
+                Text(content: played.song.artists, style: caption, emphasis: secondary, lines: 1)
+            }
+            Spacer
+            if !window.watch {
+                Column(width: 96, align: trailing) {
+                    Text(content: played.when, style: caption, emphasis: tertiary, lines: 1)
                 }
             }
-            ContextMenu {
-                MenuItem(id: history_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(Source::History, played.key)
-                MenuItem(id: history_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(Source::History, played.key)
-                MenuItem(id: history_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: played.song.id > 0 && app.login == Login::In) => app.choose_playlist(Source::History, played.key)
-                MenuItem(id: history_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: played.song.artist_id > 0) => app.open_artist(played.song.artist_id)
-                MenuItem(id: history_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: played.song.album_id > 0) => app.open_album(played.song.album_id)
-                Divider
-                MenuItem(id: history_remove, label: tr! { "zh-Hans" => "从播放记录中删除", "en" => "Remove from History" }, icon: "trash", role: destructive) => app.remove_history(played.key)
-            }
-        } => app.play(Source::History, played.key)
+        }
     }
 }
 
@@ -1046,26 +1074,42 @@ pub fn account_top(app: enji::Client) -> impl View {
             Stack(variant: card) {
                 Column(gap: 0) {
                     ForEach(items: app.top_songs, key: id) |song| {
-                        Button(id: top_song, label: song.name, variant: row) {
-                            Row(gap: if window.watch { 8 } else { 12 }, padding_x: if window.watch { 8 } else { 12 }, padding_y: if window.watch { 6 } else { 8 }, align: center) {
-                                if !window.watch {
-                                    Column(width: 20, align: center) {
-                                        Text(content: tr! { "zh-Hans" => "{n}", "en" => "{n}"; n: song.rank }, style: caption, emphasis: secondary)
-                                    }
+                        if app.has_track_actions {
+                            Button(id: top_song_with_plugins, label: song.name, variant: row) {
+                                top_song_line(song: song)
+                                ContextMenu {
+                                    MenuItem(id: top_song_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
                                 }
-                                Image(source: song.cover, width: if window.watch { 34 } else { 42 }, height: if window.watch { 34 } else { 42 }, fit: cover, corner: 6)
-                                Column(gap: 1, align: leading) {
-                                    Text(content: song.name, style: subheadline, lines: 1)
-                                    Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
-                                }
-                                Spacer
-                                if !window.watch {
-                                    Text(content: tr! { "zh-Hans" => "{n} 次", "en" => "{n}×"; n: song.plays }, style: caption, emphasis: secondary, lines: 1)
-                                }
-                            }
-                        } => app.play(Source::Top, song.index)
+                            } => app.play(Source::Top, song.index)
+                        } else {
+                            Button(id: top_song, label: song.name, variant: row) {
+                                top_song_line(song: song)
+                            } => app.play(Source::Top, song.index)
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn top_song_line(song: enji::Song) -> impl View {
+    ui! {
+        Row(gap: if window.watch { 8 } else { 12 }, padding_x: if window.watch { 8 } else { 12 }, padding_y: if window.watch { 6 } else { 8 }, align: center) {
+            if !window.watch {
+                Column(width: 20, align: center) {
+                    Text(content: tr! { "zh-Hans" => "{n}", "en" => "{n}"; n: song.rank }, style: caption, emphasis: secondary)
+                }
+            }
+            Image(source: song.cover, width: if window.watch { 34 } else { 42 }, height: if window.watch { 34 } else { 42 }, fit: cover, corner: 6)
+            Column(gap: 1, align: leading) {
+                Text(content: song.name, style: subheadline, lines: 1)
+                Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+            }
+            Spacer
+            if !window.watch {
+                Text(content: tr! { "zh-Hans" => "{n} 次", "en" => "{n}×"; n: song.plays }, style: caption, emphasis: secondary, lines: 1)
             }
         }
     }
@@ -1752,7 +1796,9 @@ pub fn song_row(
     removable: bool,
 ) -> impl View {
     ui! {
-        if removable {
+        if app.has_track_actions {
+            song_row_with_plugin_actions(app: app, song: song, source: source, full: full, removable: removable)
+        } else if removable {
             Button(id: own_song, label: song.name, variant: row, enabled: !song.unavailable) {
                 song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
                 ContextMenu {
@@ -1797,6 +1843,73 @@ pub fn song_row(
                     MenuItem(id: song_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: song.artist_id > 0) => app.open_artist(song.artist_id)
                     MenuItem(id: song_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: song.album_id > 0) => app.open_album(song.album_id)
                     MenuItem(id: song_download, label: tr! { "zh-Hans" => "下载", "en" => "Download" }, icon: "arrow.down.circle", enabled: song.id > 0 && !song.unavailable) => app.download(source, song.index)
+                }
+            } => app.play(source, song.index)
+        }
+    }
+}
+
+/// ContextMenu takes a fixed list of native MenuItems. Choose the menu with
+/// the extra entry only when it can open; never leave a dead item in the
+/// ordinary menu. The plugin entry, unlike playback, takes the record itself.
+#[component]
+pub fn song_row_with_plugin_actions(
+    app: enji::Client,
+    song: enji::Song,
+    source: Source,
+    full: bool,
+    removable: bool,
+) -> impl View {
+    ui! {
+        if removable {
+            Button(id: own_song, label: song.name, variant: row, enabled: !song.unavailable) {
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
+                ContextMenu {
+                    MenuItem(id: own_song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
+                    MenuItem(id: own_song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
+                    MenuItem(id: own_song_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: song.id > 0 && app.login == Login::In) => app.choose_playlist(source, song.index)
+                    MenuItem(id: own_song_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: song.artist_id > 0) => app.open_artist(song.artist_id)
+                    MenuItem(id: own_song_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: song.album_id > 0) => app.open_album(song.album_id)
+                    MenuItem(id: own_song_download, label: tr! { "zh-Hans" => "下载", "en" => "Download" }, icon: "arrow.down.circle", enabled: song.id > 0 && !song.unavailable) => app.download(source, song.index)
+                    MenuItem(id: own_song_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
+                    Divider
+                    MenuItem(id: song_remove, label: tr! { "zh-Hans" => "从歌单中删除", "en" => "Remove from Playlist" }, icon: "trash", role: destructive) => app.remove_from_playlist(song.index)
+                }
+            } => app.play(source, song.index)
+        } else if song.file != "" && app.netease {
+            Button(id: file_song, label: song.name, variant: row) {
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
+                ContextMenu {
+                    MenuItem(id: file_song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
+                    MenuItem(id: file_song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
+                    MenuItem(id: file_song_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: song.id > 0 && app.login == Login::In) => app.choose_playlist(source, song.index)
+                    MenuItem(id: file_song_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: song.artist_id > 0) => app.open_artist(song.artist_id)
+                    MenuItem(id: file_song_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: song.album_id > 0) => app.open_album(song.album_id)
+                    MenuItem(id: file_song_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
+                    Divider
+                    MenuItem(id: file_song_match, label: tr! { "zh-Hans" => "匹配网易云歌曲…", "en" => "Match on NetEase…" }, icon: "link") => app.begin_matching(source, song.index)
+                }
+            } => app.play(source, song.index)
+        } else if !app.netease {
+            Button(id: plain_song, label: song.name, variant: row, enabled: !song.unavailable) {
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
+                ContextMenu {
+                    MenuItem(id: plain_song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
+                    MenuItem(id: plain_song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
+                    MenuItem(id: plain_song_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
+                }
+            } => app.play(source, song.index)
+        } else {
+            Button(id: song, label: song.name, variant: row, enabled: !song.unavailable) {
+                song_line(app: app, song: song, full: full, marked: !(source == Source::Local || source == Source::LocalResults))
+                ContextMenu {
+                    MenuItem(id: song_next, label: tr! { "zh-Hans" => "下一首播放", "en" => "Play Next" }, icon: "forward.fill") => app.play_next(source, song.index)
+                    MenuItem(id: song_queue, label: tr! { "zh-Hans" => "加入播放队列", "en" => "Add to Queue" }, icon: "list.bullet") => app.add_to_queue(source, song.index)
+                    MenuItem(id: song_add, label: tr! { "zh-Hans" => "添加到歌单…", "en" => "Add to Playlist…" }, icon: "plus", enabled: song.id > 0 && app.login == Login::In) => app.choose_playlist(source, song.index)
+                    MenuItem(id: song_artist, label: tr! { "zh-Hans" => "查看歌手", "en" => "Go to Artist" }, icon: "person.crop.circle", enabled: song.artist_id > 0) => app.open_artist(song.artist_id)
+                    MenuItem(id: song_album, label: tr! { "zh-Hans" => "查看专辑", "en" => "Go to Album" }, icon: "square.grid.2x2", enabled: song.album_id > 0) => app.open_album(song.album_id)
+                    MenuItem(id: song_download, label: tr! { "zh-Hans" => "下载", "en" => "Download" }, icon: "arrow.down.circle", enabled: song.id > 0 && !song.unavailable) => app.download(source, song.index)
+                    MenuItem(id: song_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
                 }
             } => app.play(source, song.index)
         }
@@ -2032,7 +2145,7 @@ pub fn player_bar(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                     IconButton(id: bar_play, icon: "play.fill", font_size: 26, prominence: plain, enabled: app.current_id != 0, label: tr! { "zh-Hans" => "播放", "en" => "Play" }) => app.toggle()
                 }
                 IconButton(id: bar_next, icon: "forward.fill", font_size: 17, prominence: plain, enabled: app.current_id != 0, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }) => app.next_song()
-                PopoverButton(id: bar_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 16, prominence: plain) {
+                PopoverButton(id: bar_queue, presented: draft.bar_queue_open, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 16, prominence: plain) {
                     queue_list(app: app, width: 380.0)
                 }
             }
@@ -2137,7 +2250,7 @@ pub fn mini_player(app: enji::Client, #[session] draft: MainDraft) -> impl View 
 /// What plays on a phone: where it is, the way through the queue, and the
 /// switches between what shows in place of the cover.
 #[component]
-pub fn phone_controls(app: enji::Client, song: enji::Song) -> impl View {
+pub fn phone_controls(app: enji::Client, song: enji::Song, #[session] draft: MainDraft) -> impl View {
     ui! {
         Column(gap: if window.compact { 32 } else { 6 }, padding_x: 28, padding_y: 8) {
             Column(gap: 6) {
@@ -2200,7 +2313,7 @@ pub fn phone_controls(app: enji::Client, song: enji::Song) -> impl View {
                 // iPhone keeps a popover 19 from each side of the screen and
                 // Bern pads it by 16, which leaves 305 on the narrowest, 375 wide.
                 Stack(width: if app.android { 48 } else if app.windows { 38 } else { 32 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center) {
-                    PopoverButton(id: phone_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
+                    PopoverButton(id: phone_queue, presented: draft.now_queue_open, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
                         queue_list(app: app, width: 300.0)
                     }
                 }
@@ -2266,6 +2379,7 @@ pub fn side_now_playing(
                             }
                             Spacer
                             like_button(app: app)
+                            player_plugin_button(app: app, song: song)
                             IconButton(id: side_close_now, icon: "chevron.down", font_size: 20, prominence: plain, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => draft.now.set(false)
                         }
                         Spacer
@@ -2307,6 +2421,7 @@ pub fn phone_now_playing(
                     Row(padding_x: 16, padding_y: 4, align: center) {
                         IconButton(id: phone_close_now, icon: "chevron.down", font_size: 20, prominence: plain, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => draft.now.set(false)
                         Spacer
+                        player_plugin_button(app: app, song: song)
                     }
                     if app.panel_open {
                         Row(gap: 12, padding_x: 24, padding_y: 8, align: center) {
@@ -2517,7 +2632,7 @@ pub fn now_playing(
                                 }
                             }
                             Stack(width: if app.android { 48 } else if app.windows { 38 } else { 32 }, height: if app.android { 48 } else if app.windows { 38 } else { 32 }, align: center) {
-                                PopoverButton(id: now_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
+                                PopoverButton(id: now_queue, presented: draft.now_queue_open, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "list.bullet", font_size: 18, prominence: plain) {
                                     queue_list(app: app, width: 380.0)
                                 }
                             }
@@ -2540,6 +2655,7 @@ pub fn now_playing(
                 Column(gap: 0) {
                     Row(variant: close_now, padding_x: 24, padding_y: 18) {
                         Spacer
+                        player_plugin_button(app: app, song: song)
                         IconButton(id: close_now, icon: "chevron.down", font_size: 20, prominence: plain, label: tr! { "zh-Hans" => "收起", "en" => "Close" }) => draft.now.set(false)
                     }
                     Spacer
@@ -2896,9 +3012,13 @@ pub fn tv_now_playing(
                             }
                         }
                     }
-                    Column(gap: 2, align: leading) {
-                        Text(content: song.name, style: title3, bold: true, lines: 1)
-                        Text(content: song.artists, style: callout, emphasis: secondary, lines: 1)
+                    Row(gap: 8, align: center) {
+                        Column(gap: 2, align: leading) {
+                            Text(content: song.name, style: title3, bold: true, lines: 1)
+                            Text(content: song.artists, style: callout, emphasis: secondary, lines: 1)
+                        }
+                        Spacer
+                        player_plugin_button(app: app, song: song)
                     }
                     tv_progress(app: app)
                     if window.medium {
@@ -2959,9 +3079,12 @@ pub fn watch_now_playing(
                 } else {
                     Column(gap: 4, padding_x: 10, align: center) {
                         Column(variant: watch_top_room) {}
-                        Column(gap: 1, padding_x: 8, align: center) {
-                            Text(content: song.name, style: headline, bold: true, lines: 1)
-                            Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+                        Row(gap: 2, align: center) {
+                            Column(gap: 1, padding_x: if app.has_player_actions { 2 } else { 8 }, align: center) {
+                                Text(content: song.name, style: headline, bold: true, lines: 1)
+                                Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+                            }
+                            player_plugin_button(app: app, song: song)
                         }
                         Spacer
                         Row(gap: 6, align: center) {
@@ -2982,7 +3105,7 @@ pub fn watch_now_playing(
                         Row(gap: 6, padding_y: 2, align: center) {
                             like_button(app: app)
                             IconButton(id: watch_lyrics, icon: "quote.bubble", height: 32, font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "歌词", "en" => "Lyrics" }) => app.toggle_panel(Panel::Lyrics)
-                            PopoverButton(id: watch_queue, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "music.note.list", font_size: 15, prominence: plain) {
+                            PopoverButton(id: watch_queue, presented: draft.now_queue_open, label: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, icon: "music.note.list", font_size: 15, prominence: plain) {
                                 watch_queue_list(app: app)
                             }
                             mode_button(app: app)
@@ -3008,20 +3131,7 @@ pub fn watch_queue_list(app: enji::Client) -> impl View {
         Column(gap: 6) {
             Text(content: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, style: headline)
             ForEach(items: app.queue, key: index) |song| {
-                Button(id: queued, label: song.name, variant: row, width: fill) {
-                    Row(gap: 8, padding_x: 8, padding_y: 6, align: center) {
-                        Image(source: song.cover, width: 30, height: 30, fit: cover, corner: 6)
-                        Column(gap: 1, align: leading) {
-                            if song.index == app.queue_at {
-                                Text(content: song.name, lines: 1, bold: true, color: accent)
-                            } else {
-                                Text(content: song.name, lines: 1)
-                            }
-                            Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
-                        }
-                        Spacer
-                    }
-                } => app.play_queued(song.index)
+                queue_song_row(app: app, song: song)
             }
         }
     }
@@ -3155,29 +3265,73 @@ pub fn queue_list(app: enji::Client, width: f64) -> impl View {
             ScrollView {
                 Column(gap: 2) {
                     ForEach(items: app.queue, key: index) |song| {
-                        Button(id: queued, label: song.name, variant: row) {
-                            Row(gap: 10, padding_x: 8, padding_y: 6, align: center) {
-                                Stack(width: 40, height: 40) {
-                                    cover_placeholder(side: 40.0)
-                                    Image(source: song.cover, width: 40, height: 40, fit: cover, corner: 6)
-                                }
-                                Column(gap: 2, align: leading) {
-                                    if song.index == app.queue_at {
-                                        Text(content: song.name, lines: 1, bold: true)
-                                    } else {
-                                        Text(content: song.name, lines: 1)
-                                    }
-                                    Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
-                                }
-                                Spacer
-                                Text(content: song.duration, style: caption, emphasis: tertiary, lines: 1)
-                            }
-                            ContextMenu {
-                                MenuItem(id: unqueue, label: tr! { "zh-Hans" => "从播放队列中删除", "en" => "Remove from Queue" }, icon: "trash", role: destructive, enabled: song.index != app.queue_at) => app.remove_from_queue(song.index)
-                            }
-                        } => app.play_queued(song.index)
+                        queue_song_row(app: app, song: song)
                     }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn queue_song_row(app: enji::Client, song: enji::Song) -> impl View {
+    ui! {
+        if window.watch {
+            if app.has_track_actions {
+                Button(id: watch_queued_with_plugins, label: song.name, variant: row, width: fill) {
+                    queue_song_line(app: app, song: song)
+                    ContextMenu {
+                        MenuItem(id: watch_queued_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
+                    }
+                } => app.play_queued(song.index)
+            } else {
+                Button(id: watch_queued, label: song.name, variant: row, width: fill) {
+                    queue_song_line(app: app, song: song)
+                } => app.play_queued(song.index)
+            }
+        } else if app.has_track_actions {
+            Button(id: queued_with_plugins, label: song.name, variant: row) {
+                queue_song_line(app: app, song: song)
+                ContextMenu {
+                    MenuItem(id: queued_plugins, label: tr! { "zh-Hans" => "插件操作…", "en" => "Plugin Actions…" }, icon: "puzzlepiece.extension") => app.open_plugin_actions(song, false)
+                    Divider
+                    MenuItem(id: queued_remove, label: tr! { "zh-Hans" => "从播放队列中删除", "en" => "Remove from Queue" }, icon: "trash", role: destructive, enabled: song.index != app.queue_at) => app.remove_from_queue(song.index)
+                }
+            } => app.play_queued(song.index)
+        } else {
+            Button(id: queued, label: song.name, variant: row) {
+                queue_song_line(app: app, song: song)
+                ContextMenu {
+                    MenuItem(id: unqueue, label: tr! { "zh-Hans" => "从播放队列中删除", "en" => "Remove from Queue" }, icon: "trash", role: destructive, enabled: song.index != app.queue_at) => app.remove_from_queue(song.index)
+                }
+            } => app.play_queued(song.index)
+        }
+    }
+}
+
+#[component]
+pub fn queue_song_line(app: enji::Client, song: enji::Song) -> impl View {
+    ui! {
+        Row(gap: if window.watch { 8 } else { 10 }, padding_x: 8, padding_y: 6, align: center) {
+            if window.watch {
+                Image(source: song.cover, width: 30, height: 30, fit: cover, corner: 6)
+            } else {
+                Stack(width: 40, height: 40) {
+                    cover_placeholder(side: 40.0)
+                    Image(source: song.cover, width: 40, height: 40, fit: cover, corner: 6)
+                }
+            }
+            Column(gap: if window.watch { 1 } else { 2 }, align: leading) {
+                if song.index == app.queue_at && window.watch {
+                    Text(content: song.name, lines: 1, bold: true, color: accent)
+                } else {
+                    Text(content: song.name, lines: 1, bold: song.index == app.queue_at)
+                }
+                Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+            }
+            Spacer
+            if !window.watch {
+                Text(content: song.duration, style: caption, emphasis: tertiary, lines: 1)
             }
         }
     }
@@ -3351,6 +3505,121 @@ pub fn watch_naming_dialog(app: enji::Client, #[session] draft: MainDraft) -> im
     }
 }
 
+/// In a player layout `song` is the displayed record, not a request to look
+/// up whichever song happens to be current when the worker handles the tap.
+#[component]
+pub fn player_plugin_button(app: enji::Client, song: enji::Song) -> impl View {
+    ui! {
+        if app.has_player_actions {
+            IconButton(id: player_plugin_actions, icon: "ellipsis", height: if window.watch { 28 } else if app.android { 48 } else { 36 }, font_size: 18, prominence: plain, label: tr! { "zh-Hans" => "正在播放的插件操作", "en" => "Now Playing Plugin Actions" }) => app.open_plugin_actions(song, true)
+        }
+    }
+}
+
+/// A chooser is keyed to an opening, not just to a plugin or song id. Its
+/// buttons carry that token and the declaring plugin even across list edits.
+#[component]
+pub fn plugin_actions_dialog(app: enji::Client, song: enji::Song, player: bool, token: i64) -> impl View {
+    ui! {
+        Modal(width: if window.watch { 220 } else if window.tv { 720 } else { 420 }) {
+            Column(gap: if window.watch { 6 } else { 12 }, padding: if window.watch { 8 } else { 20 }) {
+                Column(gap: 2, align: leading) {
+                    Text(content: tr! { "zh-Hans" => "插件操作", "en" => "Plugin Actions" }, style: headline, bold: true)
+                    Text(content: song.name, style: subheadline, lines: 2)
+                    Text(content: song.artists, style: caption, emphasis: secondary, lines: 1)
+                }
+                ScrollView {
+                    Column(gap: 2) {
+                        ForEach(items: app.plugins, key: id) |plugin| {
+                            if plugin.enabled && plugin.fits {
+                                if player {
+                                    ForEach(items: plugin.player_actions, key: id) |item| {
+                                        plugin_action_row(app: app, plugin: plugin, item: item, token: token)
+                                    }
+                                } else {
+                                    ForEach(items: plugin.track_actions, key: id) |item| {
+                                        plugin_action_row(app: app, plugin: plugin, item: item, token: token)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Button(id: close_plugin_actions, label: tr! { "zh-Hans" => "取消", "en" => "Cancel" }, role: cancel) => app.close_plugin_actions(token)
+            }
+            Shortcut(key: "escape") => app.close_plugin_actions(token)
+        }
+    }
+}
+
+#[component]
+pub fn plugin_action_row(app: enji::Client, plugin: enji::Plugin, item: enji::PluginAction, token: i64) -> impl View {
+    ui! {
+        Button(id: run_plugin_action, label: tr! { "zh-Hans" => "{name}：{action}（{id}）", "en" => "{name}: {action} ({id})"; name: plugin.name, action: item.label, id: plugin.id }, variant: row) {
+            Row(padding_x: 8, padding_y: 6) {
+                Column(gap: 2, align: leading) {
+                    Text(content: item.label)
+                    Text(content: tr! { "zh-Hans" => "{name} · {id}", "en" => "{name} · {id}"; name: plugin.name, id: plugin.id }, style: caption, emphasis: secondary)
+                }
+                Spacer
+            }
+        } => app.run_plugin_action(plugin.id, item.id, token)
+    }
+}
+
+/// Settings declared by this plugin. Submit the native control's new value on
+/// its own typed command; in particular the enum option "true" stays a string.
+#[component]
+pub fn plugin_settings(app: enji::Client, plugin: enji::Plugin) -> impl View {
+    ui! {
+        Column(gap: 0, align: leading) {
+            ForEach(items: plugin.switches, key: id) |setting| {
+                Column(padding_y: 6) {
+                    Switch(id: plugin_bool, label: setting.label, checked: setting.value, style: switch) => app.set_plugin_bool(plugin.id, setting.id, setting.value)
+                }
+            }
+            ForEach(items: plugin.numbers, key: id) |setting| {
+                Column(gap: 4, padding_y: 6, align: leading) {
+                    Text(content: tr! { "zh-Hans" => "{label}：{value}", "en" => "{label}: {value}"; label: setting.label, value: setting.value })
+                    Slider(id: plugin_number, label: setting.label, label_hidden: true, current: setting.position, min: 0, max: 1) => app.set_plugin_number_position(plugin.id, setting.id, setting.position)
+                }
+            }
+            ForEach(items: plugin.choices, key: id) |setting| {
+                Column(gap: 6, padding_y: 6, align: leading) {
+                    Text(content: setting.label)
+                    Flow(gap: 6) {
+                        ForEach(items: setting.options, key: value) |option| {
+                            if option.value == setting.value {
+                                Button(id: plugin_option_selected, label: tr! { "zh-Hans" => "{option}（已选）", "en" => "{option} (selected)"; option: option.value }, icon: "checkmark", shape: chip, prominence: prominent) => app.set_plugin_choice(plugin.id, setting.id, option.value)
+                            } else {
+                                Button(id: plugin_option, label: option.value, shape: chip) => app.set_plugin_choice(plugin.id, setting.id, option.value)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Show declared write access before installing, updating or enabling a
+/// plugin, rather than only after the plugin is already running.
+#[component]
+pub fn plugin_permissions(playback: bool, gain: bool) -> impl View {
+    ui! {
+        if playback || gain {
+            Column(gap: 2, align: leading) {
+                if playback {
+                    Text(content: tr! { "zh-Hans" => "可控制播放", "en" => "Can control playback" }, style: caption, bold: true)
+                }
+                if gain {
+                    Text(content: tr! { "zh-Hans" => "可建议单曲增益", "en" => "Can suggest per-track gain" }, style: caption, bold: true)
+                }
+            }
+        }
+    }
+}
+
 /// The installed plugins and what the market lists, over the settings.
 #[component]
 pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl View {
@@ -3372,6 +3641,7 @@ pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl Vi
                                             Column(gap: 2, align: leading) {
                                                 Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: plugin.name, version: plugin.version })
                                                 Text(content: plugin.description, style: caption, emphasis: secondary, lines: 2)
+                                                plugin_permissions(playback: plugin.playback_control, gain: plugin.audio_gain)
                                                 if !plugin.fits {
                                                     Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: plugin.platforms }, style: caption, emphasis: tertiary)
                                                 }
@@ -3379,6 +3649,9 @@ pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl Vi
                                             Spacer
                                             Switch(id: plugin_enabled, label: plugin.name, label_hidden: true, checked: plugin.enabled, style: switch) => app.set_plugin_enabled(plugin.id, plugin.enabled)
                                             IconButton(id: remove_plugin, icon: "trash", font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "删除插件", "en" => "Remove Plugin" }) => app.remove_plugin(plugin.id)
+                                        }
+                                        if plugin.fits {
+                                            plugin_settings(app: app, plugin: plugin)
                                         }
                                     }
                                 }
@@ -3395,6 +3668,7 @@ pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl Vi
                                         Column(gap: 2, align: leading) {
                                             Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
                                             Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
+                                            plugin_permissions(playback: offer.playback_control, gain: offer.audio_gain)
                                             if !offer.fits {
                                                 Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
                                             }
@@ -3534,6 +3808,40 @@ pub fn details_panel(app: enji::Client) -> impl View {
 
 // MARK: - Settings
 
+/// A runtime list of providers cannot be a static enum Picker. Only offer the
+/// single-choice buttons when there is an alternative to the built-in provider.
+#[component]
+pub fn loudness_settings(app: enji::Client) -> impl View {
+    ui! {
+        Column(gap: 8, align: leading) {
+            Switch(id: loudness_enabled, label: tr! { "zh-Hans" => "响度归一化", "en" => "Loudness Normalization" }, checked: app.loudness_enabled, style: switch) => app.set_loudness_enabled(app.loudness_enabled)
+            Text(content: tr! { "zh-Hans" => "让歌曲之间的音量更接近。更改从下次播放起生效，位完美输出不作调整。", "en" => "Keep songs at a similar volume. Changes apply the next time playback starts. Bit-perfect output is unchanged." }, style: caption, emphasis: secondary)
+            if app.loudness_enabled {
+                Text(content: tr! { "zh-Hans" => "未知响度在后台测量，不会为此下载歌曲。", "en" => "Unknown loudness is measured in the background without downloading music just for analysis." }, style: caption, emphasis: secondary)
+                if app.has_gain_plugins {
+                    Text(content: tr! { "zh-Hans" => "响度处理方式", "en" => "Normalization Method" }, style: subheadline, bold: true)
+                    Flow(gap: 6) {
+                        if app.loudness_provider == "" {
+                            Button(id: gain_builtin_selected, label: tr! { "zh-Hans" => "内置（已选）", "en" => "Built-in (selected)" }, icon: "checkmark", shape: chip, prominence: prominent) => app.set_loudness_provider("")
+                        } else {
+                            Button(id: gain_builtin, label: tr! { "zh-Hans" => "内置", "en" => "Built-in" }, shape: chip) => app.set_loudness_provider("")
+                        }
+                        ForEach(items: app.plugins, key: id) |plugin| {
+                            if plugin.enabled && plugin.fits && plugin.audio_gain {
+                                if app.loudness_provider == plugin.id {
+                                    Button(id: gain_plugin_selected, label: tr! { "zh-Hans" => "{name}（已选）", "en" => "{name} (selected)"; name: plugin.name }, icon: "checkmark", shape: chip, prominence: prominent) => app.set_loudness_provider(plugin.id)
+                                } else {
+                                    Button(id: gain_plugin, label: plugin.name, shape: chip) => app.set_loudness_provider(plugin.id)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The settings in cards under the account, as wide as reads well on a
 /// large window.
 #[component]
@@ -3585,6 +3893,7 @@ pub fn watch_settings_list(app: enji::Client) -> impl View {
             }
             Slot(id: feature_switches)
             Picker(id: quality, label: tr! { "zh-Hans" => "音质", "en" => "Quality" }, selected: app.quality, style: menu) => app.set_quality(app.quality)
+            loudness_settings(app: app)
             Switch(id: translation, label: tr! { "zh-Hans" => "歌词翻译", "en" => "Lyric Translations" }, checked: app.show_translation, style: switch) => app.set_show_translation(app.show_translation)
             Switch(id: furigana, label: tr! { "zh-Hans" => "假名注音", "en" => "Furigana" }, checked: app.show_furigana, style: switch) => app.set_show_furigana(app.show_furigana)
             Switch(id: show_format, label: tr! { "zh-Hans" => "编码与比特率", "en" => "Codec and Bitrate" }, checked: app.show_format, style: switch) => app.set_show_format(app.show_format)
@@ -3857,6 +4166,10 @@ pub fn settings_list(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                             Text(content: tr! { "zh-Hans" => "音质", "en" => "Quality" })
                             Spacer
                             Picker(id: quality, label: tr! { "zh-Hans" => "音质", "en" => "Quality" }, label_hidden: true, selected: app.quality, style: menu) => app.set_quality(app.quality)
+                        }
+                        Column(padding_x: 16) { Divider }
+                        Column(padding_x: 16, padding_y: 10) {
+                            loudness_settings(app: app)
                         }
                         Column(padding_x: 16) { Divider }
                         Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {

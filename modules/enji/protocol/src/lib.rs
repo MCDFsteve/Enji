@@ -258,6 +258,50 @@ pub mod enji {
         pub blur: f64,
     }
 
+    /// Settings and actions use ids local to their declaring plugin. Labels
+    /// and enum options are content supplied by that plugin, not UI strings.
+    #[value]
+    pub struct PluginSwitch {
+        pub id: String,
+        #[content]
+        pub label: String,
+        pub value: bool,
+    }
+
+    #[value]
+    pub struct PluginNumber {
+        pub id: String,
+        #[content]
+        pub label: String,
+        /// The setting in the plugin's own units.
+        pub value: f64,
+        /// The same value in the native slider's fixed range, 0 to 1.
+        pub position: f64,
+    }
+
+    #[value]
+    pub struct PluginOption {
+        #[content]
+        pub value: String,
+    }
+
+    #[value]
+    pub struct PluginChoice {
+        pub id: String,
+        #[content]
+        pub label: String,
+        #[content]
+        pub value: String,
+        pub options: Vec<PluginOption>,
+    }
+
+    #[value]
+    pub struct PluginAction {
+        pub id: String,
+        #[content]
+        pub label: String,
+    }
+
     /// An installed plugin.
     #[value]
     pub struct Plugin {
@@ -277,6 +321,15 @@ pub mod enji {
         /// The systems it works on, when not all, such as `Windows`.
         #[content]
         pub platforms: String,
+        /// Write capabilities requested by the installed manifest, including
+        /// when the plugin is disabled. Only enabled gain providers are selectable.
+        pub playback_control: bool,
+        pub audio_gain: bool,
+        pub switches: Vec<PluginSwitch>,
+        pub numbers: Vec<PluginNumber>,
+        pub choices: Vec<PluginChoice>,
+        pub track_actions: Vec<PluginAction>,
+        pub player_actions: Vec<PluginAction>,
     }
 
     /// What NetEase says of the signed-in account, its numbers as they
@@ -379,6 +432,9 @@ pub mod enji {
         pub fits: bool,
         #[content]
         pub platforms: String,
+        /// What this version in the market declares, before installation or update.
+        pub playback_control: bool,
+        pub audio_gain: bool,
     }
 
     /// A song being downloaded, and how far along.
@@ -613,6 +669,17 @@ pub mod enji {
         #[keyed(id)]
         pub plugins: Vec<Plugin>,
         pub has_plugins: bool,
+        /// Whether an enabled plugin offers a gain strategy or actions here.
+        pub has_gain_plugins: bool,
+        pub has_track_actions: bool,
+        pub has_player_actions: bool,
+        /// The exact song for an open action chooser, not a place in a list.
+        pub plugin_action_song: Option<Song>,
+        /// True for actions declared for the player, false for track menus.
+        pub plugin_action_player: bool,
+        /// Each opening gets a new token so obsolete controls cannot act on
+        /// a subsequently opened song.
+        pub plugin_action_token: i64,
         /// What the plugin market lists, once asked.
         #[keyed(id)]
         pub offers: Vec<Offer>,
@@ -705,6 +772,10 @@ pub mod enji {
         pub details_loading: bool,
 
         // Settings, kept on this computer.
+        /// Match the loudness of songs for ordinary playback, off by default.
+        pub loudness_enabled: bool,
+        /// The selected audio_gain plugin id, or empty for built-in normalization.
+        pub loudness_provider: String,
         /// The NetEase Cloud Music module; off, Enji plays local music only.
         pub netease: bool,
         /// Lyrics and covers looked up on NetEase for local songs without them.
@@ -869,6 +940,10 @@ pub mod enji {
         /// Go to where a lyric line is sung.
         fn seek_line(&mut self, key: i64) -> Result<(), CommandError>;
         fn set_volume(&mut self, volume: f64) -> Result<(), CommandError>;
+        /// Apply loudness normalization starting with the next playback.
+        fn set_loudness_enabled(&mut self, on: bool) -> Result<(), CommandError>;
+        /// Select an enabled audio_gain plugin; the empty id selects built-in normalization.
+        fn set_loudness_provider(&mut self, id: String) -> Result<(), CommandError>;
         /// No sound, or the volume from before again.
         fn toggle_mute(&mut self) -> Result<(), CommandError>;
         /// Like the playing song, or no longer; it needs an account.
@@ -928,6 +1003,16 @@ pub mod enji {
         fn download_current(&mut self) -> Result<(), CommandError>;
         /// Turn an installed plugin on or off.
         fn set_plugin_enabled(&mut self, id: String, on: bool) -> Result<(), CommandError>;
+        /// Set a declared preference, addressed by both plugin and setting id.
+        fn set_plugin_bool(&mut self, plugin: String, id: String, value: bool) -> Result<(), CommandError>;
+        /// Map a slider position in 0..=1 into the plugin's declared numeric range.
+        fn set_plugin_number_position(&mut self, plugin: String, id: String, position: f64) -> Result<(), CommandError>;
+        fn set_plugin_choice(&mut self, plugin: String, id: String, value: String) -> Result<(), CommandError>;
+        /// Open actions for the supplied song snapshot, even if playback or its list changes.
+        fn open_plugin_actions(&mut self, song: Song, player: bool) -> Result<(), CommandError>;
+        fn close_plugin_actions(&mut self, token: i64) -> Result<(), CommandError>;
+        /// Run only an action for this chooser's token and context, on its captured song.
+        fn run_plugin_action(&mut self, plugin: String, id: String, token: i64) -> Result<(), CommandError>;
         fn remove_plugin(&mut self, id: String) -> Result<(), CommandError>;
         /// Show what NetEase says of the account.
         fn open_account(&mut self) -> Result<(), CommandError>;

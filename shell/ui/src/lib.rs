@@ -305,6 +305,11 @@ pub fn main_window(
             if let Some(song) = app.matching {
                 match_dialog(app: app, song: song)
             }
+            if let Some(song) = app.plugin_action_song {
+                if (app.plugin_action_player && app.has_player_actions) || (!app.plugin_action_player && app.has_track_actions) {
+                    plugin_actions_dialog(app: app, song: song, player: app.plugin_action_player, token: app.plugin_action_token)
+                }
+            }
             // On a phone, over the small player and the tabs.
             if app.has_notice {
                 Column(padding_x: if window.watch { 16 } else { 24 }, padding_y: if window.watch { 16 } else if window.compact || window.short && !window.tv { 124 } else { 24 }) {
@@ -316,6 +321,9 @@ pub fn main_window(
                     Toast(content: app.error, key: app.error_key)
                 }
             }
+            // The native queue popover gives way to the chooser for its song.
+            Watch(value: app.plugin_action_token) => draft.bar_queue_open.set(false)
+            Watch(value: app.plugin_action_token) => draft.now_queue_open.set(false)
             // Roaming that started with the app plays on the playing page. A
             // watch also runs once as it appears, before that has happened.
             Watch(value: app.fm_opened) => draft.now.set(app.fm_opened > 0)
