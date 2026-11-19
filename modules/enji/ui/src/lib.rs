@@ -24,8 +24,6 @@ pub enum SettingsRoute {
     Playback,
     Lyrics,
     DesktopLyrics,
-    PrimaryColor,
-    SecondaryColor,
     LocalMusic,
     Appearance,
     Features,
@@ -3918,37 +3916,9 @@ pub fn settings_page(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                                         Switch(id: desktop_lyrics_locked, label: tr! { "zh-Hans" => "锁定桌面歌词", "en" => "Lock Desktop Lyrics" }, checked: app.desktop_lyrics_locked, style: switch) => app.set_desktop_lyrics_locked(app.desktop_lyrics_locked)
                                     }
                                 }
-                                if app.desktop_style_supported {
+                                if !window.tv && !window.watch && app.desktop_style_supported {
                                     desktop_lyric_type(app: app)
-                                    Section {
-                                        NavLink(id: settings_primary_color, route: SettingsRoute::PrimaryColor) {
-                                            Text(content: tr! { "zh-Hans" => "主行颜色", "en" => "Primary Line Color" })
-                                        }
-                                        NavLink(id: settings_secondary_color, route: SettingsRoute::SecondaryColor) {
-                                            Text(content: tr! { "zh-Hans" => "副行颜色", "en" => "Secondary Line Color" })
-                                        }
-                                    }
                                 }
-                            }
-                        }
-                        SettingsRoute::PrimaryColor => {
-                            Form(title: tr! { "zh-Hans" => "主行颜色", "en" => "Primary Line Color" }) {
-                                desktop_lyric_rgb(
-                                    app: app,
-                                    red: app.desktop_style.primary_red, red_field: DesktopLyricValue::PrimaryRed,
-                                    green: app.desktop_style.primary_green, green_field: DesktopLyricValue::PrimaryGreen,
-                                    blue: app.desktop_style.primary_blue, blue_field: DesktopLyricValue::PrimaryBlue
-                                )
-                            }
-                        }
-                        SettingsRoute::SecondaryColor => {
-                            Form(title: tr! { "zh-Hans" => "副行颜色", "en" => "Secondary Line Color" }) {
-                                desktop_lyric_rgb(
-                                    app: app,
-                                    red: app.desktop_style.secondary_red, red_field: DesktopLyricValue::SecondaryRed,
-                                    green: app.desktop_style.secondary_green, green_field: DesktopLyricValue::SecondaryGreen,
-                                    blue: app.desktop_style.secondary_blue, blue_field: DesktopLyricValue::SecondaryBlue
-                                )
                             }
                         }
                         SettingsRoute::LocalMusic => {
@@ -4008,48 +3978,33 @@ pub fn settings_account_entry(app: enji::Client) -> impl View {
 #[component]
 pub fn desktop_lyric_type(app: enji::Client) -> impl View {
     ui! {
-        Section {
-            Column(gap: 4) {
-                Text(content: tr! { "zh-Hans" => "主行字号：{size}", "en" => "Primary text size: {size}"; size: app.desktop_style.primary_size })
-                Slider(id: desktop_primary_size, label: tr! { "zh-Hans" => "主行字号", "en" => "Primary text size" }, label_hidden: true, current: app.desktop_style.primary_size, min: 10, max: 72, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::PrimarySize, app.desktop_style.primary_size)
+        if !window.tv && !window.watch {
+            Section {
+                Column(gap: 4) {
+                    Text(content: tr! { "zh-Hans" => "主行字号：{size}", "en" => "Primary text size: {size}"; size: app.desktop_style.primary_size })
+                    Slider(id: desktop_primary_size, label: tr! { "zh-Hans" => "主行字号", "en" => "Primary text size" }, label_hidden: true, continuous: true, current: app.desktop_style.primary_size, min: 10, max: 72, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::PrimarySize, app.desktop_style.primary_size)
+                }
+                ColorPicker(id: desktop_primary_color, label: tr! { "zh-Hans" => "主行颜色", "en" => "Primary color" }, current: app.desktop_style.primary_rgb) => app.set_desktop_lyric_color(true, app.desktop_style.primary_rgb)
+                Column(gap: 4) {
+                    Text(content: tr! { "zh-Hans" => "副行字号：{size}", "en" => "Secondary text size: {size}"; size: app.desktop_style.secondary_size })
+                    Slider(id: desktop_secondary_size, label: tr! { "zh-Hans" => "副行字号", "en" => "Secondary text size" }, label_hidden: true, continuous: true, current: app.desktop_style.secondary_size, min: 10, max: 72, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::SecondarySize, app.desktop_style.secondary_size)
+                }
+                ColorPicker(id: desktop_secondary_color, label: tr! { "zh-Hans" => "副行颜色", "en" => "Secondary color" }, current: app.desktop_style.secondary_rgb) => app.set_desktop_lyric_color(false, app.desktop_style.secondary_rgb)
+                Column(gap: 4) {
+                    Text(content: tr! { "zh-Hans" => "整体不透明度：{value}%", "en" => "Overall opacity: {value}%"; value: app.desktop_style.opacity })
+                    Slider(id: desktop_opacity, label: tr! { "zh-Hans" => "整体不透明度", "en" => "Overall opacity" }, label_hidden: true, continuous: true, current: app.desktop_style.opacity, min: 0, max: 100, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::Opacity, app.desktop_style.opacity)
+                }
+                Picker(id: desktop_lyric_effect, label: tr! { "zh-Hans" => "文字效果", "en" => "Text Effect" }, selected: app.desktop_style.effect, style: menu) => app.set_desktop_lyric_effect(app.desktop_style.effect)
             }
-            Column(gap: 4) {
-                Text(content: tr! { "zh-Hans" => "副行字号：{size}", "en" => "Secondary text size: {size}"; size: app.desktop_style.secondary_size })
-                Slider(id: desktop_secondary_size, label: tr! { "zh-Hans" => "副行字号", "en" => "Secondary text size" }, label_hidden: true, current: app.desktop_style.secondary_size, min: 10, max: 72, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::SecondarySize, app.desktop_style.secondary_size)
-            }
-            Column(gap: 4) {
-                Text(content: tr! { "zh-Hans" => "整体不透明度：{value}%", "en" => "Overall opacity: {value}%"; value: app.desktop_style.opacity })
-                Slider(id: desktop_opacity, label: tr! { "zh-Hans" => "整体不透明度", "en" => "Overall opacity" }, label_hidden: true, current: app.desktop_style.opacity, min: 0, max: 100, step: 1) => app.set_desktop_lyric_value(DesktopLyricValue::Opacity, app.desktop_style.opacity)
-            }
-            Picker(id: desktop_lyric_effect, label: tr! { "zh-Hans" => "文字效果", "en" => "Text Effect" }, selected: app.desktop_style.effect, style: menu) => app.set_desktop_lyric_effect(app.desktop_style.effect)
         }
     }
 }
 
 #[component]
-pub fn desktop_lyric_rgb(
-    app: enji::Client,
-    red: f64,
-    red_field: DesktopLyricValue,
-    green: f64,
-    green_field: DesktopLyricValue,
-    blue: f64,
-    blue_field: DesktopLyricValue,
-) -> impl View {
+pub fn desktop_lyrics_window(app: enji::Client) -> impl View {
     ui! {
-        Section(title: tr! { "zh-Hans" => "RGB（0–255）", "en" => "RGB (0–255)" }) {
-            Column(gap: 4) {
-                Text(content: tr! { "zh-Hans" => "红（R）：{value}", "en" => "Red (R): {value}"; value: red })
-                Slider(id: desktop_color_red, label: tr! { "zh-Hans" => "红（R）", "en" => "Red (R)" }, label_hidden: true, current: red, min: 0, max: 255, step: 1) => app.set_desktop_lyric_value(red_field, red)
-            }
-            Column(gap: 4) {
-                Text(content: tr! { "zh-Hans" => "绿（G）：{value}", "en" => "Green (G): {value}"; value: green })
-                Slider(id: desktop_color_green, label: tr! { "zh-Hans" => "绿（G）", "en" => "Green (G)" }, label_hidden: true, current: green, min: 0, max: 255, step: 1) => app.set_desktop_lyric_value(green_field, green)
-            }
-            Column(gap: 4) {
-                Text(content: tr! { "zh-Hans" => "蓝（B）：{value}", "en" => "Blue (B): {value}"; value: blue })
-                Slider(id: desktop_color_blue, label: tr! { "zh-Hans" => "蓝（B）", "en" => "Blue (B)" }, label_hidden: true, current: blue, min: 0, max: 255, step: 1) => app.set_desktop_lyric_value(blue_field, blue)
-            }
+        Form {
+            desktop_lyric_type(app: app)
         }
     }
 }

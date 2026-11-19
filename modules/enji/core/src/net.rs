@@ -114,8 +114,7 @@ pub enum Job {
     SetCoverLyrics(bool),
     SetDesktopLyrics(bool),
     SetDesktopLyricsLocked(bool),
-    EditDesktopStyle(DesktopEdit, bool),
-    DesktopPanelEvents(Vec<bern::overlay::PanelEvent>),
+    EditDesktopStyle(DesktopEdit),
     SetBernCredit(bool),
     OpenBernHomepage,
     SetSpeakerLyrics(bool),
@@ -426,7 +425,7 @@ fn state_from_settings(saved: &Value) -> State {
         desktop_lyrics: saved["desktop_lyrics"].as_bool().unwrap_or(false),
         desktop_lyrics_locked: saved["desktop_lyrics_locked"].as_bool().unwrap_or(false),
         desktop_lyrics_supported: bern::overlay::supported(),
-        desktop_style_supported: bern::overlay::panel_supported(),
+        desktop_style_supported: bern::overlay::supported(),
         desktop_style: desktop_style::load(&saved["desktop_style"]),
         bern_credit: saved["bern_credit"].as_bool().unwrap_or(true),
         bern_link_supported: false,
@@ -662,9 +661,8 @@ struct Worker {
     plugins: plugins::Plugins,
     /// The ids of the enabled plugins, kept in the settings.
     enabled_plugins: Vec<String>,
-    /// Debounce disk writes while dragging sliders on the desktop lyrics panel.
+    /// Debounce disk writes while dragging sliders in desktop lyrics style controls.
     desktop_save_after: Option<Instant>,
-    desktop_panel_language: String,
     /// What the plugin market lists.
     listings: Vec<plugins::Listing>,
     /// The overlays plugins put up, to take down with them.
@@ -810,7 +808,7 @@ pub async fn run(
     let opens_links = bern::platform::can_open_https(BERN_HOMEPAGE);
     shared.update(|s| {
         s.bern_link_supported = opens_links;
-        s.desktop_style_supported = bern::overlay::panel_supported();
+        s.desktop_style_supported = bern::overlay::supported();
         s.desktop_lyrics_supported = bern::overlay::supported();
     });
     let (volume, exclusive) = shared.read(|s| (s.volume as f32, s.usb_exclusive));
@@ -859,7 +857,6 @@ pub async fn run(
             .map(|ids| ids.iter().filter_map(|id| id.as_str().map(String::from)).collect())
             .unwrap_or_default(),
         desktop_save_after: None,
-        desktop_panel_language: String::new(),
         listings: Vec::new(),
         plugin_overlays: std::collections::HashSet::new(),
         beats_told: 0,
@@ -1356,6 +1353,10 @@ impl Worker {
                 if shown && !bern::overlay::allowed() {
                     bern::overlay::ask();
                 }
+                if !shown {
+                    self.flush_desktop_style();
+                    bern::window::close(desktop_style::SETTINGS_WINDOW_ID);
+                }
                 self.shared.update(|s| {
                     s.desktop_lyrics = shown;
                     save_settings(s);
@@ -1363,30 +1364,17 @@ impl Worker {
                 self.desktop_lyrics();
             }
             Job::SetDesktopLyricsLocked(locked) => {
+                if locked {
+                    self.flush_desktop_style();
+                    bern::window::close(desktop_style::SETTINGS_WINDOW_ID);
+                }
                 self.shared.update(|s| {
                     s.desktop_lyrics_locked = locked;
                     save_settings(s);
                 });
                 self.desktop_lyrics();
             }
-            Job::EditDesktopStyle(edit, committed) => self.edit_desktop_style(edit, committed),
-            Job::DesktopPanelEvents(events) => {
-                for event in events {
-                    match event {
-                        bern::overlay::PanelEvent::Changed {
-                            control,
-                            value,
-                            committed,
-                            ..
-                        } => {
-                            if let Some(edit) = DesktopEdit::native(&control, value) {
-                                self.edit_desktop_style(edit, committed);
-                            }
-                        }
-                        bern::overlay::PanelEvent::Dismissed { .. } => self.flush_desktop_style(),
-                    }
-                }
-            }
+            Job::EditDesktopStyle(edit) => self.edit_desktop_style(edit),
             Job::SetBernCredit(on) => self.shared.update(|s| {
                 s.bern_credit = on;
                 save_settings(s);
@@ -2276,7 +2264,7 @@ impl Worker {
             Some((first, second, first_ruby, second_ruby, route, s.desktop_lyrics_locked, s.playing, s.desktop_style.clone(), s.desktop_style_supported))
         });
         let Some((first, second, first_ruby, second_ruby, route, locked, playing, style, adjustable)) = shown else {
-            return bern::overlay::hide(desktop_style::ID);
+            return bern::overlay::hide(desktop_style::OVERLAY_ID);
         };
         let button = |id: &str, symbol: &str| Button { id: id.into(), symbol: symbol.into(), while_locked: false };
         let mut buttons = vec![
@@ -2290,7 +2278,7 @@ impl Worker {
         buttons.push(Button { id: "lock".into(), symbol: if locked { "lock.open.fill" } else { "lock.fill" }.into(), while_locked: true });
         buttons.push(button("close", "xmark"));
         bern::overlay::show_styled(
-            desktop_style::ID,
+            desktop_style::OVERLAY_ID,
             &Overlay {
                 lines: vec![
                     Line { text: first, ruby: first_ruby, size: style.primary_size, bold: true, color: desktop_style::color(&style, true), lit: None, route },
@@ -2304,31 +2292,19 @@ impl Worker {
         );
     }
 
-    fn open_desktop_panel(&mut self) {
-        self.desktop_panel_language = bern::platform::ui_language();
-        let panel = self.shared.read(|s| desktop_style::panel(&s.desktop_style, &self.desktop_panel_language));
-        bern::overlay::show_panel(desktop_style::ID, Some(&panel));
-    }
-
     fn flush_desktop_style(&mut self) {
         if self.desktop_save_after.take().is_some() {
             self.shared.read(save_settings);
         }
     }
 
-    fn edit_desktop_style(&mut self, edit: DesktopEdit, committed: bool) {
+    fn edit_desktop_style(&mut self, edit: DesktopEdit) {
         if !self.shared.read(|s| s.desktop_style_supported) {
             return;
         }
         self.shared.update(|s| edit.apply(&mut s.desktop_style));
         self.desktop_save_after = Some(Instant::now() + Duration::from_millis(400));
-        if committed {
-            self.flush_desktop_style();
-        }
         self.show_desktop_lyrics();
-        if bern::overlay::panel_open(desktop_style::ID) {
-            self.open_desktop_panel();
-        }
     }
 
     /// The sung line, or the song's name before singing starts, on a
@@ -4468,11 +4444,6 @@ impl Worker {
         if self.desktop_save_after.is_some_and(|at| Instant::now() >= at) {
             self.flush_desktop_style();
         }
-        if bern::overlay::panel_open(desktop_style::ID)
-            && self.desktop_panel_language != bern::platform::ui_language()
-        {
-            self.open_desktop_panel();
-        }
         // Media keys, headphones, Control Center and the like.
         for command in bern::now_playing::take_commands() {
             use bern::now_playing::Command;
@@ -4505,11 +4476,11 @@ impl Worker {
                     let locked = self.shared.read(|s| s.desktop_lyrics_locked);
                     self.handle(Job::SetDesktopLyricsLocked(!locked));
                 }
-                "style" if bern::overlay::panel_open(desktop_style::ID) => {
+                "style" if bern::window::is_open(desktop_style::SETTINGS_WINDOW_ID) => {
                     self.flush_desktop_style();
-                    bern::overlay::show_panel(desktop_style::ID, None);
+                    bern::window::close(desktop_style::SETTINGS_WINDOW_ID);
                 }
-                "style" => self.open_desktop_panel(),
+                "style" => bern::window::open(desktop_style::SETTINGS_WINDOW_ID),
                 "close" => self.handle(Job::SetDesktopLyrics(false)),
                 _ => {}
             }

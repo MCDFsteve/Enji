@@ -66,7 +66,6 @@ impl EnjiEngine {
         }
         let (jobs, receive) = mpsc::unbounded_channel();
         let (shared, changed, waker, own) = (self.shared.clone(), self.changed.clone(), bern::wake::waker(), jobs.clone());
-        bern::overlay::set_panel_waker("lyrics", waker.clone());
         let started = std::thread::Builder::new()
             .name("enji-worker".into())
             .spawn(move || enji_kit::runtime().block_on(net::run(receive, own, shared, changed, waker)));
@@ -107,12 +106,6 @@ impl enji::Engine for EnjiEngine {
 
     fn wake(&mut self) {
         self.start();
-        let events = bern::overlay::take_panel_events("lyrics");
-        if !events.is_empty()
-            && let Some(jobs) = &self.jobs
-        {
-            let _ = jobs.send(Job::DesktopPanelEvents(events));
-        }
         self.quiet = !self.changed.swap(false, Ordering::Acquire);
         if self.quiet {
             self.sync_live();
@@ -459,10 +452,13 @@ impl enji::Commands for EnjiEngine {
         if !value.is_finite() {
             return Err(CommandError::new("invalid_value", "expected a finite number"));
         }
-        self.submit(Job::EditDesktopStyle(net::DesktopEdit::Number(field, value), true))
+        self.submit(Job::EditDesktopStyle(net::DesktopEdit::Number(field, value)))
+    }
+    fn set_desktop_lyric_color(&mut self, primary: bool, rgb: i64) -> Result<(), CommandError> {
+        self.submit(Job::EditDesktopStyle(net::DesktopEdit::Color { primary, rgb }))
     }
     fn set_desktop_lyric_effect(&mut self, effect: enji::DesktopLyricEffect) -> Result<(), CommandError> {
-        self.submit(Job::EditDesktopStyle(net::DesktopEdit::Effect(effect), true))
+        self.submit(Job::EditDesktopStyle(net::DesktopEdit::Effect(effect)))
     }
     fn set_bern_credit(&mut self, on: bool) -> Result<(), CommandError> {
         self.submit(Job::SetBernCredit(on))

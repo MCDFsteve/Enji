@@ -222,24 +222,14 @@ pub mod enji {
         PrimarySize,
         SecondarySize,
         Opacity,
-        PrimaryRed,
-        PrimaryGreen,
-        PrimaryBlue,
-        SecondaryRed,
-        SecondaryGreen,
-        SecondaryBlue,
     }
 
     #[value]
     pub struct DesktopLyricStyle {
         pub primary_size: f64,
         pub secondary_size: f64,
-        pub primary_red: f64,
-        pub primary_green: f64,
-        pub primary_blue: f64,
-        pub secondary_red: f64,
-        pub secondary_green: f64,
-        pub secondary_blue: f64,
+        pub primary_rgb: i64,
+        pub secondary_rgb: i64,
         /// Percent (0–100), independent of the overlay button bar.
         pub opacity: f64,
         pub effect: DesktopLyricEffect,
@@ -1082,6 +1072,7 @@ pub mod enji {
         fn set_desktop_lyrics(&mut self, shown: bool) -> Result<(), CommandError>;
         fn set_desktop_lyrics_locked(&mut self, locked: bool) -> Result<(), CommandError>;
         fn set_desktop_lyric_value(&mut self, field: DesktopLyricValue, value: f64) -> Result<(), CommandError>;
+        fn set_desktop_lyric_color(&mut self, primary: bool, rgb: i64) -> Result<(), CommandError>;
         fn set_desktop_lyric_effect(&mut self, effect: DesktopLyricEffect) -> Result<(), CommandError>;
         fn set_bern_credit(&mut self, on: bool) -> Result<(), CommandError>;
         fn open_bern_homepage(&mut self) -> Result<(), CommandError>;

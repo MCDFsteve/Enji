@@ -219,6 +219,9 @@ pub fn app(
             Window(id: main, title: tr! { "zh-Hans" => "Enji Music", "en" => "Enji Music" }, initial: open, chrome: unified, width: 1200, height: 780, min_width: 960, min_height: 700) {
                 main_window(app: app)
             }
+            Window(id: desktop_lyrics_settings, title: tr! { "zh-Hans" => "桌面歌词", "en" => "Desktop Lyrics" }, initial: closed, role: utility, overlay: "lyrics", width: 340, height: 520) {
+                desktop_lyrics_window(app: app)
+            }
         }
     }
 }
