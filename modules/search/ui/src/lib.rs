@@ -67,9 +67,13 @@ pub fn watch_search_page(
                 } else if search.searched == "" && !search.searching {
                     watch_search_home_content(search: search)
                 } else {
-                    watch_search_kinds(search: search)
-                    if search.searching {
+                    if search.netease {
+                        watch_search_kinds(search: search)
+                    }
+                    if search.searching && search.kind != SearchKind::Songs {
                         song_skeleton()
+                    } else if search.search_failed && search.kind != SearchKind::Songs {
+                        retry_search(search: search)
                     } else if search.no_results {
                         Column(gap: 8, padding_y: 20, align: center) {
                             Text(content: tr! { "zh-Hans" => "没有找到“{text}”相关的结果", "en" => "Nothing found for “{text}”"; text: search.searched }, style: callout, emphasis: secondary)
@@ -144,12 +148,14 @@ pub fn search_body(
         } else {
             Column(gap: 0) {
                 search_kinds(search: search)
-                if search.searching {
+                if search.searching && search.kind != SearchKind::Songs {
                     ScrollView {
                         Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: 4) {
                             song_skeleton()
                         }
                     }
+                } else if search.search_failed && search.kind != SearchKind::Songs {
+                    retry_search(search: search)
                 } else if search.no_results {
                     Row {
                         Spacer
@@ -166,6 +172,13 @@ pub fn search_body(
                 }
             }
         }
+    }
+}
+
+#[component]
+pub fn retry_search(search: search::Client) -> impl View {
+    ui! {
+        Button(id: retry_search, label: tr! { "zh-Hans" => "重试在线搜索", "en" => "Retry Online Search" }) => search.retry()
     }
 }
 
@@ -326,7 +339,11 @@ pub fn watch_search_results_content(app: enji::Client, search: search::Client) -
                             Text(content: tr! { "zh-Hans" => "网易云音乐", "en" => "NetEase Cloud Music" }, style: caption, bold: true)
                         }
                     }
-                    if search.netease {
+                    if search.searching {
+                        song_skeleton()
+                    } else if search.search_failed {
+                        retry_search(search: search)
+                    } else if search.netease {
                         ForEach(items: search.results, key: index) |song| {
                             song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
                         }
@@ -431,7 +448,11 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
                                 }
                             }
                         }
-                        if search.netease {
+                        if search.searching {
+                            song_skeleton()
+                        } else if search.search_failed {
+                            retry_search(search: search)
+                        } else if search.netease {
                             song_header(app: app)
                             Column(gap: 2) {
                                 ForEach(items: search.results, key: index) |song| {
