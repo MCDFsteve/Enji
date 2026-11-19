@@ -3142,6 +3142,7 @@ pub fn watch_queue_list(app: enji::Client) -> impl View {
     ui! {
         Column(gap: 6) {
             Text(content: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, style: headline)
+            clear_play_next_button(app: app)
             ForEach(items: app.queue, key: index) |song| {
                 queue_song_row(app: app, song: song)
             }
@@ -3273,7 +3274,11 @@ pub fn watch_together_dialog(app: enji::Client, #[session] draft: MainDraft) -> 
 pub fn queue_list(app: enji::Client, width: f64) -> impl View {
     ui! {
         Column(gap: 8, padding: 12, width: width, height: 480) {
-            Text(content: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, style: headline)
+            Row(gap: 8, align: center) {
+                Text(content: tr! { "zh-Hans" => "播放列表", "en" => "Queue" }, style: headline)
+                Spacer
+                clear_play_next_button(app: app)
+            }
             ScrollView {
                 Column(gap: 2) {
                     ForEach(items: app.queue, key: index) |song| {
@@ -3281,6 +3286,15 @@ pub fn queue_list(app: enji::Client, width: f64) -> impl View {
                     }
                 }
             }
+        }
+    }
+}
+
+#[component]
+pub fn clear_play_next_button(app: enji::Client) -> impl View {
+    ui! {
+        if app.play_next_count > 0 {
+            Button(id: clear_play_next, label: tr! { "zh-Hans" => "清除插队（{n}）", "en" => "Clear Play Next ({n})"; n: app.play_next_count }, prominence: plain) => app.clear_play_next()
         }
     }
 }

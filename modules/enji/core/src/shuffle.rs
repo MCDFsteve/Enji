@@ -61,6 +61,23 @@ impl Shuffle {
         }
     }
 
+    /// Insert a new queue occurrence directly after the current song in
+    /// shuffle, preserving the rest of this round and its playback history.
+    pub fn insert_next(&mut self, len: usize, current: usize, index: usize) {
+        if len == 1 {
+            self.order = vec![current, index];
+            self.position = 0;
+            return;
+        }
+        self.sync(len, current);
+        for place in &mut self.order {
+            if *place >= index {
+                *place += 1;
+            }
+        }
+        self.order.insert(self.position + 1, index);
+    }
+
     /// `index` moved to just after the playing song; where it is now
     /// (`_placeShuffleIndexNext`).
     pub fn place_next(&mut self, len: usize, current: usize, index: usize) -> usize {
@@ -241,5 +258,20 @@ mod tests {
         assert_eq!(shuffle.previous(1, 0), 0);
         assert_eq!(shuffle.place_next(1, 0, 0), 0);
         assert!(shuffle.order.is_empty());
+    }
+
+    #[test]
+    fn inserting_next_keeps_the_previous_and_following_shuffle_order() {
+        let mut shuffle = Shuffle { order: vec![2, 0, 3, 1], position: 1 };
+        shuffle.insert_next(4, 0, 1);
+        shuffle.insert_next(5, 0, 1);
+        assert_eq!(shuffle.order, [4, 0, 1, 2, 5, 3]);
+        assert_eq!(shuffle.previous(6, 0), 4);
+        assert_eq!(shuffle.next(6, 0), 1);
+        assert_eq!(shuffle.next(6, 1), 2);
+        assert_eq!(shuffle.next(6, 2), 5);
+        shuffle.clear();
+        shuffle.insert_next(1, 0, 1);
+        assert_eq!(shuffle.order, [0, 1]);
     }
 }

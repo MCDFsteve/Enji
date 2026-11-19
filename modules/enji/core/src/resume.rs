@@ -5,6 +5,8 @@
 use enji_kit::convert;
 use enji_protocol::enji::Song;
 use serde_json::{json, Value};
+use std::fs;
+use std::io::{self, BufWriter, Write};
 use std::time::{Duration, Instant};
 
 const QUEUE: &str = "queue.json";
@@ -17,6 +19,7 @@ pub struct Left {
     pub songs: Vec<Song>,
     pub at: usize,
     pub position: f64,
+    pub play_next_count: usize,
 }
 
 fn left_from(queue: &Value, place: &Value) -> Option<Left> {
@@ -28,7 +31,15 @@ fn left_from(queue: &Value, place: &Value) -> Option<Left> {
         .filter(|song| song.id != 0)
         .collect();
     let at = usize::try_from(place["at"].as_i64()?).ok()?;
-    (at < songs.len()).then(|| Left { songs, at, position: place["position"].as_f64().unwrap_or(0.0).max(0.0) })
+    // A crash can leave the previous checkpoint next to a newly saved queue.
+    if place["queueMark"].as_u64().is_some_and(|saved| saved != mark(&songs)) {
+        return None;
+    }
+    (at < songs.len()).then(|| {
+        let play_next_count = place["playNext"].as_u64().and_then(|n| usize::try_from(n).ok())
+            .filter(|&n| n <= songs.len() - at - 1).unwrap_or(0);
+        Left { songs, at, position: place["position"].as_f64().unwrap_or(0.0).max(0.0), play_next_count }
+    })
 }
 
 /// The queue that was left, if there is one.
@@ -41,22 +52,51 @@ fn mark(songs: &[Song]) -> u64 {
     songs.iter().fold(songs.len() as u64, |mark, song| mark.wrapping_mul(31).wrapping_add(song.id as u64))
 }
 
+fn write_queue(out: &mut impl Write, songs: &[Song]) -> io::Result<()> {
+    out.write_all(b"[")?;
+    for (index, song) in songs.iter().enumerate() {
+        if index > 0 {
+            out.write_all(b",")?;
+        }
+        serde_json::to_writer(&mut *out, &convert::song_json(song))?;
+    }
+    out.write_all(b"]")
+}
+
+fn save_queue(songs: &[Song]) -> io::Result<()> {
+    let dir = enji_kit::store::dir();
+    fs::create_dir_all(&dir)?;
+    let temp = dir.join(format!("queue.{}.tmp", std::process::id()));
+    let save = || {
+        let mut out = BufWriter::new(fs::File::create(&temp)?);
+        write_queue(&mut out, songs)?;
+        out.flush()?;
+        drop(out);
+        fs::rename(&temp, dir.join(QUEUE))
+    };
+    let result = save();
+    if result.is_err() {
+        let _ = fs::remove_file(temp);
+    }
+    result
+}
+
 #[derive(Default)]
 pub struct Resume {
-    queue: u64,
+    queue: Option<u64>,
+    play_next_count: usize,
     saved_at: Option<Instant>,
 }
 
 impl Resume {
-    /// The song at `at` of `songs` starts, or was left as it is.
-    pub fn song(&mut self, songs: &[Song], at: usize) {
+    /// Save the current queue and checkpoint after a song change or queue edit.
+    pub fn update(&mut self, songs: &[Song], at: usize, position: f64, play_next_count: usize) {
         let now = mark(songs);
-        if now != self.queue {
-            self.queue = now;
-            let saved: Vec<Value> = songs.iter().map(convert::song_json).collect();
-            enji_kit::store::write(QUEUE, &Value::Array(saved));
+        if self.queue != Some(now) {
+            self.queue = save_queue(songs).ok().map(|()| now);
         }
-        self.place(at, 0.0);
+        self.play_next_count = play_next_count;
+        self.place(at, position);
     }
 
     /// Where it is now, written down every few seconds.
@@ -68,8 +108,12 @@ impl Resume {
 
     /// Where it is now, written down at once.
     pub fn place(&mut self, at: usize, position: f64) {
+        // A checkpoint must refer to a queue that was successfully saved.
+        let Some(queue_mark) = self.queue else { return };
         self.saved_at = Some(Instant::now());
-        enji_kit::store::write(PLACE, &json!({ "at": at, "position": position }));
+        enji_kit::store::write(PLACE, &json!({
+            "at": at, "position": position, "playNext": self.play_next_count, "queueMark": queue_mark,
+        }));
     }
 }
 
@@ -87,6 +131,37 @@ mod tests {
         assert_eq!(left.songs.len(), 2);
         assert_eq!(left.at, 1);
         assert_eq!(left.position, 83.5);
+        assert_eq!(left.play_next_count, 0);
+    }
+
+    #[test]
+    fn only_restore_requests_that_fit_after_the_current_song() {
+        let queue = songs();
+        for (at, saved, expected) in [(0, 1, 1), (1, 1, 0), (0, -1, 0), (0, 5, 0)] {
+            let left = left_from(&queue, &json!({ "at": at, "playNext": saved })).unwrap();
+            assert_eq!(left.play_next_count, expected);
+        }
+    }
+
+    #[test]
+    fn a_checkpoint_from_a_replaced_queue_cannot_restore_its_requests() {
+        let queue = songs();
+        let old = left_from(&queue, &json!({ "at": 0 })).unwrap();
+        let place = json!({ "at": 0, "playNext": 1, "queueMark": mark(&old.songs) });
+        assert_eq!(left_from(&queue, &place).unwrap().play_next_count, 1);
+        assert!(left_from(&json!([{ "id": 8 }, { "id": 7 }]), &place).is_none());
+    }
+
+    #[test]
+    fn streamed_queue_preserves_the_existing_file_format() {
+        for entries in [json!([]), json!([{ "id": 1, "name": "楽曲 \"A\"" }, { "id": 2, "file": "a\\b" }])] {
+            let queue: Vec<_> = entries.as_array().unwrap().iter().enumerate()
+                .map(|(index, song)| convert::song_from_json(song, index)).collect();
+            let mut bytes = Vec::new();
+            write_queue(&mut bytes, &queue).unwrap();
+            let expected = Value::Array(queue.iter().map(convert::song_json).collect());
+            assert_eq!(bytes, expected.to_string().as_bytes());
+        }
     }
 
     #[test]

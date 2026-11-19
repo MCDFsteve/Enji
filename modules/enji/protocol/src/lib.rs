@@ -894,6 +894,8 @@ pub mod enji {
         /// A folder was not added: it cannot be read here.
         pub folder_refused: bool,
         pub folder_refused_key: i64,
+        /// Number of unplayed Play Next entries immediately after the current row.
+        pub play_next_count: i64,
     }
 
     #[commands]
@@ -1086,6 +1088,10 @@ pub mod enji {
         /// Show `message` as a failure, as the core shows its own; for the
         /// modules.
         fn show_error(&mut self, message: String) -> Result<(), CommandError>;
+        /// Remove only pending Play Next requests, keeping the current track.
+        fn clear_play_next(&mut self) -> Result<(), CommandError>;
+        /// Raise or lower the player volume by five percentage points.
+        fn step_volume(&mut self, up: bool) -> Result<(), CommandError>;
     }
 
     #[events]

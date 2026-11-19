@@ -6,6 +6,7 @@
 mod desktop_style;
 mod normalization;
 mod plugin_api;
+mod up_next;
 
 pub use desktop_style::Edit as DesktopEdit;
 const BERN_HOMEPAGE: &str = "https://bern.aimes-soft.com";
@@ -58,6 +59,7 @@ pub enum Job {
     Seek(f64),
     SeekLine(i64),
     Volume(f64),
+    StepVolume(bool),
     ToggleMute,
     Browse(bool),
     PlayQueued(usize),
@@ -177,6 +179,7 @@ pub enum Job {
     PlayNext(Source, usize),
     AddToQueue(Source, usize),
     RemoveFromQueue(usize),
+    ClearPlayNext,
     RemoveHistory(usize),
     ClearHistory,
     ChoosePlaylist(Source, usize),
@@ -303,6 +306,7 @@ fn state_from_settings(saved: &Value) -> State {
         current_liked: false,
         queue: Vec::new(),
         queue_at: 0,
+        play_next_count: 0,
         mode: match pick("mode").as_str() {
             "RepeatOne" => PlayMode::RepeatOne,
             "Shuffle" => PlayMode::Shuffle,
@@ -635,8 +639,8 @@ struct Worker {
     scrolled_at: Instant,
     /// The queue's shuffled order, kept as Misuzu Music keeps it.
     shuffle: Shuffle,
-    /// The songs put to play next, the latest first.
-    play_next: Vec<i64>,
+    /// Consecutive Play Next requests immediately after `at`, latest first.
+    play_next_count: usize,
     /// The songs whose comments and details are loaded, and the comment
     /// page reached.
     comments_for: i64,
@@ -839,7 +843,7 @@ pub async fn run(
         scrolling: false,
         scrolled_at: Instant::now(),
         shuffle: Shuffle::default(),
-        play_next: Vec::new(),
+        play_next_count: 0,
         comments_for: 0,
         comments_page: 0,
         details_for: 0,
@@ -1396,7 +1400,7 @@ impl Worker {
                 self.speaker_lyrics();
             }
             Job::Download(source, index) => {
-                if let Some(song) = self.list_of(&source).get(index).cloned() {
+                if let Some(song) = self.song_at(&source, index) {
                     self.download(song);
                 }
             }
@@ -1495,6 +1499,10 @@ impl Worker {
                 }
             }
             Job::Volume(volume) => self.set_volume(volume),
+            Job::StepVolume(up) => {
+                let percent = self.shared.read(|s| (s.volume * 100.0).round());
+                self.set_volume((percent + if up { 5.0 } else { -5.0 }) / 100.0);
+            }
             Job::ToggleMute => {
                 let volume = self.shared.read(|s| s.volume);
                 if volume > 0.0 {
@@ -1816,27 +1824,27 @@ impl Worker {
                 self.publish_library();
             }
             Job::PlayNext(source, index) => {
-                if let Some(song) = self.list_of(&source).get(index).cloned() {
+                if let Some(song) = self.song_at(&source, index) {
                     let was_empty = self.queue.is_empty();
                     let at = if was_empty { 0 } else { self.at + 1 };
-                    self.mark_play_next(song.id);
+                    if !was_empty {
+                        self.play_next_count += 1;
+                        if self.shuffling() {
+                            self.shuffle.insert_next(self.queue.len(), self.at, at);
+                        }
+                    }
                     self.queue.insert(at, song);
                     if was_empty {
                         self.at = 0;
-                    }
-                    if self.shuffling() {
-                        self.shuffle.generate(self.queue.len(), self.at);
-                    }
-                    self.publish_queue();
-                    if was_empty {
                         self.start(0);
                     } else {
+                        self.queue_edited();
                         self.shared.tell("将在下一首播放");
                     }
                 }
             }
             Job::AddToQueue(source, index) => {
-                if let Some(song) = self.list_of(&source).get(index).cloned() {
+                if let Some(song) = self.song_at(&source, index) {
                     let was_empty = self.queue.is_empty();
                     self.queue.push(song);
                     if was_empty {
@@ -1845,24 +1853,33 @@ impl Worker {
                     if self.shuffling() {
                         self.shuffle.generate(self.queue.len(), self.at);
                     }
-                    self.publish_queue();
                     if was_empty {
                         self.start(0);
                     } else {
+                        self.queue_edited();
                         self.shared.tell("已加入播放队列");
                     }
                 }
             }
             Job::RemoveFromQueue(index) => {
                 if index < self.queue.len() && index != self.at {
-                    let removed = self.queue.remove(index);
-                    self.play_next.retain(|&id| id != removed.id);
+                    self.queue.remove(index);
+                    if up_next::range(self.at, self.play_next_count).contains(&index) {
+                        self.play_next_count -= 1;
+                    }
                     if index < self.at {
                         self.at -= 1;
                     }
                     // The order no longer fits the queue: publishing it
                     // shuffles anew, as Misuzu Music does.
-                    self.publish_queue();
+                    self.queue_edited();
+                }
+            }
+            Job::ClearPlayNext => {
+                if self.play_next_count > 0 {
+                    up_next::discard(&mut self.queue, &mut self.shuffle.order, up_next::range(self.at, self.play_next_count));
+                    self.play_next_count = 0;
+                    self.queue_edited();
                 }
             }
             Job::RemoveHistory(index) => {
@@ -1879,7 +1896,7 @@ impl Worker {
                 self.save_history();
             }
             Job::ChoosePlaylist(source, index) => {
-                let Some(song) = self.list_of(&source).get(index).cloned() else { return };
+                let Some(song) = self.song_at(&source, index) else { return };
                 if song.id <= 0 {
                     return self.shared.fail("本地歌曲还不能加入网易云歌单");
                 }
@@ -2080,6 +2097,9 @@ impl Worker {
 
     fn set_volume(&mut self, volume: f64) {
         let volume = volume.clamp(0.0, 1.0);
+        if self.shared.read(|s| s.volume == volume) {
+            return;
+        }
         if volume > 0.0 {
             self.unmuted = volume;
         }
@@ -2092,19 +2112,29 @@ impl Worker {
 
     // MARK: Local music, history and the queue
 
-    /// The songs of a list a song can be played from.
-    fn list_of(&self, source: &Source) -> Vec<Song> {
-        self.shared.read(|s| match source {
-            Source::Daily => self.daily.clone(),
-            Source::Playlist => s.opened_songs.clone(),
-            Source::Search => self.results.clone(),
-            Source::Local => s.local.clone(),
-            Source::LocalResults => self.local_results.clone(),
-            Source::History => s.history.iter().map(|played| played.song.clone()).collect(),
-            Source::Album => s.album_songs.clone(),
-            Source::Top => s.top_songs.clone(),
-            Source::Artist => s.artist_songs.clone(),
+    fn from_list<T>(&self, source: &Source, select: impl FnOnce(&mut dyn Iterator<Item = &Song>) -> T) -> T {
+        self.shared.read(|s| {
+            let songs = match source {
+                Source::Daily => &self.daily,
+                Source::Playlist => &s.opened_songs,
+                Source::Search => &self.results,
+                Source::Local => &s.local,
+                Source::LocalResults => &self.local_results,
+                Source::History => return select(&mut s.history.iter().map(|played| &played.song)),
+                Source::Album => &s.album_songs,
+                Source::Top => &s.top_songs,
+                Source::Artist => &s.artist_songs,
+            };
+            select(&mut songs.iter())
         })
+    }
+
+    fn list_of(&self, source: &Source) -> Vec<Song> {
+        self.from_list(source, |songs| songs.cloned().collect())
+    }
+
+    fn song_at(&self, source: &Source, index: usize) -> Option<Song> {
+        self.from_list(source, |songs| songs.nth(index).cloned())
     }
 
     /// A new queue, `at` playing; Misuzu Music's `setQueue`.
@@ -2112,7 +2142,7 @@ impl Worker {
         self.shared.update(|s| s.fm = false);
         self.fm_waiting = false;
         self.queue = songs;
-        self.play_next.clear();
+        self.play_next_count = 0;
         self.shuffle.clear();
         self.at = at.min(self.queue.len().saturating_sub(1));
         if self.shuffling() && self.queue.len() > 1 {
@@ -2125,23 +2155,9 @@ impl Worker {
         self.shared.read(|s| s.mode == PlayMode::Shuffle)
     }
 
-    fn mark_play_next(&mut self, id: i64) {
-        self.play_next.retain(|&one| one != id);
-        self.play_next.insert(0, id);
-    }
-
-    /// Where the latest song put to play next is in the queue, if it is
-    /// still there and not playing.
-    fn take_play_next(&mut self) -> Option<usize> {
-        while !self.play_next.is_empty() {
-            let id = self.play_next.remove(0);
-            if let Some(index) = self.queue.iter().position(|song| song.id == id)
-                && index != self.at
-            {
-                return Some(index);
-            }
-        }
-        None
+    fn queue_edited(&mut self) {
+        self.resume.update(&self.queue, self.at, self.position, self.play_next_count);
+        self.publish_queue();
     }
 
     /// The queue as it plays from the playing song on, round to the songs
@@ -2157,15 +2173,11 @@ impl Worker {
         };
         let first = playing.min(places.len());
         places.rotate_left(first);
-        // The songs likely to play soon get their covers fetched ahead: one
-        // put to play next, the next two in play order, the one before,
-        // and the playing one, for when it plays again.
-        let soon: Vec<Song> = self
-            .play_next
-            .first()
-            .and_then(|id| self.queue.iter().find(|song| song.id == *id))
-            .into_iter()
-            .chain(places.iter().skip(1).take(2).map(|&i| &self.queue[i]))
+        if self.shuffling() {
+            up_next::show(&mut places, up_next::range(self.at, self.play_next_count));
+        }
+        // Prefetch the first two upcoming covers, the preceding cover and the current one.
+        let soon: Vec<Song> = places.iter().skip(1).take(2).map(|&i| &self.queue[i])
             .chain(places.last().filter(|_| places.len() > 3).map(|&i| &self.queue[i]))
             .chain(places.first().map(|&i| &self.queue[i]))
             .cloned()
@@ -2176,6 +2188,7 @@ impl Worker {
         self.shared.update(|s| {
             s.queue = shown;
             s.queue_at = at;
+            s.play_next_count = self.play_next_count as i64;
         });
         self.tell_queue();
         self.report_to_room(false);
@@ -2697,7 +2710,7 @@ impl Worker {
     /// Search NetEase for the local song at `index` of a list, to choose
     /// its NetEase song by hand.
     fn begin_matching(&mut self, source: Source, index: usize) {
-        let Some(song) = self.list_of(&source).get(index).cloned().filter(|song| !song.file.is_empty()) else { return };
+        let Some(song) = self.song_at(&source, index).filter(|song| !song.file.is_empty()) else { return };
         let (title, artists) = self
             .library
             .tracks
@@ -3338,9 +3351,10 @@ impl Worker {
     fn open_left(&mut self) {
         let Some(left) = resume::load() else { return };
         self.set_queue(left.songs, left.at);
+        self.play_next_count = left.play_next_count;
         let Some(song) = self.queue.get(self.at).cloned().map(crate::covers::localized) else { return };
         self.paused = true;
-        self.resume.song(&self.queue, self.at);
+        self.resume.update(&self.queue, self.at, left.position, self.play_next_count);
         self.shared.update(|s| {
             s.current = Some(song.clone());
             s.current_id = song.id;
@@ -3379,8 +3393,12 @@ impl Worker {
     }
 
     fn start(&mut self, index: usize) {
+        if index >= self.queue.len() {
+            return;
+        }
+        let index = up_next::select(&mut self.queue, &mut self.shuffle.order, self.at, index, &mut self.play_next_count);
         // Its covers from this device when they were fetched ahead.
-        let Some(song) = self.queue.get(index).cloned().map(crate::covers::localized) else { return };
+        let song = crate::covers::localized(self.queue[index].clone());
         self.finish_listening();
         self.begin_listening(&song);
         self.room_song_ended = None;
@@ -3390,7 +3408,7 @@ impl Worker {
         self.paused = false;
         self.left_at = None;
         self.start_at = None;
-        self.resume.song(&self.queue, index);
+        self.resume.update(&self.queue, index, 0.0, self.play_next_count);
         // More to come before the heart mode runs out.
         if song.id > 0 && index + 3 >= self.queue.len() && self.in_heart_mode() {
             self.ask_heart(song.id);
@@ -3662,15 +3680,15 @@ impl Worker {
             return;
         }
         let roaming = self.in_fm();
-        if roaming && forward && self.at + 1 >= count && self.play_next.is_empty() {
+        if roaming && forward && self.at + 1 >= count {
             self.fm_waiting = true;
             return self.ask_fm();
         }
         // Roaming goes from song to song, whatever the mode was.
         let mode = if roaming { PlayMode::RepeatAll } else { self.shared.read(|s| s.mode.clone()) };
-        if forward && let Some(index) = self.take_play_next() {
+        if forward && self.play_next_count > 0 {
+            let index = self.at + 1;
             if mode == PlayMode::Shuffle && count > 1 {
-                self.shuffle.sync(count, self.at);
                 self.shuffle.position = self.shuffle.place_next(count, self.at, index);
             }
             return self.start(index);
@@ -3878,10 +3896,10 @@ impl Worker {
             return;
         }
         self.heart_filled = true;
-        self.queue.truncate(self.at + 1);
+        self.queue.truncate(self.at + 1 + self.play_next_count);
         let played: std::collections::HashSet<i64> = self.queue.iter().map(|song| song.id).collect();
         self.queue.extend(songs.into_iter().filter(|song| !played.contains(&song.id)));
-        self.publish_queue();
+        self.queue_edited();
     }
 
     /// Back to the list played before the heart mode, at the playing song.
@@ -3898,7 +3916,8 @@ impl Worker {
         self.queue = queue;
         self.at = at;
         self.queue_list = list;
-        self.play_next.clear();
+        self.play_next_count = 0;
+        self.resume.update(&self.queue, self.at, self.position, self.play_next_count);
     }
 
     /// The song was moved to `position`, which it reaches soon.
