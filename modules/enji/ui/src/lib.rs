@@ -1319,10 +1319,7 @@ pub fn album_page(app: enji::Client, album: enji::Album) -> impl View {
                         Text(content: app.album_meta, style: caption, emphasis: secondary)
                         album_actions(app: app)
                     }
-                    if app.album_loading {
-                        song_skeleton()
-                    }
-                    Column(gap: 2) {
+                    Column(gap: 2, skeleton: app.album_loading) {
                         ForEach(items: app.album_songs, key: index) |song| {
                             song_row(app: app, song: song, source: Source::Album, full: true, removable: false)
                         }
@@ -1363,10 +1360,7 @@ pub fn album_page(app: enji::Client, album: enji::Album) -> impl View {
                         }
                     }
                     song_header(app: app)
-                    if app.album_loading {
-                        song_skeleton()
-                    }
-                    Column(gap: 2) {
+                    Column(gap: 2, skeleton: app.album_loading) {
                         ForEach(items: app.album_songs, key: index) |song| {
                             song_row(app: app, song: song, source: Source::Album, full: true, removable: false)
                         }
@@ -1430,24 +1424,20 @@ pub fn artist_page(app: enji::Client, artist: enji::Artist) -> impl View {
                         Text(content: artist.detail, style: caption, emphasis: secondary)
                         artist_actions(app: app)
                     }
-                    if app.artist_loading {
-                        song_skeleton()
-                    } else {
-                        Column(padding_x: 4, padding_y: 8) {
-                            Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: caption, bold: true)
+                    Column(padding_x: 4, padding_y: 8) {
+                        Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: caption, bold: true)
+                    }
+                    Column(gap: 2, skeleton: app.artist_loading) {
+                        ForEach(items: app.artist_songs, key: index) |song| {
+                            song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
                         }
-                        Column(gap: 2) {
-                            ForEach(items: app.artist_songs, key: index) |song| {
-                                song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
-                            }
-                        }
-                        Column(padding_x: 4, padding_y: 10) {
-                            Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: caption, bold: true)
-                        }
-                        Column(gap: 4) {
-                            ForEach(items: app.artist_albums, key: id) |album| {
-                                watch_album_row(app: app, album: album)
-                            }
+                    }
+                    Column(padding_x: 4, padding_y: 10) {
+                        Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: caption, bold: true)
+                    }
+                    Column(gap: 4, skeleton: app.artist_loading, skeleton_count: 4) {
+                        ForEach(items: app.artist_albums, key: id) |album| {
+                            watch_album_row(app: app, album: album)
                         }
                     }
                 }
@@ -1481,26 +1471,22 @@ pub fn artist_page(app: enji::Client, artist: enji::Artist) -> impl View {
                             Spacer
                         }
                     }
-                    if app.artist_loading {
-                        song_skeleton()
-                    } else {
-                        Column(padding_x: 12, padding_y: 8) {
-                            Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: title3, bold: true)
+                    Column(padding_x: 12, padding_y: 8) {
+                        Text(content: tr! { "zh-Hans" => "热门歌曲", "en" => "Top Songs" }, style: title3, bold: true)
+                    }
+                    song_header(app: app)
+                    Column(gap: 2, skeleton: app.artist_loading) {
+                        ForEach(items: app.artist_songs, key: index) |song| {
+                            song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
                         }
-                        song_header(app: app)
-                        Column(gap: 2) {
-                            ForEach(items: app.artist_songs, key: index) |song| {
-                                song_row(app: app, song: song, source: Source::Artist, full: true, removable: false)
-                            }
-                        }
-                        Column(padding_x: 12, padding_y: 20) {
-                            Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: title3, bold: true)
-                        }
-                        Column(padding_x: 12, padding_y: 4) {
-                            Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
-                                ForEach(items: app.artist_albums, key: id, stagger: 0.02) |album| {
-                                    album_card(app: app, album: album)
-                                }
+                    }
+                    Column(padding_x: 12, padding_y: 20) {
+                        Text(content: tr! { "zh-Hans" => "专辑", "en" => "Albums" }, style: title3, bold: true)
+                    }
+                    Column(padding_x: 12, padding_y: 4) {
+                        Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }, skeleton: app.artist_loading, skeleton_count: 6) {
+                            ForEach(items: app.artist_albums, key: id, stagger: 0.02) |album| {
+                                album_card(app: app, album: album)
                             }
                         }
                     }
@@ -1554,10 +1540,7 @@ pub fn playlist_page(app: enji::Client, list: enji::Playlist) -> impl View {
                         Text(content: app.opened_meta, style: caption, emphasis: secondary)
                         phone_playlist_actions(app: app, list: list)
                     }
-                    if app.opened_loading {
-                        song_skeleton()
-                    }
-                    Column(gap: 2) {
+                    Column(gap: 2, skeleton: app.opened_loading) {
                         ForEach(items: app.opened_songs, key: index) |song| {
                             song_row(app: app, song: song, source: Source::Playlist, full: true, removable: app.opened_owned)
                         }
@@ -1600,13 +1583,10 @@ pub fn playlist_page(app: enji::Client, list: enji::Playlist) -> impl View {
                         }
                     }
                     song_header(app: app)
-                    if app.opened_loading {
-                        song_skeleton()
-                    }
                     // In the scroll view, rows are built as they come into view:
                     // a playlist of a thousand songs does not fetch a thousand
                     // covers at once.
-                    Column(gap: 2) {
+                    Column(gap: 2, skeleton: app.opened_loading) {
                         ForEach(items: app.opened_songs, key: index) |song| {
                             song_row(app: app, song: song, source: Source::Playlist, full: true, removable: app.opened_owned)
                         }
@@ -2020,63 +2000,6 @@ pub fn song_header(app: enji::Client) -> impl View {
                     }
                 }
                 Divider
-            }
-        }
-    }
-}
-
-/// Rows standing in for songs while they load, each coming up in turn.
-#[component]
-pub fn song_skeleton() -> impl View {
-    ui! {
-        Column(gap: 2, stagger: 0.05) {
-            Row(gap: 14, padding_x: 12, padding_y: 7, align: center, appear: rise) {
-                Canvas(width: 44, height: 44) { Shape(kind: rounded, width: 44, height: 44, corner: 6, fill: text.primary, opacity: 0.07) }
-                Column(gap: 8, align: leading) {
-                    Canvas(width: 220, height: 12) { Shape(kind: capsule, width: 220, height: 12, fill: text.primary, opacity: 0.09) }
-                    Canvas(width: 120, height: 10) { Shape(kind: capsule, width: 120, height: 10, fill: text.primary, opacity: 0.06) }
-                }
-                Spacer
-            }
-            Row(gap: 14, padding_x: 12, padding_y: 7, align: center, appear: rise) {
-                Canvas(width: 44, height: 44) { Shape(kind: rounded, width: 44, height: 44, corner: 6, fill: text.primary, opacity: 0.07) }
-                Column(gap: 8, align: leading) {
-                    Canvas(width: 160, height: 12) { Shape(kind: capsule, width: 160, height: 12, fill: text.primary, opacity: 0.09) }
-                    Canvas(width: 90, height: 10) { Shape(kind: capsule, width: 90, height: 10, fill: text.primary, opacity: 0.06) }
-                }
-                Spacer
-            }
-            Row(gap: 14, padding_x: 12, padding_y: 7, align: center, appear: rise) {
-                Canvas(width: 44, height: 44) { Shape(kind: rounded, width: 44, height: 44, corner: 6, fill: text.primary, opacity: 0.07) }
-                Column(gap: 8, align: leading) {
-                    Canvas(width: 250, height: 12) { Shape(kind: capsule, width: 250, height: 12, fill: text.primary, opacity: 0.09) }
-                    Canvas(width: 140, height: 10) { Shape(kind: capsule, width: 140, height: 10, fill: text.primary, opacity: 0.06) }
-                }
-                Spacer
-            }
-            Row(gap: 14, padding_x: 12, padding_y: 7, align: center, appear: rise) {
-                Canvas(width: 44, height: 44) { Shape(kind: rounded, width: 44, height: 44, corner: 6, fill: text.primary, opacity: 0.07) }
-                Column(gap: 8, align: leading) {
-                    Canvas(width: 190, height: 12) { Shape(kind: capsule, width: 190, height: 12, fill: text.primary, opacity: 0.09) }
-                    Canvas(width: 110, height: 10) { Shape(kind: capsule, width: 110, height: 10, fill: text.primary, opacity: 0.06) }
-                }
-                Spacer
-            }
-            Row(gap: 14, padding_x: 12, padding_y: 7, align: center, appear: rise) {
-                Canvas(width: 44, height: 44) { Shape(kind: rounded, width: 44, height: 44, corner: 6, fill: text.primary, opacity: 0.07) }
-                Column(gap: 8, align: leading) {
-                    Canvas(width: 230, height: 12) { Shape(kind: capsule, width: 230, height: 12, fill: text.primary, opacity: 0.09) }
-                    Canvas(width: 80, height: 10) { Shape(kind: capsule, width: 80, height: 10, fill: text.primary, opacity: 0.06) }
-                }
-                Spacer
-            }
-            Row(gap: 14, padding_x: 12, padding_y: 7, align: center, appear: rise) {
-                Canvas(width: 44, height: 44) { Shape(kind: rounded, width: 44, height: 44, corner: 6, fill: text.primary, opacity: 0.07) }
-                Column(gap: 8, align: leading) {
-                    Canvas(width: 170, height: 12) { Shape(kind: capsule, width: 170, height: 12, fill: text.primary, opacity: 0.09) }
-                    Canvas(width: 130, height: 10) { Shape(kind: capsule, width: 130, height: 10, fill: text.primary, opacity: 0.06) }
-                }
-                Spacer
             }
         }
     }
@@ -2734,40 +2657,26 @@ pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
 pub fn loading_lines() -> impl View {
     ui! {
         Column(gap: 4, padding_x: 14, stagger: 0.06) {
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 24) {
-                    Shape(kind: capsule, width: 300, height: 24, fill: text.primary, opacity: 0.5)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.78, max_width: 380, height: 24, shape: capsule, opacity: 0.5)
             }
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 18) {
-                    Shape(kind: capsule, width: 360, height: 18, fill: text.primary, opacity: 0.24)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.92, max_width: 390, height: 18, shape: capsule, opacity: 0.24)
             }
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 18) {
-                    Shape(kind: capsule, width: 250, height: 18, fill: text.primary, opacity: 0.24)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.64, max_width: 390, height: 18, shape: capsule, opacity: 0.24)
             }
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 18) {
-                    Shape(kind: capsule, width: 330, height: 18, fill: text.primary, opacity: 0.24)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.84, max_width: 390, height: 18, shape: capsule, opacity: 0.24)
             }
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 18) {
-                    Shape(kind: capsule, width: 280, height: 18, fill: text.primary, opacity: 0.16)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.72, max_width: 390, height: 18, shape: capsule, opacity: 0.16)
             }
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 18) {
-                    Shape(kind: capsule, width: 350, height: 18, fill: text.primary, opacity: 0.16)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.90, max_width: 390, height: 18, shape: capsule, opacity: 0.16)
             }
-            Column(padding_y: 14, appear: rise) {
-                Canvas(height: 18) {
-                    Shape(kind: capsule, width: 230, height: 18, fill: text.primary, opacity: 0.16)
-                }
+            Column(padding_y: 14, align: leading, appear: rise) {
+                Skeleton(fraction: 0.58, max_width: 390, height: 18, shape: capsule, opacity: 0.16)
             }
         }
     }
@@ -3432,15 +3341,13 @@ pub fn match_dialog(app: enji::Client, song: enji::Song, #[session] draft: MainD
                 }
                 Search(id: match_search, value: draft.match_words, prompt: tr! { "zh-Hans" => "歌名、歌手", "en" => "Title, singer" }) => app.search_matching(draft.match_words)
                 Column(height: 360) {
-                    if app.match_loading {
-                        song_skeleton()
-                    } else if !app.has_match_candidates {
+                    if !app.match_loading && !app.has_match_candidates {
                         Column(padding_y: 60, align: center) {
                             Text(content: tr! { "zh-Hans" => "没有找到", "en" => "Nothing found" }, emphasis: secondary)
                         }
                     } else {
                         ScrollView {
-                            Column(gap: 2) {
+                            Column(gap: 2, skeleton: app.match_loading) {
                                 ForEach(items: app.match_candidates, key: id) |found| {
                                     Button(id: choose_match, label: found.name, variant: row, clears: draft.match_words) {
                                         Row(gap: 12, padding_x: 8, padding_y: 6, align: center) {
@@ -3676,28 +3583,25 @@ pub fn plugins_dialog(app: enji::Client, #[session] draft: MainDraft) -> impl Vi
                                         IconButton(id: refresh_plugin_market, icon: "arrow.clockwise", label: tr! { "zh-Hans" => "刷新插件目录", "en" => "Refresh Catalog" }, prominence: plain) => app.load_offers()
                                     }
                                 }
-                                if app.offers_loading {
-                                    Column(padding_y: 24, align: center) {
-                                        Progress(label: tr! { "zh-Hans" => "正在读取插件商店", "en" => "Reading the market" })
-                                    }
-                                }
-                                ForEach(items: app.offers, key: id) |offer| {
-                                    Row(gap: 12, padding_y: 8, align: center) {
-                                        Column(gap: 2, align: leading) {
-                                            Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
-                                            Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
-                                            plugin_permissions(playback: offer.playback_control, gain: offer.audio_gain)
-                                            if !offer.fits {
-                                                Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
+                                Column(gap: 0, skeleton: app.offers_loading, skeleton_count: 4) {
+                                    ForEach(items: app.offers, key: id) |offer| {
+                                        Row(gap: 12, padding_y: 8, align: center) {
+                                            Column(gap: 2, align: leading) {
+                                                Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
+                                                Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
+                                                plugin_permissions(playback: offer.playback_control, gain: offer.audio_gain)
+                                                if !offer.fits {
+                                                    Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
+                                                }
                                             }
-                                        }
-                                        Spacer
-                                        if offer.installed && !offer.newer {
-                                            Text(content: tr! { "zh-Hans" => "已安装", "en" => "Installed" }, style: caption, emphasis: secondary)
-                                        } else if offer.newer {
-                                            Button(id: update_plugin, label: tr! { "zh-Hans" => "更新", "en" => "Update" }, shape: capsule) => app.install_plugin(offer.id)
-                                        } else {
-                                            Button(id: install_plugin, label: tr! { "zh-Hans" => "安装", "en" => "Install" }, shape: capsule, prominence: prominent) => app.install_plugin(offer.id)
+                                            Spacer
+                                            if offer.installed && !offer.newer {
+                                                Text(content: tr! { "zh-Hans" => "已安装", "en" => "Installed" }, style: caption, emphasis: secondary)
+                                            } else if offer.newer {
+                                                Button(id: update_plugin, label: tr! { "zh-Hans" => "更新", "en" => "Update" }, shape: capsule) => app.install_plugin(offer.id)
+                                            } else {
+                                                Button(id: install_plugin, label: tr! { "zh-Hans" => "安装", "en" => "Install" }, shape: capsule, prominence: prominent) => app.install_plugin(offer.id)
+                                            }
                                         }
                                     }
                                 }
@@ -3767,21 +3671,23 @@ pub fn comments_panel(app: enji::Client) -> impl View {
         ScrollView(indicators: hidden) {
             Column(gap: 20, padding_x: 14, padding_y: 88) {
                 Text(content: tr! { "zh-Hans" => "评论 {count}", "en" => "Comments {count}"; count: app.comments_total }, style: title2, bold: true)
-                ForEach(items: app.comments, key: id) |comment| {
-                    Row(gap: 12, align: top) {
-                        Image(source: comment.avatar, width: 36, height: 36, fit: cover, corner: 18)
-                        Column(gap: 4, align: leading) {
-                            Row(gap: 8, align: center) {
-                                Text(content: comment.user, style: subheadline, emphasis: secondary, lines: 1)
-                                Spacer
-                                Label(title: comment.likes, icon: "heart", style: caption)
+                Column(gap: 20, skeleton: app.comments_loading && app.comments_total == 0, skeleton_count: 5) {
+                    ForEach(items: app.comments, key: id) |comment| {
+                        Row(gap: 12, align: top) {
+                            Image(source: comment.avatar, width: 36, height: 36, fit: cover, corner: 18)
+                            Column(gap: 4, align: leading) {
+                                Row(gap: 8, align: center) {
+                                    Text(content: comment.user, style: subheadline, emphasis: secondary, lines: 1)
+                                    Spacer
+                                    Label(title: comment.likes, icon: "heart", style: caption)
+                                }
+                                Text(content: comment.content)
+                                Text(content: comment.time, style: caption, emphasis: tertiary)
                             }
-                            Text(content: comment.content)
-                            Text(content: comment.time, style: caption, emphasis: tertiary)
                         }
                     }
                 }
-                if app.comments_loading {
+                if app.comments_loading && app.comments_total > 0 {
                     Progress(label: tr! { "zh-Hans" => "正在加载评论", "en" => "Loading comments" })
                 } else if app.comments_more {
                     Button(id: more_comments, label: tr! { "zh-Hans" => "更多评论", "en" => "More Comments" }) => app.more_comments()
@@ -3796,7 +3702,7 @@ pub fn comments_panel(app: enji::Client) -> impl View {
 pub fn details_panel(app: enji::Client) -> impl View {
     ui! {
         ScrollView(indicators: hidden) {
-            Column(gap: 22, padding_x: 14, padding_y: 88) {
+            Column(gap: 22, padding_x: 14, padding_y: 88, skeleton: app.details_loading) {
                 if let Some(details) = app.details {
                     Row(gap: 16, align: center) {
                         Image(source: details.album_cover, width: 96, height: 96, fit: cover, corner: 10)
@@ -3816,8 +3722,6 @@ pub fn details_panel(app: enji::Client) -> impl View {
                     if details.artist_description != "" {
                         Text(content: details.artist_description, style: callout, emphasis: secondary)
                     }
-                } else {
-                    Progress(label: tr! { "zh-Hans" => "正在加载详情", "en" => "Loading details" })
                 }
             }
         }

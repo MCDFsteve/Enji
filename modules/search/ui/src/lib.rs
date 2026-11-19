@@ -6,8 +6,8 @@ use enji_protocol::enji::{self, Detail, Source};
 use enji_ui::{
     album_card, album_card_props, artist_card, artist_card_props, detail_view, detail_view_props,
     playlist_card, playlist_card_props, song_header, song_header_props, song_row, song_row_props,
-    song_skeleton, song_skeleton_props, watch_album_row, watch_album_row_props, watch_artist_row,
-    watch_artist_row_props, watch_playlist_row, watch_playlist_row_props,
+    watch_album_row, watch_album_row_props, watch_artist_row, watch_artist_row_props,
+    watch_playlist_row, watch_playlist_row_props,
 };
 use search_protocol::search::{self, SearchKind};
 
@@ -68,9 +68,7 @@ pub fn watch_search_page(
                     watch_search_home_content(search: search)
                 } else {
                     watch_search_kinds(search: search)
-                    if search.searching {
-                        song_skeleton()
-                    } else if search.no_results {
+                    if !search.searching && search.no_results {
                         Column(gap: 8, padding_y: 20, align: center) {
                             Text(content: tr! { "zh-Hans" => "没有找到“{text}”相关的结果", "en" => "Nothing found for “{text}”"; text: search.searched }, style: callout, emphasis: secondary)
                         }
@@ -144,13 +142,7 @@ pub fn search_body(
         } else {
             Column(gap: 0) {
                 search_kinds(search: search)
-                if search.searching {
-                    ScrollView {
-                        Column(gap: 0, padding_x: if window.compact { 8 } else { 24 }, padding_y: 4) {
-                            song_skeleton()
-                        }
-                    }
-                } else if search.no_results {
+                if !search.searching && search.no_results {
                     Row {
                         Spacer
                         Column(gap: 12, padding_y: 96, align: center) {
@@ -226,10 +218,10 @@ pub fn search_home(search: search::Client) -> impl View {
                         }
                     }
                     // What NetEase searches most, while it is on.
-                    if search.netease && search.has_hot {
+                    if search.netease && (search.has_hot || search.loading) {
                         Column(gap: 8) {
                             Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, style: title3, bold: true)
-                            Grid(min_width: 300, gap: 4, row_gap: 2) {
+                            Grid(min_width: 300, gap: 4, row_gap: 2, skeleton: search.loading && !search.has_hot, skeleton_count: 10) {
                                 ForEach(items: search.hot, key: key, stagger: 0.02) |word| {
                                     Button(id: hot_word, label: word.word, variant: row) {
                                         Row(gap: 12, padding_x: 10, padding_y: 9, align: center) {
@@ -256,8 +248,6 @@ pub fn search_home(search: search::Client) -> impl View {
                                 }
                             }
                         }
-                    } else if search.netease && search.loading {
-                        song_skeleton()
                     }
                 }
             }
@@ -283,10 +273,10 @@ pub fn watch_search_home_content(search: search::Client) -> impl View {
                     }
                 }
             }
-            if search.netease && search.has_hot {
+            if search.netease && (search.has_hot || search.loading) {
                 Column(gap: 4) {
                     Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, style: callout, bold: true)
-                    Column(gap: 2) {
+                    Column(gap: 2, skeleton: search.loading && !search.has_hot) {
                         ForEach(items: search.hot, key: key) |word| {
                             Button(id: hot_word, label: word.word, variant: row) {
                                 Row(gap: 8, padding_x: 8, padding_y: 6, align: center) {
@@ -304,8 +294,6 @@ pub fn watch_search_home_content(search: search::Client) -> impl View {
                         }
                     }
                 }
-            } else if search.netease && search.loading {
-                song_skeleton()
             }
         }
     }
@@ -327,28 +315,30 @@ pub fn watch_search_results_content(app: enji::Client, search: search::Client) -
                         }
                     }
                     if search.netease {
-                        ForEach(items: search.results, key: index) |song| {
-                            song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
+                        Column(gap: 2, skeleton: search.searching) {
+                            ForEach(items: search.results, key: index) |song| {
+                                song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
+                            }
                         }
                     }
                 }
             }
             SearchKind::Albums => {
-                Column(gap: 4) {
+                Column(gap: 4, skeleton: search.searching) {
                     ForEach(items: search.album_results, key: id) |album| {
                         watch_album_row(app: app, album: album)
                     }
                 }
             }
             SearchKind::Artists => {
-                Column(gap: 4) {
+                Column(gap: 4, skeleton: search.searching) {
                     ForEach(items: search.artist_results, key: id) |artist| {
                         watch_artist_row(app: app, artist: artist)
                     }
                 }
             }
             SearchKind::Playlists => {
-                Column(gap: 4) {
+                Column(gap: 4, skeleton: search.searching) {
                     ForEach(items: search.playlist_results, key: id) |list| {
                         watch_playlist_row(app: app, list: list)
                     }
@@ -377,10 +367,10 @@ pub fn watch_search_home(search: search::Client) -> impl View {
                         }
                     }
                 }
-                if search.netease && search.has_hot {
+                if search.netease && (search.has_hot || search.loading) {
                     Column(gap: 6) {
                         Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, style: callout, bold: true)
-                        Column(gap: 2) {
+                        Column(gap: 2, skeleton: search.loading && !search.has_hot) {
                             ForEach(items: search.hot, key: key) |word| {
                                 Button(id: hot_word, label: word.word, variant: row) {
                                     Row(gap: 8, padding_x: 8, padding_y: 6, align: center) {
@@ -398,8 +388,6 @@ pub fn watch_search_home(search: search::Client) -> impl View {
                             }
                         }
                     }
-                } else if search.netease && search.loading {
-                    song_skeleton()
                 }
             }
         }
@@ -433,7 +421,7 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
                         }
                         if search.netease {
                             song_header(app: app)
-                            Column(gap: 2) {
+                            Column(gap: 2, skeleton: search.searching) {
                                 ForEach(items: search.results, key: index) |song| {
                                     song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
                                 }
@@ -445,14 +433,14 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
             SearchKind::Albums => {
                 ScrollView {
                     if window.watch {
-                        Column(gap: 4, padding_x: 14, padding_y: 6) {
+                        Column(gap: 4, padding_x: 14, padding_y: 6, skeleton: search.searching) {
                             ForEach(items: search.album_results, key: id) |album| {
                                 watch_album_row(app: app, album: album)
                             }
                         }
                     } else {
                         Column(padding: if window.compact { 18 } else { 32 }) {
-                            Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
+                            Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }, skeleton: search.searching, skeleton_count: 10) {
                                 ForEach(items: search.album_results, key: id, stagger: 0.02) |album| {
                                     album_card(app: app, album: album)
                                 }
@@ -464,14 +452,14 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
             SearchKind::Artists => {
                 ScrollView {
                     if window.watch {
-                        Column(gap: 4, padding_x: 14, padding_y: 6) {
+                        Column(gap: 4, padding_x: 14, padding_y: 6, skeleton: search.searching) {
                             ForEach(items: search.artist_results, key: id) |artist| {
                                 watch_artist_row(app: app, artist: artist)
                             }
                         }
                     } else {
                         Column(padding: if window.compact { 18 } else { 32 }) {
-                            Grid(min_width: if window.compact { 96 } else { 130 }, gap: if window.compact { 14 } else { 22 }, cell_ratio: 1, cell_extra: 50) {
+                            Grid(min_width: if window.compact { 96 } else { 130 }, gap: if window.compact { 14 } else { 22 }, cell_ratio: 1, cell_extra: 50, skeleton: search.searching, skeleton_count: 10) {
                                 ForEach(items: search.artist_results, key: id, stagger: 0.02) |artist| {
                                     artist_card(app: app, artist: artist)
                                 }
@@ -483,14 +471,14 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
             SearchKind::Playlists => {
                 ScrollView {
                     if window.watch {
-                        Column(gap: 4, padding_x: 14, padding_y: 6) {
+                        Column(gap: 4, padding_x: 14, padding_y: 6, skeleton: search.searching) {
                             ForEach(items: search.playlist_results, key: id) |list| {
                                 watch_playlist_row(app: app, list: list)
                             }
                         }
                     } else {
                         Column(padding: if window.compact { 18 } else { 32 }) {
-                            Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
+                            Grid(min_width: 150, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }, skeleton: search.searching, skeleton_count: 10) {
                                 ForEach(items: search.playlist_results, key: id, stagger: 0.02) |list| {
                                     playlist_card(app: app, list: list)
                                 }

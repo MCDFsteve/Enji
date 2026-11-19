@@ -22,10 +22,7 @@ pub fn charts_page(app: enji::Client, charts: charts::Client) -> impl View {
                         Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, style: headline, bold: true)
                         Spacer
                     }
-                    if charts.loading {
-                        Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
-                    }
-                    Column(gap: 4) {
+                    Column(gap: 4, skeleton: charts.loading) {
                         ForEach(items: charts.charts, key: id) |list| {
                             watch_playlist_row(app: app, list: list)
                         }
@@ -36,10 +33,7 @@ pub fn charts_page(app: enji::Client, charts: charts::Client) -> impl View {
             ScrollView {
                 Column(gap: 20, padding: if window.compact { 18 } else { 32 }) {
                     Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, style: large_title)
-                    if charts.loading {
-                        Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
-                    }
-                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
+                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }, skeleton: charts.loading, skeleton_count: 10) {
                         ForEach(items: charts.charts, key: id, stagger: 0.03) |list| {
                             playlist_card(app: app, list: list)
                         }

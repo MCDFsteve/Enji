@@ -91,10 +91,7 @@ pub fn home_page(app: enji::Client, recommend: recommend::Client) -> impl View {
                         }
                     }
                     Text(content: tr! { "zh-Hans" => "推荐歌单", "en" => "Playlists for You" }, style: title2)
-                    if recommend.loading {
-                        Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
-                    }
-                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }) {
+                    Grid(min_width: 160, gap: 22, cell_ratio: 1, cell_extra: if window.tv { 124 } else { 58 }, skeleton: recommend.loading, skeleton_count: 10) {
                         ForEach(items: recommend.picks, key: id, stagger: 0.03) |list| {
                             playlist_card(app: app, list: list)
                         }
@@ -128,10 +125,7 @@ pub fn watch_home_page(app: enji::Client, recommend: recommend::Client) -> impl 
                     }
                 }
                 Text(content: tr! { "zh-Hans" => "推荐歌单", "en" => "Playlists for You" }, style: callout, bold: true)
-                if recommend.loading {
-                    Progress(label: tr! { "zh-Hans" => "正在加载", "en" => "Loading" })
-                }
-                Column(gap: 4) {
+                Column(gap: 4, skeleton: recommend.loading) {
                     ForEach(items: recommend.picks, key: id) |list| {
                         watch_playlist_row(app: app, list: list)
                     }
