@@ -119,11 +119,17 @@ jobs:
 
       # Keep the CLI on the exact framework commit pinned by Cargo.toml.
       - name: Bern
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           rev=$(sed -n '/^bern = /s/.*rev = "\([^"]*\)".*/\1/p' Cargo.toml)
           test -n "$rev"
           cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev "$rev" bern-cli
+
+      - name: Bern for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tools/install-bern-windows.ps1
 
       - name: Package
         if: runner.os != 'Windows'
