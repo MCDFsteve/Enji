@@ -192,6 +192,9 @@ impl enji::Commands for EnjiEngine {
     fn remove_from_queue(&mut self, index: i64) -> Result<(), CommandError> {
         self.submit(Job::RemoveFromQueue(place(index)?))
     }
+    fn clear_play_next(&mut self) -> Result<(), CommandError> {
+        self.submit(Job::ClearPlayNext)
+    }
     fn remove_history(&mut self, key: i64) -> Result<(), CommandError> {
         self.submit(Job::RemoveHistory(place(key)?))
     }

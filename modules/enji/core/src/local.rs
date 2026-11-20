@@ -1237,7 +1237,7 @@ mod tests {
         });
         let library = Library::from_json(&kept);
         assert_eq!(library.folders, [Folder { url: "file:///Music/My%20Songs".into(), name: "My Songs".into() }]);
-        assert_eq!(library.folders[0].place(), "/Music/My Songs");
+        assert_eq!(Path::new(&library.folders[0].place()), Path::new("/Music/My Songs"));
         let track = &library.tracks[0];
         assert_eq!(track.url, "file:///Music/My%20Songs/a%20b.mp3");
         assert_eq!((track.name.as_str(), track.folder.as_str()), ("a b.mp3", "file:///Music/My%20Songs"));
