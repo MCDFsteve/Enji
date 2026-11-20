@@ -67,8 +67,12 @@ pub fn watch_search_page(
                 } else if search.searched == "" && !search.searching {
                     watch_search_home_content(search: search)
                 } else {
-                    watch_search_kinds(search: search)
-                    if !search.searching && search.no_results {
+                    if search.netease {
+                        watch_search_kinds(search: search)
+                    }
+                    if search.search_failed && search.kind != SearchKind::Songs {
+                        retry_search(search: search)
+                    } else if !search.searching && search.no_results {
                         Column(gap: 8, padding_y: 20, align: center) {
                             Text(content: tr! { "zh-Hans" => "没有找到“{text}”相关的结果", "en" => "Nothing found for “{text}”"; text: search.searched }, style: callout, emphasis: secondary)
                         }
@@ -142,7 +146,9 @@ pub fn search_body(
         } else {
             Column(gap: 0) {
                 search_kinds(search: search)
-                if !search.searching && search.no_results {
+                if search.search_failed && search.kind != SearchKind::Songs {
+                    retry_search(search: search)
+                } else if !search.searching && search.no_results {
                     Row {
                         Spacer
                         Column(gap: 12, padding_y: 96, align: center) {
@@ -156,6 +162,30 @@ pub fn search_body(
                 } else {
                     search_results(app: app, search: search)
                 }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn retry_search(search: search::Client) -> impl View {
+    ui! {
+        if window.watch {
+            Column(padding_y: 12, variant: watch_inset) {
+                Button(id: watch_retry_search, label: tr! { "zh-Hans" => "重试在线搜索", "en" => "Retry Online Search" }, width: fill) => search.retry()
+            }
+        } else if search.kind == SearchKind::Songs && search.has_local_results {
+            Row(padding_x: 12, padding_y: 8) {
+                Button(id: retry_search_inline, label: tr! { "zh-Hans" => "重试在线搜索", "en" => "Retry Online Search" }) => search.retry()
+                Spacer
+            }
+        } else {
+            Row {
+                Spacer
+                Column(padding_y: 96, align: center) {
+                    Button(id: retry_search, label: tr! { "zh-Hans" => "重试在线搜索", "en" => "Retry Online Search" }) => search.retry()
+                }
+                Spacer
             }
         }
     }
@@ -315,9 +345,13 @@ pub fn watch_search_results_content(app: enji::Client, search: search::Client) -
                         }
                     }
                     if search.netease {
-                        Column(gap: 2, skeleton: search.searching) {
-                            ForEach(items: search.results, key: index) |song| {
-                                song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
+                        if search.search_failed {
+                            retry_search(search: search)
+                        } else {
+                            Column(gap: 2, skeleton: search.searching) {
+                                ForEach(items: search.results, key: index) |song| {
+                                    song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
+                                }
                             }
                         }
                     }
@@ -420,10 +454,14 @@ pub fn search_results(app: enji::Client, search: search::Client) -> impl View {
                             }
                         }
                         if search.netease {
-                            song_header(app: app)
-                            Column(gap: 2, skeleton: search.searching) {
-                                ForEach(items: search.results, key: index) |song| {
-                                    song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
+                            if search.search_failed {
+                                retry_search(search: search)
+                            } else {
+                                song_header(app: app)
+                                Column(gap: 2, skeleton: search.searching) {
+                                    ForEach(items: search.results, key: index) |song| {
+                                        song_row(app: app, song: song, source: Source::Search, full: true, removable: false)
+                                    }
                                 }
                             }
                         }

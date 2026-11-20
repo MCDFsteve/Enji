@@ -20,7 +20,25 @@ enum Answer {
     Found(SearchKind, Value),
     /// The most searched words, none when they could not be read.
     Hot(Vec<SearchWord>),
-    Failed(String),
+    Failed(SearchKind, String),
+}
+
+/// Kept only for the four result lists of the submitted query.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lookup {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+}
+
+fn lookup_slot(kind: &SearchKind) -> usize {
+    match kind {
+        SearchKind::Songs => 0,
+        SearchKind::Albums => 1,
+        SearchKind::Artists => 2,
+        SearchKind::Playlists => 3,
+    }
 }
 
 pub struct SearchEngine {
@@ -30,6 +48,7 @@ pub struct SearchEngine {
     inbox: Arc<Mutex<Vec<(u64, Answer)>>>,
     /// Each search gets a new number; what an older one finds is dropped.
     ask: u64,
+    lookups: [Lookup; 4],
     /// The core's state was read once, as the engine started.
     started: bool,
     /// The settings want the most searched words.
@@ -50,6 +69,7 @@ impl Default for SearchEngine {
                 searched: String::new(),
                 search_tick: 0,
                 searching: false,
+                search_failed: false,
                 results: Vec::new(),
                 album_results: Vec::new(),
                 artist_results: Vec::new(),
@@ -65,6 +85,7 @@ impl Default for SearchEngine {
             },
             inbox: Arc::default(),
             ask: 0,
+            lookups: [Lookup::Idle; 4],
             started: false,
             wants_hot: true,
             dressed: enji_kit::dressing(),
@@ -80,7 +101,7 @@ fn kept_words() -> Vec<String> {
     let words = if kept.is_null() { store::read("settings.json")["recent"].clone() } else { kept["recent"].clone() };
     words
         .as_array()
-        .map(|all| all.iter().filter_map(|word| word.as_str().map(str::to_string)).collect())
+        .map(|all| all.iter().filter_map(Value::as_str).take(RECENT).map(str::to_string).collect())
         .unwrap_or_default()
 }
 
@@ -162,6 +183,61 @@ impl SearchEngine {
         self.state.local_results = songs;
         enji::calls::set_songs(Source::LocalResults, self.state.local_results.clone());
     }
+
+    fn forget_results(&mut self) {
+        self.ask += 1;
+        self.lookups.fill(Lookup::Idle);
+        if !self.state.results.is_empty() {
+            self.set_results(Vec::new());
+        }
+        self.state.album_results.clear();
+        self.state.artist_results.clear();
+        self.state.playlist_results.clear();
+    }
+
+    fn update_status(&mut self) {
+        let lookup = self.lookups[lookup_slot(&self.state.kind)];
+        self.state.searching = lookup == Lookup::Loading;
+        self.state.search_failed = lookup == Lookup::Failed;
+        self.state.no_results = !self.state.searched.is_empty()
+            && (!self.state.netease || lookup == Lookup::Ready)
+            && match self.state.kind {
+                SearchKind::Songs => self.state.results.is_empty() && !self.state.has_local_results,
+                SearchKind::Albums => self.state.album_results.is_empty(),
+                SearchKind::Artists => self.state.artist_results.is_empty(),
+                SearchKind::Playlists => self.state.playlist_results.is_empty(),
+            };
+    }
+
+    fn prepare_kind(&mut self) -> Option<(u64, SearchKind, String)> {
+        let kind = self.state.kind.clone();
+        let lookup = &mut self.lookups[lookup_slot(&kind)];
+        let pending = if self.state.netease && !self.state.searched.is_empty() && *lookup == Lookup::Idle {
+            *lookup = Lookup::Loading;
+            Some((self.ask, kind, self.state.searched.clone()))
+        } else {
+            None
+        };
+        self.update_status();
+        pending
+    }
+
+    fn load_kind(&mut self) {
+        let Some((ask, kind, text)) = self.prepare_kind() else { return };
+        self.ask(ask, async move {
+            let (code, limit) = match kind {
+                SearchKind::Songs => ("1", "60"),
+                SearchKind::Albums => ("10", "40"),
+                SearchKind::Artists => ("100", "40"),
+                SearchKind::Playlists => ("1000", "40"),
+            };
+            let query = Query::new().param("keywords", &text).param("type", code).param("limit", limit);
+            match enji_kit::client().cloudsearch(&query).await {
+                Ok(r) => Answer::Found(kind, r.body["result"].clone()),
+                Err(e) => Answer::Failed(kind, format!("搜索失败：{e}")),
+            }
+        });
+    }
 }
 
 impl search::Commands for SearchEngine {
@@ -172,13 +248,18 @@ impl search::Commands for SearchEngine {
         }
         self.state.searched = text.clone();
         self.state.search_tick += 1;
-        let mut words: Vec<String> =
-            self.state.recent.iter().map(|word| word.word.clone()).filter(|word| *word != text).collect();
-        words.insert(0, text.clone());
-        words.truncate(RECENT);
-        self.state.recent = recent_words(words);
-        self.state.has_recent = true;
-        store::write("search.json", &json!({ "recent": self.state.recent.iter().map(|word| &word.word).collect::<Vec<_>>() }));
+        if self.state.recent.first().is_none_or(|word| word.word != text) {
+            let mut words: Vec<String> = std::mem::take(&mut self.state.recent)
+                .into_iter()
+                .map(|entry| entry.word)
+                .filter(|word| *word != text)
+                .collect();
+            words.insert(0, text.clone());
+            words.truncate(RECENT);
+            self.state.recent = recent_words(words);
+            self.state.has_recent = true;
+            store::write("search.json", &json!({ "recent": self.state.recent.iter().map(|word| &word.word).collect::<Vec<_>>() }));
+        }
         // The local music at once.
         let wanted = text.to_lowercase();
         let local = enji::current_state().map(|core| core.local).unwrap_or_default();
@@ -186,37 +267,24 @@ impl search::Commands for SearchEngine {
             [&song.name, &song.artists, &song.album].iter().any(|field| field.to_lowercase().contains(&wanted))
         });
         self.set_local_results(renumbered(found));
-        self.ask += 1;
-        if !self.state.netease {
-            self.state.searching = false;
-            self.state.kind = SearchKind::Songs;
-            self.set_results(Vec::new());
-            self.state.no_results = !self.state.has_local_results;
-            return Ok(());
-        }
-        self.state.searching = true;
-        let kind = self.state.kind.clone();
-        self.ask(self.ask, async move {
-            let (code, limit) = match kind {
-                SearchKind::Songs => ("1", "60"),
-                SearchKind::Albums => ("10", "40"),
-                SearchKind::Artists => ("100", "40"),
-                SearchKind::Playlists => ("1000", "40"),
-            };
-            let query = Query::new().param("keywords", &text).param("type", code).param("limit", limit);
-            match enji_kit::client().cloudsearch(&query).await {
-                Ok(r) => Answer::Found(kind, r.body["result"].clone()),
-                Err(e) => Answer::Failed(format!("搜索失败：{e}")),
-            }
-        });
+        self.forget_results();
+        self.load_kind();
         Ok(())
     }
 
     fn set_kind(&mut self, kind: SearchKind) -> Result<(), CommandError> {
-        self.state.kind = kind;
-        let searched = self.state.searched.clone();
-        if !searched.is_empty() {
-            self.search(searched)?;
+        if self.state.netease {
+            self.state.kind = kind;
+            self.load_kind();
+        }
+        Ok(())
+    }
+
+    fn retry(&mut self) -> Result<(), CommandError> {
+        let lookup = &mut self.lookups[lookup_slot(&self.state.kind)];
+        if *lookup == Lookup::Failed {
+            *lookup = Lookup::Idle;
+            self.load_kind();
         }
         Ok(())
     }
@@ -232,16 +300,12 @@ impl search::Commands for SearchEngine {
         self.state.netease = on;
         if on {
             self.follow_hot();
+            self.load_kind();
         } else {
-            self.ask += 1;
             self.drop_hot();
-            self.state.searching = false;
-            self.state.no_results = false;
             self.state.kind = SearchKind::Songs;
-            self.state.album_results.clear();
-            self.state.artist_results.clear();
-            self.state.playlist_results.clear();
-            self.set_results(Vec::new());
+            self.forget_results();
+            self.update_status();
         }
         Ok(())
     }
@@ -292,29 +356,29 @@ impl search::Engine for SearchEngine {
                     }
                 }
                 Answer::Found(kind, result) => {
-                    self.state.searching = false;
-                    self.state.no_results = match kind {
+                    self.lookups[lookup_slot(&kind)] = Lookup::Ready;
+                    match kind {
                         SearchKind::Songs => {
                             self.set_results(convert::songs(&result["songs"], &Value::Null));
-                            self.state.results.is_empty() && !self.state.has_local_results
                         }
                         SearchKind::Albums => {
                             self.state.album_results = list(&result["albums"], convert::album);
-                            self.state.album_results.is_empty()
                         }
                         SearchKind::Artists => {
                             self.state.artist_results = list(&result["artists"], convert::artist);
-                            self.state.artist_results.is_empty()
                         }
                         SearchKind::Playlists => {
                             self.state.playlist_results = list(&result["playlists"], convert::playlist);
-                            self.state.playlist_results.is_empty()
                         }
-                    };
+                    }
+                    self.update_status();
                 }
-                Answer::Failed(message) => {
-                    self.state.searching = false;
-                    enji::calls::show_error(message);
+                Answer::Failed(kind, message) => {
+                    self.lookups[lookup_slot(&kind)] = Lookup::Failed;
+                    if kind == self.state.kind {
+                        self.update_status();
+                        enji::calls::show_error(message);
+                    }
                 }
             }
         }
@@ -335,5 +399,89 @@ impl search::Engine for SearchEngine {
 
     fn quiet(&self) -> bool {
         self.quiet
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use search::{Commands, Engine};
+
+    #[test]
+    fn switching_categories_reuses_pending_and_empty_results() {
+        let mut engine = SearchEngine { started: true, ..Default::default() };
+        engine.state.netease = true;
+        engine.state.searched = "demo".into();
+        engine.lookups[lookup_slot(&SearchKind::Albums)] = Lookup::Loading;
+        engine.lookups[lookup_slot(&SearchKind::Artists)] = Lookup::Loading;
+
+        engine.set_kind(SearchKind::Artists).unwrap();
+        engine.inbox.lock().unwrap().push((engine.ask, Answer::Found(SearchKind::Albums, json!({ "albums": [] }))));
+        engine.wake();
+        assert!(engine.state.searching);
+        assert!(!engine.state.no_results);
+
+        engine.set_kind(SearchKind::Albums).unwrap();
+        assert!(engine.state.no_results);
+        assert!(!engine.state.searching);
+        engine.set_kind(SearchKind::Artists).unwrap();
+        assert!(engine.state.searching);
+        assert_eq!(engine.state.search_tick, 0);
+    }
+
+    #[test]
+    fn a_background_failure_only_affects_its_own_category() {
+        let mut engine = SearchEngine { started: true, ..Default::default() };
+        engine.state.netease = true;
+        engine.state.searched = "demo".into();
+        engine.lookups[lookup_slot(&SearchKind::Songs)] = Lookup::Loading;
+        engine.inbox.lock().unwrap().push((engine.ask, Answer::Failed(SearchKind::Artists, "offline".into())));
+        engine.set_kind(SearchKind::Songs).unwrap();
+        engine.wake();
+        assert!(engine.state.searching);
+        assert!(!engine.state.search_failed);
+
+        engine.set_kind(SearchKind::Artists).unwrap();
+        assert!(engine.state.search_failed);
+        assert!(!engine.state.no_results);
+        engine.forget_results();
+        engine.update_status();
+        assert!(!engine.state.search_failed);
+    }
+
+    #[test]
+    fn stale_replies_cannot_hide_local_results_or_change_the_new_query() {
+        let mut engine = SearchEngine { started: true, ..Default::default() };
+        engine.state.netease = true;
+        engine.state.searched = "demo".into();
+        engine.state.has_local_results = true;
+        let old = engine.ask;
+        engine.forget_results();
+        engine.lookups[lookup_slot(&SearchKind::Songs)] = Lookup::Loading;
+        engine.update_status();
+        engine.inbox.lock().unwrap().push((old, Answer::Failed(SearchKind::Songs, "old error".into())));
+        engine.wake();
+        assert!(engine.state.searching);
+        assert!(!engine.state.search_failed);
+        assert!(engine.state.has_local_results);
+
+        engine.netease_changed(false).unwrap();
+        assert!(!engine.state.searching);
+        assert!(!engine.state.no_results);
+        assert!(engine.state.has_local_results);
+    }
+
+    #[test]
+    fn enabling_netease_clears_offline_empty_state_and_prepares_online_lookup() {
+        let mut engine = SearchEngine { started: true, wants_hot: false, ..Default::default() };
+        engine.state.searched = "demo".into();
+        engine.netease_changed(false).unwrap();
+        assert!(engine.state.no_results);
+        assert!(!engine.state.searching);
+
+        engine.state.netease = true;
+        assert!(engine.prepare_kind().is_some());
+        assert!(engine.state.searching);
+        assert!(!engine.state.no_results);
     }
 }

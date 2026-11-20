@@ -71,6 +71,8 @@ pub mod search {
         pub has_hot: bool,
         /// The most searched words are loading.
         pub loading: bool,
+        /// The selected NetEase category could not be loaded and can be retried.
+        pub search_failed: bool,
     }
 
     #[commands]
@@ -88,5 +90,7 @@ pub mod search {
         /// The list of what is searched most was switched on or off.
         #[on(enji::hot_search_changed)]
         fn hot_search_changed(&mut self, on: bool) -> Result<(), CommandError>;
+        /// Retry the failed category of the submitted search.
+        fn retry(&mut self) -> Result<(), CommandError>;
     }
 }
