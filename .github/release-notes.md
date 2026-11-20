@@ -1,13 +1,13 @@
 ## 本次更新
 
-- 修复 Windows（WinUI 3）沉浸播放时鼠标静置后仍显示的问题；移动鼠标会恢复原有指针。macOS 恢复原生侧栏收折按钮，并修正全屏转场时的工具栏背景。
-- 修复本地音乐的 GBK / GB18030 标签和 LRC 歌词乱码。升级后会自动重扫旧缓存。
-- 修复平板底栏时间与窄侧栏登录按钮被挤成竖排的问题。
-- 升级至 Bern 0.1.20。播放进度等高频变化按字段同步，列表只传输变化的记录。
+- 升级至 Bern 0.2.0，并全面改用框架自带的默认骨架图替换手写占位组件与加载转圈，具备 120 ms 防闪烁延迟、列表错峰入场与系统减少动态效果适配。
+- 用 Bern 原生浮层工具窗与 `ColorPicker` 重构桌面歌词样式调节界面，支持设置分页与插件商店镜像回退。
+- 新增逐曲响度均衡、后台测量与插件 API v2。
+- 修复 Windows 播放页歌词、评论与桌面歌词的图标状态，以及本地音频包装类型遮蔽标签读取的问题。
 
 ## What's new
 
-- On Windows (WinUI 3), the mouse pointer now hides when idle during immersive playback and restores its previous shape on movement. On macOS, the native sidebar toggle is restored and the toolbar background is fixed during fullscreen transitions.
-- Fixed garbled GBK / GB18030 tags and LRC lyrics in local music. Existing cached metadata is rescanned after updating.
-- Fixed vertically wrapped time labels in tablet bottom bars and sign-in buttons in narrow sidebars.
-- Updated to Bern 0.1.20. High-frequency updates such as playback progress sync per field, and list updates send only changed records.
+- Updated to Bern 0.2.0 and replaced hand-written skeleton placeholders and loading spinners with Bern's built-in skeleton system (120 ms anti-flicker delay, staggered list entry, and reduced-motion support).
+- Rebuilt desktop lyrics appearance controls with Bern's native floating utility window and `ColorPicker`, along with settings pagination and plugin store mirror fallback.
+- Added per-track loudness normalization, background measurement, and plugin API v2.
+- Fixed Windows now-playing lyrics, comments, and desktop-lyrics icon states, as well as local audio wrapper tag reading.
