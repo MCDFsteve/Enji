@@ -267,6 +267,9 @@ impl enji::Commands for EnjiEngine {
     fn set_volume(&mut self, volume: f64) -> Result<(), CommandError> {
         self.submit(Job::Volume(volume))
     }
+    fn step_volume(&mut self, up: bool) -> Result<(), CommandError> {
+        self.submit(Job::StepVolume(up))
+    }
     fn set_loudness_enabled(&mut self, on: bool) -> Result<(), CommandError> {
         self.submit(Job::SetLoudnessEnabled(on))
     }

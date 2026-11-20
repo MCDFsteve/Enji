@@ -59,6 +59,7 @@ pub enum Job {
     Seek(f64),
     SeekLine(i64),
     Volume(f64),
+    StepVolume(bool),
     ToggleMute,
     Browse(bool),
     PlayQueued(usize),
@@ -1498,6 +1499,10 @@ impl Worker {
                 }
             }
             Job::Volume(volume) => self.set_volume(volume),
+            Job::StepVolume(up) => {
+                let percent = self.shared.read(|s| (s.volume * 100.0).round());
+                self.set_volume((percent + if up { 5.0 } else { -5.0 }) / 100.0);
+            }
             Job::ToggleMute => {
                 let volume = self.shared.read(|s| s.volume);
                 if volume > 0.0 {
@@ -2092,6 +2097,9 @@ impl Worker {
 
     fn set_volume(&mut self, volume: f64) {
         let volume = volume.clamp(0.0, 1.0);
+        if self.shared.read(|s| s.volume == volume) {
+            return;
+        }
         if volume > 0.0 {
             self.unmuted = volume;
         }

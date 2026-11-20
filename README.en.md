@@ -111,7 +111,9 @@
 - **Sign in** by scanning a QR code with the NetEase Cloud Music app; on a phone, save the code to your photos and pick it from the album in that app. Your sign-in stays on your own device.
 - **Roaming**: signed in, start it from the home page. One song follows another with no end, and Dislike moves on. It can also open when the app starts.
 - **Your playlists**: liked songs, playlists you made or saved; create playlists, add songs to them, like a song.
-- **Search** NetEase and your own music at once, with your search history and trending searches, which Settings can turn off on their own.
+- **Search** your library and NetEase together. Local matches are playable while online results load, and you can retry a failed online search. Revisiting a category reuses its results for the current query. Search history stays on your device. You can turn off trending searches in Settings.
+- **Play Next** inserts songs after the current track, newest request first. Open the queue and choose Clear Play Next to remove pending requests while the current track keeps playing.
+- **Desktop shortcuts** work while the Enji window is active. On Windows and Linux, use `Ctrl+Enter` to play or pause, `[` and `]` for the previous and next track, `-` and `=` to lower or raise volume by five percentage points, `Ctrl+R` to switch play mode, and `Ctrl+L` to like or unlike. On macOS, use `⌘+Return` to play or pause, `⌘+←/→` to skip tracks, `⌘+↓/↑` for volume, `⌘+R` to switch play mode, and `⌘+L` to like or unlike.
 - **Lyrics** scroll with the song, with Chinese translations; tap a line to jump there. Song comments too. On songs NetEase times word by word, each character lights from left to right as it is sung, in desktop lyrics too. Japanese lyrics can show hiragana readings above kanji and katakana, with a switch in settings. Holding a phone upright, the line being sung also shows under the cover.
 - **Quality**: standard, higher, extreme, lossless or Hi-Res (above 320k needs NetEase VIP).
 - **USB exclusive output**: on Android 14 and later, a USB DAC plays each song at its own sample rate, without the system resampling it. It needs the phone's maker to allow it.

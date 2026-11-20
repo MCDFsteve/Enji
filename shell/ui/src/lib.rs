@@ -204,6 +204,8 @@ pub fn app(
                     CommandItem(id: menu_toggle, label: tr! { "zh-Hans" => "播放 / 暂停", "en" => "Play / Pause" }, shortcut: "cmd+return") => app.toggle()
                     CommandItem(id: menu_next, label: tr! { "zh-Hans" => "下一首", "en" => "Next" }, shortcut: "cmd+right") => app.next_song()
                     CommandItem(id: menu_previous, label: tr! { "zh-Hans" => "上一首", "en" => "Previous" }, shortcut: "cmd+left") => app.previous_song()
+                    CommandItem(id: menu_volume_up, label: tr! { "zh-Hans" => "提高音量", "en" => "Volume Up" }, shortcut: "cmd+up") => app.step_volume(true)
+                    CommandItem(id: menu_volume_down, label: tr! { "zh-Hans" => "降低音量", "en" => "Volume Down" }, shortcut: "cmd+down") => app.step_volume(false)
                     Divider
                     CommandItem(id: menu_mode, label: tr! { "zh-Hans" => "切换播放方式", "en" => "Next Play Mode" }, shortcut: "cmd+r") => app.next_mode()
                     CommandItem(id: menu_like, label: tr! { "zh-Hans" => "喜欢 / 取消喜欢", "en" => "Like / Unlike" }, shortcut: "cmd+l", enabled: app.login == Login::In) => app.toggle_like()
@@ -234,6 +236,16 @@ pub fn main_window(
 ) -> impl View {
     ui! {
         Stack(align: bottom) {
+            // On hosts without a Controls menu, plain shortcuts yield to text fields.
+            if app.desktop && !window.menu_bar {
+                Shortcut(key: "cmd+return") => app.toggle()
+                Shortcut(key: "]") => app.next_song()
+                Shortcut(key: "[") => app.previous_song()
+                Shortcut(key: "=") => app.step_volume(true)
+                Shortcut(key: "-") => app.step_volume(false)
+                Shortcut(key: "cmd+r") => app.next_mode()
+                Shortcut(key: "cmd+l", enabled: app.login == Login::In) => app.toggle_like()
+            }
             // While a song plays, its cover blurred behind the whole window,
             // under the title bar too, washed so the pages stay easy to read;
             // hidden while the playing sheet covers the whole window.

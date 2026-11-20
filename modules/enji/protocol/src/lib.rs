@@ -1090,6 +1090,8 @@ pub mod enji {
         fn show_error(&mut self, message: String) -> Result<(), CommandError>;
         /// Remove only pending Play Next requests, keeping the current track.
         fn clear_play_next(&mut self) -> Result<(), CommandError>;
+        /// Raise or lower the player volume by five percentage points.
+        fn step_volume(&mut self, up: bool) -> Result<(), CommandError>;
     }
 
     #[events]
