@@ -5,7 +5,7 @@ var __enji = (function (config) {
   var stringify = JSON.stringify, parse = JSON.parse;
   var permissions = config.permissions.slice();
   var features = ['playback.state', 'playback.control', 'queue.page', 'lyrics.timeline',
-    'audio.levels', 'audio.loudness', 'audio.trackGain', 'plugin.settings', 'plugin.actions'];
+    'audio.levels', 'audio.loudness', 'audio.trackGain', 'plugin.settings', 'plugin.actions', 'bern.cli'];
   var handlers = Object.create(null), pending = Object.create(null);
   var pendingCount = 0, sequence = 0, outbox = [], state = {};
   var instance = stringify(config.requestPrefix);

@@ -154,3 +154,12 @@ fn sdk_calls_and_host_checks_keep_write_permissions_and_tokens_distinct() {
         assert!(Call::parse(&args).is_none());
     }
 }
+
+#[test]
+fn bern_cli_is_exposed_and_advertised_as_supported() {
+    let mut plugins = Plugins::default();
+    let script = "ui.toast([enji.supports('bern.cli'), typeof bern, typeof bern.cli].join('/'));";
+    run(&mut plugins, declaration("sdk.cli", &[]), script);
+    let calls = drain(&mut plugins);
+    assert!(calls.contains(&("sdk.cli".into(), Call::Toast("true/object/function".into()))));
+}

@@ -46,8 +46,26 @@ if (typeof enji.supports === "function" && enji.supports("queue.page") && plugin
 | `audio.trackGain` | `audio_gain` | `audio.suggestTrackGain`。还需用户选中该插件作为处理方式，建议才可能被采用。 |
 | `plugin.settings` | 无额外权限 | 清单 `settings`、`settings.get`、`settingChanged` |
 | `plugin.actions` | 无额外权限 | 清单 `actions`、`action`；动作内调用其他 API 仍需其权限。 |
+| `bern.cli` | 无额外权限 | `await bern.cli(...)` 进程内调用 Enji 全部应用 CLI 命令、查询、媒体、UI 会话与元命令（`state`、`catalog`、`sessions`、`help`）。 |
 
 旧的 `cover`、`overlay` 权限也仍可用。只关心整曲响度时**不要**申请 `audio`：`loudness`、`audio_gain` 都不会因此启动实时电平或节拍检测。
+
+## 进程内 `bern.cli` 接口
+
+除上述 SDK 外，Bern 在启用 JavaScript 的上下文中自动注入全局异步入口 `bern.cli(...)`，直接对接运行中 Enji 的统一命令目录（引擎命令、查询、媒体命令、UI／窗口会话命令，以及 `state`、`catalog`、`sessions`、`help`），无需额外胶水接口：
+
+```js
+if (typeof enji.supports === "function" && enji.supports("bern.cli")) {
+  // 1. CLI 命令行字符串
+  const snapshot = await bern.cli("state");
+  // 2. 预拆分参数数组
+  await bern.cli(["ui", "language"]);
+  // 3. 规范命令 ID + 参数对象
+  const catalog = await bern.cli("catalog", {});
+}
+```
+
+`bern.cli` 始终返回 `Promise`，失败时 reject 为带 `.code` 与 `.message` 的 `Error`。在 Enji 中默认向已启用的插件全量开放。
 
 ## 播放状态与控制
 

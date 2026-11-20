@@ -2,7 +2,7 @@
 declare namespace Enji {
   type Platform = "macos" | "windows" | "linux" | "android" | "ios" | "tvos" | "watchos";
   type Capability = "playback.state" | "playback.control" | "queue.page" | "lyrics.timeline"
-    | "audio.levels" | "audio.loudness" | "audio.trackGain" | "plugin.settings" | "plugin.actions";
+    | "audio.levels" | "audio.loudness" | "audio.trackGain" | "plugin.settings" | "plugin.actions" | "bern.cli";
   type Permission = "audio" | "cover" | "overlay" | "lyrics" | "queue" | "playback_control" | "loudness" | "audio_gain";
   type PlayMode = "repeatAll" | "repeatOne" | "shuffle" | "heart";
   type SettingValue = boolean | number | string;
@@ -224,6 +224,23 @@ declare const cover: { pulse(strength?: number): boolean };
 declare const overlay: { show(id: string, spec: Enji.OverlaySpec): boolean; hide(id: string): boolean };
 declare const ui: { toast(message: string): void };
 declare const storage: { get(key: string): Enji.JsonValue; set(key: string, value: Enji.JsonValue | undefined): void };
+
+/** Bern 提供的进程内应用 CLI 入口，可直接调用 Enji 的命令、查询、媒体、UI 会话及元命令。 */
+declare namespace bern {
+  interface CliError extends Error {
+    readonly code: string;
+  }
+  interface CliOptions {
+    readonly session?: string;
+  }
+  function cli(commandLine: string): Promise<Enji.JsonValue>;
+  function cli(argv: readonly (string | number | boolean)[]): Promise<Enji.JsonValue>;
+  function cli(
+    target: string,
+    params: Readonly<Record<string, Enji.JsonValue>>,
+    options?: string | CliOptions,
+  ): Promise<Enji.JsonValue>;
+}
 
 // 和编辑器的标准 Console 声明可合并；Enji 只保证以下三种方法。
 interface Console {

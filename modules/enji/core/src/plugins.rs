@@ -7,9 +7,9 @@
 //! `.enj` extension. The market is an index, `plugins.json`, listing each
 //! plugin's declaration and where its package is.
 //!
-//! Each enabled plugin runs in a JavaScript context of its own (Boa). It
-//! cannot call the engine back: the engine hands it each event with what it
-//! may read, and takes back the calls it queued (`plugin_host.js`).
+//! Each enabled plugin runs in a JavaScript context of its own (Boa). In
+//! addition to the snapshot/outbox SDK (`plugin_host.js`), scripts can invoke
+//! Enji's in-process command catalog directly through `await bern.cli(...)`.
 
 use crate::store;
 use serde_json::{json, Value};
@@ -201,7 +201,10 @@ impl Plugins {
     fn run(&mut self, pack: Pack, folder: &Path) -> Result<(), String> {
         pack.check_compatibility()?;
         let script = std::fs::read_to_string(folder.join(&pack.main)).map_err(|e| format!("读不了插件「{}」的脚本：{e}", pack.name))?;
-        let context = bern::script::Context::new().map_err(|e| format!("插件「{}」启动失败：{e}", pack.name))?;
+        let context = bern::script::Context::with_policy(
+            bern::script::CliPolicy::allow_all().with_label(pack.id.clone()),
+        )
+        .map_err(|e| format!("插件「{}」启动失败：{e}", pack.name))?;
         // Bind replies to this instance independently of the transport's evaluation id.
         let prefix = format!("{:032x}:", rand::random::<u128>());
         let config = bridge::json_string(&json!({
