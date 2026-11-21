@@ -592,6 +592,8 @@ pub mod enji {
         pub opened_is_default: bool,
         /// How the songs of a playlist and of the local folders are ordered.
         pub order: SongOrder,
+        /// The chosen song order is reversed.
+        pub order_reversed: bool,
         /// Rows show how many times each song was played.
         pub show_plays: bool,
 
@@ -1002,6 +1004,7 @@ pub mod enji {
         fn set_quality(&mut self, quality: Quality) -> Result<(), CommandError>;
         /// Order the songs of the open playlist and of the local folders.
         fn set_order(&mut self, order: SongOrder) -> Result<(), CommandError>;
+        fn set_order_reversed(&mut self, reversed: bool) -> Result<(), CommandError>;
         fn set_show_plays(&mut self, shown: bool) -> Result<(), CommandError>;
         /// Send what is listened to to the account's listening record on NetEase, or stop.
         fn set_report_listening(&mut self, on: bool) -> Result<(), CommandError>;

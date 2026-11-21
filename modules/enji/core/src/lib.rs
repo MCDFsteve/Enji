@@ -312,6 +312,9 @@ impl enji::Commands for EnjiEngine {
     fn set_order(&mut self, order: SongOrder) -> Result<(), CommandError> {
         self.submit(Job::SetOrder(order))
     }
+    fn set_order_reversed(&mut self, reversed: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetOrderReversed(reversed))
+    }
     fn set_show_plays(&mut self, shown: bool) -> Result<(), CommandError> {
         self.submit(Job::SetShowPlays(shown))
     }

@@ -73,6 +73,7 @@ pub enum Job {
     DetailsLoaded { song: i64, generation: u64, album: Value, artist: Value },
     SetQuality(Quality),
     SetOrder(SongOrder),
+    SetOrderReversed(bool),
     SetShowPlays(bool),
     SetReportListening(bool),
     SetHeartMode(bool),
@@ -276,6 +277,7 @@ fn state_from_settings(saved: &Value) -> State {
             "Added" => SongOrder::Added,
             _ => SongOrder::Default,
         },
+        order_reversed: saved["order_reversed"].as_bool().unwrap_or(false),
         show_plays: saved["show_plays"].as_bool().unwrap_or(true),
         opened_owned: false,
         local: Vec::new(),
@@ -493,6 +495,7 @@ fn settings_value(state: &State) -> Value {
         "usb_exclusive": state.usb_exclusive,
         "together": state.together,
         "order": format!("{:?}", state.order),
+        "order_reversed": state.order_reversed,
         "show_plays": state.show_plays,
         "default_playlist": state.default_playlist,
     })
@@ -1311,9 +1314,15 @@ impl Worker {
                 });
             }
             Job::SetOrder(order) => self.shared.update(|s| {
-                arrange(&mut s.opened_songs, &order);
-                arrange(&mut s.local, &order);
+                arrange(&mut s.opened_songs, &order, s.order_reversed);
+                arrange(&mut s.local, &order, s.order_reversed);
                 s.order = order;
+                save_settings(s);
+            }),
+            Job::SetOrderReversed(reversed) => self.shared.update(|s| {
+                arrange(&mut s.opened_songs, &s.order, reversed);
+                arrange(&mut s.local, &s.order, reversed);
+                s.order_reversed = reversed;
                 save_settings(s);
             }),
             Job::SetShowPlays(shown) => self.shared.update(|s| {
@@ -2644,7 +2653,7 @@ impl Worker {
             s.local_hours = minutes / 60;
             s.local_minutes = minutes % 60;
             let mut songs = songs;
-            arrange(&mut songs, &s.order);
+            arrange(&mut songs, &s.order, s.order_reversed);
             s.local = songs;
             s.has_folders = !folders.is_empty();
             s.folders = folders;
@@ -5050,7 +5059,7 @@ fn show_opened(s: &mut State, id: i64, info: &Value, mut songs: Vec<Song>, uid: 
     s.opened_meta = convert::playlist_meta(info);
     s.opened_owned = uid != 0 && info["creator"]["userId"].as_i64() == Some(uid);
     enji_kit::dress_all(&mut songs);
-    arrange(&mut songs, &s.order);
+    arrange(&mut songs, &s.order, s.order_reversed);
     s.opened_songs = songs;
     s.opened_is_default = s.default_playlist == id;
     s.opened_loading = false;
@@ -5116,10 +5125,10 @@ fn sort_playlists(s: &mut State) {
     s.has_collected = !s.collected.is_empty();
 }
 
-/// `songs` in `order`, numbered again: as the list itself has them, the
-/// most played first, by title, by singer, or the latest added first. Ties
-/// keep the list's own order.
-fn arrange(songs: &mut [Song], order: &SongOrder) {
+/// `songs` in `order` (or the reverse of it when `reversed`), numbered
+/// again: as the list itself has them, the most played first, by title,
+/// by singer, or the latest added first. Ties keep the list's own order.
+fn arrange(songs: &mut [Song], order: &SongOrder, reversed: bool) {
     let key = |text: &str| text.to_lowercase();
     match order {
         SongOrder::Default => songs.sort_by_key(|song| song.place),
@@ -5132,6 +5141,9 @@ fn arrange(songs: &mut [Song], order: &SongOrder) {
                 .then(a.place.cmp(&b.place))
         }),
         SongOrder::Added => songs.sort_by(|a, b| b.added.cmp(&a.added).then(a.place.cmp(&b.place))),
+    }
+    if reversed {
+        songs.reverse();
     }
     for (i, song) in songs.iter_mut().enumerate() {
         song.index = i as i64;
@@ -5362,18 +5374,38 @@ mod tests {
             song(2, "c", "Amy", 7, 200),
         ];
         let names = |songs: &[Song]| songs.iter().map(|song| song.name.clone()).collect::<Vec<_>>();
-        arrange(&mut songs, &SongOrder::Plays);
+        arrange(&mut songs, &SongOrder::Plays, false);
         assert_eq!(names(&songs), ["A", "c", "b"], "ties keep the list's order");
         assert_eq!(songs.iter().map(|song| song.index).collect::<Vec<_>>(), [0, 1, 2]);
-        arrange(&mut songs, &SongOrder::Name);
+        arrange(&mut songs, &SongOrder::Plays, true);
+        assert_eq!(names(&songs), ["b", "c", "A"]);
+        assert_eq!(songs.iter().map(|song| (song.index, song.rank)).collect::<Vec<_>>(), [(0, 1), (1, 2), (2, 3)]);
+        arrange(&mut songs, &SongOrder::Name, false);
         assert_eq!(names(&songs), ["A", "b", "c"], "case does not count");
-        arrange(&mut songs, &SongOrder::Artist);
+        arrange(&mut songs, &SongOrder::Name, true);
+        assert_eq!(names(&songs), ["c", "b", "A"]);
+        arrange(&mut songs, &SongOrder::Artist, false);
         assert_eq!(names(&songs), ["A", "c", "b"]);
-        arrange(&mut songs, &SongOrder::Added);
+        arrange(&mut songs, &SongOrder::Artist, true);
+        assert_eq!(names(&songs), ["b", "c", "A"]);
+        arrange(&mut songs, &SongOrder::Added, false);
         assert_eq!(names(&songs), ["b", "c", "A"], "the latest first");
-        arrange(&mut songs, &SongOrder::Default);
+        arrange(&mut songs, &SongOrder::Added, true);
+        assert_eq!(names(&songs), ["A", "c", "b"], "the earliest first");
+        arrange(&mut songs, &SongOrder::Default, true);
+        assert_eq!(names(&songs), ["c", "A", "b"]);
+        arrange(&mut songs, &SongOrder::Default, false);
         assert_eq!(names(&songs), ["b", "A", "c"]);
         assert_eq!(songs[2].rank, 3);
+
+        let defaults = super::state_from_settings(&json!({}));
+        assert!(!defaults.order_reversed);
+        let mut state = defaults;
+        state.order = SongOrder::Added;
+        state.order_reversed = true;
+        let restored = super::state_from_settings(&super::settings_value(&state));
+        assert_eq!(restored.order, SongOrder::Added);
+        assert!(restored.order_reversed);
     }
 }
 

@@ -666,13 +666,16 @@ pub fn local_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                         }
                     }
                     if app.has_local {
-                        Row(gap: 10, padding_x: 8, padding_y: 8) {
-                            Button(id: play_local, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36) => app.play(Source::Local, 0)
-                            if app.phone_folder == "" && !window.tv {
-                                Button(id: add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", shape: capsule, height: 36, pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
+                        Column(padding_x: 8, padding_y: 8) {
+                            Flow(gap: 10) {
+                                Button(id: play_local, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, shape: capsule, height: 36) => app.play(Source::Local, 0)
+                                if app.phone_folder == "" && !window.tv {
+                                    Button(id: add_folder, label: tr! { "zh-Hans" => "添加文件夹", "en" => "Add Folder" }, icon: "plus", shape: capsule, height: 36, pick: draft.folder, files: "folder") => app.add_folder(draft.folder)
+                                }
+                                Picker(id: local_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
+                                reverse_order_button(app: app)
+                                IconButton(id: rescan, icon: "arrow.clockwise", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "重新扫描", "en" => "Scan Again" }) => app.rescan()
                             }
-                            Picker(id: local_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
-                            IconButton(id: rescan, icon: "arrow.clockwise", font_size: 16, prominence: plain, label: tr! { "zh-Hans" => "重新扫描", "en" => "Scan Again" }) => app.rescan()
                         }
                         song_header(app: app)
                         Column(gap: 2) {
@@ -719,6 +722,7 @@ pub fn watch_local_page(app: enji::Client) -> impl View {
                 if app.has_local {
                     Button(id: play_local, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, width: fill) => app.play(Source::Local, 0)
                     Picker(id: local_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu) => app.set_order(app.order)
+                    watch_reverse_order_button(app: app)
                     Column(gap: 2) {
                         ForEach(items: app.local, key: id) |song| {
                             song_row(app: app, song: song, source: Source::Local, full: true, removable: false)
@@ -1622,6 +1626,7 @@ pub fn playlist_actions(app: enji::Client, list: enji::Playlist) -> impl View {
             }
             Button(id: shuffle_all, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", shape: capsule, height: 36, enabled: !app.opened_loading) => app.shuffle(Source::Playlist)
             Picker(id: playlist_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
+            reverse_order_button(app: app)
             if app.login == Login::In && app.opened_is_default {
                 Menu(id: playlist_more_default, label: tr! { "zh-Hans" => "更多", "en" => "More" }, icon: "ellipsis", style: icon, shape: capsule, height: 36) {
                     MenuItem(id: undo_default, label: tr! { "zh-Hans" => "不再直接打开这个歌单", "en" => "Stop Opening This Playlist First" }, icon: "house") => app.set_default_playlist(0)
@@ -1654,6 +1659,7 @@ pub fn phone_playlist_actions(app: enji::Client, list: enji::Playlist) -> impl V
                 }
                 Row(gap: 10, align: center) {
                     Picker(id: playlist_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu, shape: capsule, height: 36) => app.set_order(app.order)
+                    reverse_order_button(app: app)
                     Spacer
                     if app.login == Login::In && app.opened_is_default {
                         Menu(id: playlist_more_default, label: tr! { "zh-Hans" => "更多", "en" => "More" }, icon: "ellipsis", style: icon, height: 36) {
@@ -1677,6 +1683,29 @@ pub fn watch_playlist_actions(app: enji::Client) -> impl View {
             Button(id: play_all, label: tr! { "zh-Hans" => "播放全部", "en" => "Play All" }, icon: "play.fill", prominence: prominent, width: fill, enabled: !app.opened_loading) => app.play(Source::Playlist, 0)
             Button(id: shuffle_all, label: tr! { "zh-Hans" => "随机播放", "en" => "Shuffle" }, icon: "shuffle", width: fill, enabled: !app.opened_loading) => app.shuffle(Source::Playlist)
             Picker(id: playlist_order, label: tr! { "zh-Hans" => "排序", "en" => "Sort By" }, label_hidden: true, selected: app.order, style: menu) => app.set_order(app.order)
+            watch_reverse_order_button(app: app)
+        }
+    }
+}
+
+#[component]
+pub fn reverse_order_button(app: enji::Client) -> impl View {
+    ui! {
+        if app.order_reversed {
+            IconButton(id: normal_order, icon: "arrow.up.arrow.down", height: 36, font_size: 15, prominence: prominent, label: tr! { "zh-Hans" => "取消倒序", "en" => "Normal Order" }) => app.set_order_reversed(false)
+        } else {
+            IconButton(id: reverse_order, icon: "arrow.up.arrow.down", height: 36, font_size: 15, label: tr! { "zh-Hans" => "倒序", "en" => "Reverse Order" }) => app.set_order_reversed(true)
+        }
+    }
+}
+
+#[component]
+pub fn watch_reverse_order_button(app: enji::Client) -> impl View {
+    ui! {
+        if app.order_reversed {
+            Button(id: normal_order, label: tr! { "zh-Hans" => "倒序", "en" => "Reverse Order" }, icon: "checkmark", prominence: prominent, width: fill) => app.set_order_reversed(false)
+        } else {
+            Button(id: reverse_order, label: tr! { "zh-Hans" => "倒序", "en" => "Reverse Order" }, icon: "arrow.up.arrow.down", width: fill) => app.set_order_reversed(true)
         }
     }
 }
