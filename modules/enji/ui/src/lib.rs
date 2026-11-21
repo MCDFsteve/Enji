@@ -27,6 +27,7 @@ pub enum SettingsRoute {
     LocalMusic,
     Appearance,
     Features,
+    Plugins,
 }
 
 #[bern::session]
@@ -3819,7 +3820,9 @@ pub fn settings_page(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                         NavLink(id: settings_features, route: SettingsRoute::Features) {
                             Label(title: tr! { "zh-Hans" => "可选功能", "en" => "Optional Features" }, icon: "switch.2")
                         }
-                        Button(id: open_plugins, label: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, icon: "puzzlepiece.extension", prominence: plain) => app.open_plugins()
+                        NavLink(id: settings_plugins, route: SettingsRoute::Plugins) {
+                            Label(title: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, icon: "puzzlepiece.extension")
+                        }
                     }
                 }
                 Destination |route| {
@@ -3846,6 +3849,7 @@ pub fn settings_page(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                         }
                         SettingsRoute::Appearance => { appearance_settings(app: app) }
                         SettingsRoute::Features => { optional_settings(app: app) }
+                        SettingsRoute::Plugins => { plugins_settings(app: app) }
                     }
                 }
             }
@@ -3923,6 +3927,69 @@ pub fn desktop_lyrics_window(app: enji::Client) -> impl View {
     ui! {
         Form {
             desktop_lyric_type(app: app)
+        }
+    }
+}
+
+#[component]
+pub fn plugins_settings(app: enji::Client, #[session] draft: MainDraft) -> impl View {
+    ui! {
+        Stack {
+            Form(title: tr! { "zh-Hans" => "插件", "en" => "Plugins" }) {
+                if app.has_plugins {
+                    Section(title: tr! { "zh-Hans" => "已安装", "en" => "Installed" }) {
+                        ForEach(items: app.plugins, key: id) |plugin| {
+                            Column(gap: 0, align: leading) {
+                                Row(gap: 12, align: center) {
+                                    Column(gap: 2, align: leading) {
+                                        Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: plugin.name, version: plugin.version })
+                                        Text(content: plugin.description, style: caption, emphasis: secondary, lines: 2)
+                                        plugin_permissions(playback: plugin.playback_control, gain: plugin.audio_gain)
+                                        if !plugin.fits {
+                                            Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: plugin.platforms }, style: caption, emphasis: tertiary)
+                                        }
+                                    }
+                                    Spacer
+                                    Switch(id: plugin_enabled, label: plugin.name, label_hidden: true, checked: plugin.enabled, style: switch) => app.set_plugin_enabled(plugin.id, plugin.enabled)
+                                    IconButton(id: remove_plugin, icon: "trash", font_size: 15, prominence: plain, label: tr! { "zh-Hans" => "删除插件", "en" => "Remove Plugin" }) => app.remove_plugin(plugin.id)
+                                }
+                                if plugin.fits {
+                                    plugin_settings(app: app, plugin: plugin)
+                                }
+                            }
+                        }
+                    }
+                }
+                Section(title: tr! { "zh-Hans" => "插件商店", "en" => "Plugin Market" }) {
+                    ForEach(items: app.offers, key: id, skeleton: app.offers_loading, skeleton_count: 4) |offer| {
+                        Row(gap: 12, align: center) {
+                            Column(gap: 2, align: leading) {
+                                Text(content: tr! { "zh-Hans" => "{name} {version}", "en" => "{name} {version}"; name: offer.name, version: offer.version })
+                                Text(content: offer.description, style: caption, emphasis: secondary, lines: 2)
+                                plugin_permissions(playback: offer.playback_control, gain: offer.audio_gain)
+                                if !offer.fits {
+                                    Text(content: tr! { "zh-Hans" => "仅支持 {platforms}", "en" => "{platforms} only"; platforms: offer.platforms }, style: caption, emphasis: tertiary)
+                                }
+                            }
+                            Spacer
+                            if offer.installed && !offer.newer {
+                                Text(content: tr! { "zh-Hans" => "已安装", "en" => "Installed" }, style: caption, emphasis: secondary)
+                            } else if offer.newer {
+                                Button(id: update_plugin, label: tr! { "zh-Hans" => "更新", "en" => "Update" }, shape: capsule) => app.install_plugin(offer.id)
+                            } else {
+                                Button(id: install_plugin, label: tr! { "zh-Hans" => "安装", "en" => "Install" }, shape: capsule, prominence: prominent) => app.install_plugin(offer.id)
+                            }
+                        }
+                    }
+                }
+                Section {
+                    if !window.tv && !window.watch {
+                        Button(id: import_plugin, label: tr! { "zh-Hans" => "导入插件…", "en" => "Import Plugin…" }, icon: "plus", pick: draft.plugin_file, files: ".enj") => app.import_plugin(draft.plugin_file)
+                    }
+                    Button(id: refresh_plugin_market, label: tr! { "zh-Hans" => "刷新插件目录", "en" => "Refresh Catalog" }, icon: "arrow.clockwise", enabled: !app.offers_loading) => app.load_offers()
+                }
+            }
+            Watch(value: true) => app.load_offers()
         }
     }
 }
