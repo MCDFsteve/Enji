@@ -204,7 +204,7 @@ To build your own app the same way, have a look at [Bern](https://github.com/Aim
 Enji is built with [Bern](https://github.com/AimesSoft/Bern). First install Bern's build tool `bern`, at the version of Bern that Enji uses:
 
 ```bash
-cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev b84ea3957fd74e6f9eaa9da7e3b483120fdf4b67 bern-cli
+cargo install --locked --force --git https://github.com/AimesSoft/Bern.git --rev 2a9a8088405a1edc5a2a208d113a14bf3bfe1749 bern-cli
 ```
 
 The build tool and `Cargo.toml` pin the same Bern commit. Use the version above to build the current source.

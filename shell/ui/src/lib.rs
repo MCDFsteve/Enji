@@ -529,6 +529,70 @@ pub fn page_view(app: enji::Client, page: Page) -> impl View {
 #[component]
 pub fn module_switches(app: enji::Client, shell: shell::Client) -> impl View {
     ui! {
+        if window.watch {
+            watch_module_switches(app: app, shell: shell)
+        } else {
+            Column(gap: 0) {
+                if build.modules.recommend && app.netease {
+                    Column(padding_x: 16) { Divider }
+                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                        Column(width: 22, align: center) {
+                            Stack(variant: quiet) {
+                                Label(title: tr! { "zh-Hans" => "推荐", "en" => "For You" }, icon: "sparkles", display: icon, font_size: 15)
+                            }
+                        }
+                        Text(content: tr! { "zh-Hans" => "推荐", "en" => "For You" })
+                        Spacer
+                        Switch(id: module_recommend, label: tr! { "zh-Hans" => "推荐", "en" => "For You" }, label_hidden: true, checked: shell.modules.recommend, style: switch) => shell.set_module("recommend", shell.modules.recommend)
+                    }
+                }
+                if build.modules.charts && app.netease {
+                    Column(padding_x: 16) { Divider }
+                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                        Column(width: 22, align: center) {
+                            Stack(variant: quiet) {
+                                Label(title: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, icon: "chart.bar", display: icon, font_size: 15)
+                            }
+                        }
+                        Text(content: tr! { "zh-Hans" => "排行榜", "en" => "Charts" })
+                        Spacer
+                        Switch(id: module_charts, label: tr! { "zh-Hans" => "排行榜", "en" => "Charts" }, label_hidden: true, checked: shell.modules.charts, style: switch) => shell.set_module("charts", shell.modules.charts)
+                    }
+                }
+                if build.modules.search {
+                    Column(padding_x: 16) { Divider }
+                    Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                        Column(width: 22, align: center) {
+                            Stack(variant: quiet) {
+                                Label(title: tr! { "zh-Hans" => "搜索", "en" => "Search" }, icon: "magnifyingglass", display: icon, font_size: 15)
+                            }
+                        }
+                        Text(content: tr! { "zh-Hans" => "搜索", "en" => "Search" })
+                        Spacer
+                        Switch(id: module_search, label: tr! { "zh-Hans" => "搜索", "en" => "Search" }, label_hidden: true, checked: shell.modules.search, style: switch) => shell.set_module("search", shell.modules.search)
+                    }
+                    if shell.modules.search && app.netease {
+                        Column(padding_x: 16) { Divider }
+                        Row(gap: 12, padding_x: 16, padding_y: 10, align: center) {
+                            Column(width: 22, align: center) {
+                                Stack(variant: quiet) {
+                                    Label(title: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, icon: "list.bullet", display: icon, font_size: 15)
+                                }
+                            }
+                            Text(content: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" })
+                            Spacer
+                            Switch(id: hot_search, label: tr! { "zh-Hans" => "热搜榜", "en" => "Trending" }, label_hidden: true, checked: app.hot_search, style: switch) => app.set_hot_search(app.hot_search)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn watch_module_switches(app: enji::Client, shell: shell::Client) -> impl View {
+    ui! {
         Section {
             if build.modules.recommend && app.netease {
                 Switch(id: module_recommend, label: tr! { "zh-Hans" => "推荐", "en" => "For You" }, checked: shell.modules.recommend, style: switch) => shell.set_module("recommend", shell.modules.recommend)
