@@ -125,6 +125,7 @@ struct Running {
     last_token: Option<String>,
     request_prefix: String,
     pages: HashMap<String, bridge::PageRequest>,
+    wants_frames: bool,
 }
 
 impl Running {
@@ -217,7 +218,7 @@ impl Plugins {
         // Only the installed script is executable source. Config/event/response values are JSON strings.
         let started = context.eval(format!("var __enjiConfig = JSON.parse({config});\n{HOST}\n{script}\n;__enji.flush()"));
         let pending = VecDeque::from([Pending { evaluation: started, token: None, settings_revision: 0 }]);
-        self.running.push(Running { pack, context, pending, settings_revision: 0, request_prefix: prefix, pages: HashMap::new(), last_token: None });
+        self.running.push(Running { pack, context, pending, settings_revision: 0, request_prefix: prefix, pages: HashMap::new(), last_token: None, wants_frames: false });
         Ok(())
     }
 
@@ -246,6 +247,19 @@ impl Plugins {
     /// `loudness` and `audio_gain` do not opt into the high-rate meter or beat detection.
     pub fn wants_audio(&self) -> bool {
         self.running.iter().any(|r| r.pack.has("audio"))
+    }
+
+    pub fn wants_frames(&self) -> bool {
+        self.running.iter().any(|r| r.wants_frames)
+    }
+
+    /// Deliver a visual animation frame only to plugins that subscribed to `frame`,
+    /// skipping snapshot serialization and dropping frames while a plugin is busy.
+    pub fn send_frame(&mut self, data: &Value) {
+        for r in &mut self.running {
+            if !r.wants_frames || r.pending.len() >= 2 { continue; }
+            r.dispatch("frame", data.clone(), None);
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -327,6 +341,9 @@ impl Plugins {
                     if !running.accept(&call, pending.token.as_deref()) { continue; }
                     if let Call::StorageSet(key, value) = &call {
                         keep(&running.pack.id, key, value);
+                    }
+                    if let Call::WantFrames(on) = &call {
+                        running.wants_frames = *on;
                     }
                     calls.push((running.pack.id.clone(), call));
                 }

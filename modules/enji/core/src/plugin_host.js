@@ -1,13 +1,14 @@
 // Each context owns one SDK. The engine sends JSON data and polls the returned call batches;
 // in particular a handler never awaits an engine reply on this evaluation's call stack.
-var plugin, enji, overlay, cover, ui, storage, console, playback, queue, lyrics, audio, settings;
+var plugin, enji, overlay, desktopLyrics, cover, ui, storage, console, playback, queue, lyrics, audio, settings;
 var __enji = (function (config) {
   var stringify = JSON.stringify, parse = JSON.parse;
   var permissions = config.permissions.slice();
   var features = ['playback.state', 'playback.control', 'queue.page', 'lyrics.timeline',
-    'audio.levels', 'audio.loudness', 'audio.trackGain', 'plugin.settings', 'plugin.actions', 'bern.cli'];
+    'audio.levels', 'audio.loudness', 'audio.trackGain', 'plugin.settings', 'plugin.actions',
+    'desktopLyrics.color', 'animation.frame', 'bern.cli'];
   var handlers = Object.create(null), pending = Object.create(null);
-  var pendingCount = 0, sequence = 0, outbox = [], state = {};
+  var pendingCount = 0, sequence = 0, outbox = [], state = {}, frameSubscribed = false;
   var instance = stringify(config.requestPrefix);
 
   function dictionary(input) {
@@ -81,16 +82,49 @@ var __enji = (function (config) {
     },
   };
   settings = { get: function (id) { return Object.prototype.hasOwnProperty.call(preferences, id) ? preferences[id] : null; } };
+  function parseRgb(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.max(0, Math.min(0xffffff, Math.round(value)));
+    }
+    if (typeof value === 'string') {
+      var hex = value.trim();
+      if (hex.charAt(0) === '#') hex = hex.slice(1);
+      if (/^[0-9a-fA-F]{6}$/.test(hex)) return parseInt(hex, 16);
+    }
+    return undefined;
+  }
+  desktopLyrics = {
+    get visible() { return !!state.desktopLyrics; },
+    setColor: function (primary, secondary) {
+      if (!has('overlay')) return false;
+      var p = parseRgb(primary);
+      var s = arguments.length < 2 ? null : parseRgb(secondary);
+      if (p === undefined || s === undefined) return false;
+      return call('desktopLyricColor', [p, s]);
+    },
+    clearColor: function () {
+      if (!has('overlay')) return false;
+      return call('desktopLyricColor', [null, null]);
+    },
+  };
   enji = {
     platform: config.platform, hostVersion: config.hostVersion, apiVersion: config.apiVersion,
     supports: function (feature) { return features.indexOf(feature) !== -1; },
     on: function (event, handler) {
-      if (typeof event === 'string' && typeof handler === 'function') (handlers[event] || (handlers[event] = [])).push(handler);
+      if (typeof event === 'string' && typeof handler === 'function') {
+        (handlers[event] || (handlers[event] = [])).push(handler);
+        if (event === 'frame' && !frameSubscribed && has('overlay')) {
+          frameSubscribed = true;
+          call('wantFrames', [true]);
+        }
+      }
     },
     get song() { return state.song || null; },
     get playing() { return !!state.playing; },
     get loudness() { return has('loudness') || has('audio_gain') ? state.loudness || null : null; },
     playback: playback, queue: queue, lyrics: lyrics, audio: audio, settings: settings,
+    desktopLyrics: desktopLyrics,
   };
 
   overlay = {

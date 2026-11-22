@@ -11,6 +11,10 @@ pub(super) const MAX_OFFSET: u64 = if usize::BITS < 53 { usize::MAX as u64 } els
 pub enum Call {
     OverlayShow(String, Value),
     OverlayHide(String),
+    /// Transient in-memory desktop lyric color override (0x000000..=0xffffff); None restores the user's color.
+    DesktopLyricColor { primary: Option<i64>, secondary: Option<i64> },
+    /// Opt in/out of visual animation frame events while an overlay or desktop lyrics are visible.
+    WantFrames(bool),
     CoverPulse(f64),
     Toast(String),
     StorageSet(String, String),
@@ -43,6 +47,17 @@ impl Call {
         Some(match value.get(0)?.as_str()? {
             "overlayShow" => Self::OverlayShow(arg(0), args.get(1).cloned().unwrap_or(Value::Null)),
             "overlayHide" => Self::OverlayHide(arg(0)),
+            "desktopLyricColor" if args.len() == 2 => {
+                let rgb = |v: &Value| -> Option<Option<i64>> {
+                    if v.is_null() {
+                        Some(None)
+                    } else {
+                        v.as_i64().filter(|c| (0..=0xffffff).contains(c)).map(Some)
+                    }
+                };
+                Self::DesktopLyricColor { primary: rgb(&args[0])?, secondary: rgb(&args[1])? }
+            }
+            "wantFrames" if args.len() == 1 => Self::WantFrames(args[0].as_bool()?),
             "coverPulse" => Self::CoverPulse(args.first().and_then(Value::as_f64).unwrap_or(0.5).clamp(0.0, 1.0)),
             "toast" => Self::Toast(arg(0)),
             "storageSet" => Self::StorageSet(arg(0), arg(1)),
@@ -74,7 +89,10 @@ impl Call {
 
     pub(super) fn permission(&self) -> Option<&'static str> {
         match self {
-            Self::OverlayShow(..) | Self::OverlayHide(_) => Some("overlay"),
+            Self::OverlayShow(..)
+            | Self::OverlayHide(_)
+            | Self::DesktopLyricColor { .. }
+            | Self::WantFrames(_) => Some("overlay"),
             Self::CoverPulse(_) => Some("cover"),
             Self::QueuePage { .. } => Some("queue"),
             Self::LyricsTimeline { .. } => Some("lyrics"),
@@ -138,7 +156,7 @@ pub(super) fn track(value: &Value) -> Value {
 
 fn can_read_loudness(pack: &Pack) -> bool { pack.has("loudness") || pack.has("audio_gain") }
 
-const PLAYBACK: &[&str] = &["playing", "position", "duration", "mode", "playbackToken"];
+const PLAYBACK: &[&str] = &["playing", "position", "duration", "mode", "playbackToken", "desktopLyrics"];
 
 /// This is a projection, not removal of known sensitive keys: new worker fields stay private until opted in.
 pub(super) fn snapshot(pack: &Pack, value: &Value) -> Value {

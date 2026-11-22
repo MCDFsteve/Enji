@@ -163,3 +163,25 @@ fn bern_cli_is_exposed_and_advertised_as_supported() {
     let calls = drain(&mut plugins);
     assert!(calls.contains(&("sdk.cli".into(), Call::Toast("true/object/function".into()))));
 }
+
+#[test]
+fn desktop_lyrics_color_and_animation_frames_require_overlay_permission() {
+    let mut plugins = Plugins::default();
+    let script = "enji.on('frame', f => { desktopLyrics.setColor('#ff22aa', 0x11cc88); if (f.clear) desktopLyrics.clearColor(); });\n\
+        ui.toast([enji.supports('desktopLyrics.color'), enji.supports('animation.frame'), desktopLyrics.setColor('bad')].join('/'));";
+    run(&mut plugins, declaration("sdk.rgb", &["overlay"]), script);
+    run(&mut plugins, declaration("sdk.denied", &[]), script);
+    let init = drain(&mut plugins);
+    assert!(init.contains(&("sdk.rgb".into(), Call::WantFrames(true))));
+    assert!(init.contains(&("sdk.rgb".into(), Call::Toast("true/true/false".into()))));
+    assert!(!init.contains(&("sdk.denied".into(), Call::WantFrames(true))));
+    assert!(plugins.wants_frames());
+
+    plugins.send_frame(&json!({ "time": 1.0, "dt": 0.025, "playing": true, "desktopLyrics": true, "clear": true }));
+    let calls = drain(&mut plugins);
+    assert_eq!(calls, vec![
+        ("sdk.rgb".into(), Call::DesktopLyricColor { primary: Some(0xff22aa), secondary: Some(0x11cc88) }),
+        ("sdk.rgb".into(), Call::DesktopLyricColor { primary: None, secondary: None }),
+    ]);
+    assert!(Call::parse(&json!(["desktopLyricColor", [0x1000000, null]])).is_none());
+}

@@ -674,10 +674,16 @@ struct Worker {
     listings: Vec<plugins::Listing>,
     /// The overlays plugins put up, to take down with them.
     plugin_overlays: std::collections::HashSet<String>,
+    /// Transient in-memory desktop lyric color overrides from running plugins (last writer wins).
+    desktop_lyric_colors: Vec<(String, Option<i64>, Option<i64>)>,
     /// How many beats the plugins heard of.
     beats_told: u32,
     /// When the plugins last heard the music.
     plugins_heard: Instant,
+    /// When visual animation plugins last received a frame tick.
+    plugins_framed: Instant,
+    /// Monotonic origin for plugin animation frame timestamps.
+    plugins_started: Instant,
     /// What was played, the latest first.
     history: Vec<Entry>,
     /// What was listened to, for the account's record on NetEase.
@@ -866,8 +872,11 @@ pub async fn run(
         desktop_save_after: None,
         listings: Vec::new(),
         plugin_overlays: std::collections::HashSet::new(),
+        desktop_lyric_colors: Vec::new(),
         beats_told: 0,
         plugins_heard: Instant::now(),
+        plugins_framed: Instant::now(),
+        plugins_started: Instant::now(),
         history: Vec::new(),
         listens: listens::Listens::load(),
         top_all: Vec::new(),
@@ -946,6 +955,8 @@ fn unix_seconds() -> f64 {
 
 /// How often plugins hear the music's loudness between beats.
 const HEARD_EVERY: Duration = Duration::from_millis(100);
+/// Cadence for visual animation frames delivered to opted-in overlay plugins (~40 fps).
+const FRAME_EVERY: Duration = Duration::from_millis(24);
 
 /// How far through a song `position` is, in steps a slider shows: a finer
 /// change would only have the screen laid out again.
@@ -2290,9 +2301,15 @@ impl Worker {
             } else { String::new() };
             Some((first, second, first_ruby, second_ruby, route, s.desktop_lyrics_locked, s.playing, s.desktop_style.clone(), s.desktop_style_supported))
         });
-        let Some((first, second, first_ruby, second_ruby, route, locked, playing, style, adjustable)) = shown else {
+        let Some((first, second, first_ruby, second_ruby, route, locked, playing, mut style, adjustable)) = shown else {
             return bern::overlay::hide(desktop_style::OVERLAY_ID);
         };
+        if let Some(rgb) = self.plugin_desktop_color(true) {
+            style.primary_rgb = rgb;
+        }
+        if let Some(rgb) = self.plugin_desktop_color(false) {
+            style.secondary_rgb = rgb;
+        }
         let button = |id: &str, symbol: &str| Button { id: id.into(), symbol: symbol.into(), while_locked: false };
         let mut buttons = vec![
             button("previous", "backward.fill"),
@@ -2450,6 +2467,7 @@ impl Worker {
                 "playing": s.playing, "position": self.position,
                 "duration": s.current.as_ref().map_or(0.0, |song| song.seconds),
                 "mode": plugin_api::mode_name(&s.mode),
+                "desktopLyrics": s.desktop_lyrics && s.current.is_some(),
                 "playbackToken": s.current.as_ref().map(|_| self.token.to_string()),
                 "song": s.current.as_ref().map(plugin_api::public_song),
                 "loudness": self.normalization.snapshot(self.token, s.loudness_enabled, &s.loudness_provider),
@@ -2483,10 +2501,26 @@ impl Worker {
         self.tell_loudness();
     }
 
+    fn plugin_desktop_color(&self, primary: bool) -> Option<i64> {
+        self.desktop_lyric_colors.iter().rev().find_map(|(_, p, s)| if primary { *p } else { *s })
+    }
+
+    fn set_plugin_desktop_color(&mut self, plugin: &str, primary: Option<i64>, secondary: Option<i64>) {
+        let before = (self.plugin_desktop_color(true), self.plugin_desktop_color(false));
+        self.desktop_lyric_colors.retain(|(id, _, _)| id != plugin);
+        if primary.is_some() || secondary.is_some() {
+            self.desktop_lyric_colors.push((plugin.to_owned(), primary, secondary));
+        }
+        let after = (self.plugin_desktop_color(true), self.plugin_desktop_color(false));
+        if before != after {
+            self.show_desktop_lyrics();
+        }
+    }
+
     /// The music's loudness for the plugins that hear it, and what the
     /// plugins asked for.
     fn plugin_tick(&mut self) {
-        let playing = self.shared.read(|s| s.playing);
+        let (playing, desktop_visible) = self.shared.read(|s| (s.playing, s.desktop_lyrics && s.current.is_some()));
         let hearing = self.plugins.wants_audio();
         audio::follow_beat(hearing);
         if playing && hearing {
@@ -2503,6 +2537,20 @@ impl Worker {
                 self.send_plugins("audio", json!({ "level": level, "bass": bass, "beat": strength, "bpm": beat.bpm, "position": position }));
             }
         }
+        if self.plugins.wants_frames() && (desktop_visible || !self.plugin_overlays.is_empty()) {
+            let elapsed = self.plugins_framed.elapsed();
+            if elapsed >= FRAME_EVERY {
+                self.plugins_framed = Instant::now();
+                let dt = elapsed.as_secs_f64().min(0.1);
+                let time = self.plugins_started.elapsed().as_secs_f64();
+                self.plugins.send_frame(&json!({
+                    "time": time,
+                    "dt": dt,
+                    "playing": playing,
+                    "desktopLyrics": desktop_visible,
+                }));
+            }
+        }
         for (plugin, call) in self.plugins.calls() {
             match call {
                 plugins::Call::OverlayShow(id, spec) => {
@@ -2515,6 +2563,10 @@ impl Worker {
                     bern::overlay::hide(&id);
                     self.plugin_overlays.remove(&id);
                 }
+                plugins::Call::DesktopLyricColor { primary, secondary } => {
+                    self.set_plugin_desktop_color(&plugin, primary, secondary);
+                }
+                plugins::Call::WantFrames(_) => {}
                 plugins::Call::CoverPulse(strength) => self.shared.live(|live| {
                     if strength < 0.34 {
                         live.pulse_soft += 1;
@@ -2541,7 +2593,7 @@ impl Worker {
         }
     }
 
-    /// Take down the overlays a plugin put up.
+    /// Take down the overlays and transient desktop lyric color overrides a plugin put up.
     fn hide_plugin_overlays(&mut self, plugin: &str) {
         let prefix = plugins::overlay_id(plugin, "");
         let mine: Vec<String> = self.plugin_overlays.iter().filter(|id| id.starts_with(&prefix)).cloned().collect();
@@ -2549,6 +2601,7 @@ impl Worker {
             bern::overlay::hide(&id);
             self.plugin_overlays.remove(&id);
         }
+        self.set_plugin_desktop_color(plugin, None, None);
     }
 
     /// Read or download `song`'s cover for the system's now playing.
