@@ -2607,7 +2607,8 @@ pub fn now_playing(
                     // All the width beside the cover, whatever the lines,
                     // which wrap in it, so the cover never moves; as tall as
                     // the window, so lines leave it only at its edges.
-                    Column {
+                    Column(gap: 0) {
+                        Row(gap: 0) { Spacer }
                         match app.panel {
                             Panel::Lyrics => { lyrics(app: app) }
                             Panel::Comments => { comments_panel(app: app) }
@@ -2662,7 +2663,10 @@ pub fn lyrics(app: enji::Client, #[session] draft: MainDraft) -> impl View {
             Watch(value: draft.browsing) => app.browse_lyrics(draft.browsing)
         } else if app.buffering {
             Column(gap: 0, padding_y: if window.watch { 24 } else { 88 }) {
-                loading_lines()
+                Row(gap: 0) {
+                    loading_lines()
+                    Spacer
+                }
                 Spacer
             }
         } else {
@@ -3818,9 +3822,6 @@ pub fn settings_page(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
         } else {
             Navigation(id: settings_navigation, path: draft.settings_path) {
                 Form(title: tr! { "zh-Hans" => "设置", "en" => "Settings" }) {
-                    Section(style: plain) {
-                        settings_identity(app: app)
-                    }
                     if app.netease {
                         Section { settings_account_entry(app: app) }
                     }
@@ -3852,6 +3853,9 @@ pub fn settings_page(app: enji::Client, #[session] draft: MainDraft) -> impl Vie
                         NavLink(id: settings_plugins, route: SettingsRoute::Plugins) {
                             Label(title: tr! { "zh-Hans" => "插件", "en" => "Plugins" }, icon: "puzzlepiece.extension")
                         }
+                    }
+                    Section(style: plain) {
+                        settings_identity(app: app)
                     }
                 }
                 Destination |route| {
@@ -3897,10 +3901,10 @@ pub fn settings_identity(app: enji::Client) -> impl View {
                 if app.bern_credit {
                     if app.bern_link_supported {
                         Button(id: open_bern_homepage, label: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }) {
-                            Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, color: accent)
+                            Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: tertiary)
                         } => app.open_bern_homepage()
                     } else {
-                        Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: secondary)
+                        Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: tertiary)
                     }
                 }
             }
@@ -4208,7 +4212,7 @@ pub fn watch_settings_list(app: enji::Client) -> impl View {
             LanguagePicker(id: language, label: tr! { "zh-Hans" => "语言", "en" => "Language" })
             Text(content: tr! { "zh-Hans" => "版本 {version}", "en" => "Version {version}"; version: window.app_version }, style: caption, emphasis: secondary)
             if app.bern_credit {
-                Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: secondary)
+                Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: tertiary)
             }
         }
     }
