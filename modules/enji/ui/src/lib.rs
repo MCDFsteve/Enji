@@ -3999,7 +3999,7 @@ pub fn settings_identity(app: enji::Client) -> impl View {
                 Text(content: tr! { "zh-Hans" => "版本 {version}", "en" => "Version {version}"; version: window.app_version }, style: caption, emphasis: secondary)
                 if app.bern_credit {
                     if app.bern_link_supported {
-                        Button(id: open_bern_homepage, label: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }) {
+                        Button(id: open_bern_homepage, label: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, cursor: pointer) {
                             Text(content: tr! { "zh-Hans" => "使用Bern框架荣誉构建", "en" => "Proudly built with Bern" }, style: caption, emphasis: tertiary)
                         } => app.open_bern_homepage()
                     } else {
