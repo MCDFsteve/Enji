@@ -22,7 +22,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.20"
+version = "0.3.21"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -36,8 +36,8 @@ opt-level = 3
 
 [workspace.dependencies]
 # Framework and build tool use the same immutable source commit.
-bern = { git = "https://github.com/AimesSoft/Bern.git", rev = "d2262f4e16f10a43719a84c52ed012aac66e9e7f" }
-bern-script = { git = "https://github.com/AimesSoft/Bern.git", rev = "d2262f4e16f10a43719a84c52ed012aac66e9e7f" }
+bern = { git = "https://github.com/AimesSoft/Bern.git", rev = "98261de20bc3c3a76da72a1fe302101f2fcf5966" }
+bern-script = { git = "https://github.com/AimesSoft/Bern.git", rev = "98261de20bc3c3a76da72a1fe302101f2fcf5966" }
 enji-protocol = { path = "modules/enji/protocol" }
 enji-kit = { path = "modules/enji/kit" }
 enji-ui = { path = "modules/enji/ui" }
