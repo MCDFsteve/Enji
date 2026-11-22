@@ -378,16 +378,16 @@ pub fn desktop_shell(
                 }
             }
             Detail(titled: false) {
-                Column(gap: 0) {
-                    Stack {
-                        match nav.page {
-                            Page::Library => { page_view(app: app, page: Page::Library) }
-                            Page::Local => { page_view(app: app, page: Page::Local) }
-                            Page::History => { page_view(app: app, page: Page::History) }
-                            Page::Settings => { page_view(app: app, page: Page::Settings) }
-                            _ => { PageContent(slot: main, selected: nav.page) }
-                        }
+                Stack {
+                    match nav.page {
+                        Page::Library => { page_view(app: app, page: Page::Library) }
+                        Page::Local => { page_view(app: app, page: Page::Local) }
+                        Page::History => { page_view(app: app, page: Page::History) }
+                        Page::Settings => { page_view(app: app, page: Page::Settings) }
+                        _ => { PageContent(slot: main, selected: nav.page) }
                     }
+                }
+                DetailFooter {
                     Divider
                     player_bar(app: app)
                 }
