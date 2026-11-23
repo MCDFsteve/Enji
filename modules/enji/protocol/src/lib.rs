@@ -552,6 +552,11 @@ pub mod enji {
 
         /// What shows over the page.
         pub detail: Detail,
+        /// What shows over a full-screen overlay (such as phone search),
+        /// kept apart from the page beneath it.
+        pub overlay_detail: Detail,
+        /// A full-screen overlay currently owns detail navigation over the pages.
+        pub detail_overlay: bool,
         /// An open album: its songs, what it says about itself, who sang it.
         pub album: Option<Album>,
         #[keyed(index)]
@@ -923,6 +928,10 @@ pub mod enji {
         fn open_artist(&mut self, id: i64) -> Result<(), CommandError>;
         /// Close what was opened last, showing what was under it.
         fn back(&mut self) -> Result<(), CommandError>;
+        /// Switch detail navigation between the pages and a full-screen
+        /// overlay (such as phone search), keeping the page's detail stack
+        /// intact beneath it.
+        fn set_detail_overlay(&mut self, active: bool) -> Result<(), CommandError>;
         /// Add a folder's music to the local library.
         fn add_folder(&mut self, folder: MediaSource) -> Result<(), CommandError>;
         fn remove_folder(&mut self, key: i64) -> Result<(), CommandError>;

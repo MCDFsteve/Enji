@@ -160,6 +160,7 @@ pub enum Job {
     OpenAlbum(i64),
     OpenArtist(i64),
     Back,
+    SetDetailOverlay(bool),
     Liked(Vec<i64>),
     DismissError,
     AddFolder(String),
@@ -251,6 +252,8 @@ fn state_from_settings(saved: &Value) -> State {
         has_collected: false,
         default_playlist: saved["default_playlist"].as_i64().unwrap_or(0),
         detail: Detail::Page,
+        overlay_detail: Detail::Page,
+        detail_overlay: false,
         album: None,
         album_songs: Vec::new(),
         album_description: String::new(),
@@ -734,8 +737,8 @@ struct Worker {
     daily: Vec<Song>,
     results: Vec<Song>,
     local_results: Vec<Song>,
-    /// What is open over the page, the last on top, each with its id.
-    stack: Vec<(Detail, i64)>,
+    /// Detail stacks for the base pages and any full-screen overlay above them.
+    details: DetailStacks,
     /// Local files are being matched with NetEase in the background.
     auto_matching: bool,
     /// A scan is reading the folders; another was asked for meanwhile.
@@ -745,6 +748,70 @@ struct Worker {
     shown_at: Instant,
     /// The playlists opened before, by the account and the list.
     kept: Arc<Mutex<HashMap<(i64, i64), Kept>>>,
+}
+
+/// Detail stacks for the base pages and a full-screen overlay (such as phone
+/// search) sitting over them, so opening an overlay from a subpage starts
+/// clean without discarding the subpage underneath.
+#[derive(Default)]
+struct DetailStacks {
+    base: Vec<(Detail, i64)>,
+    overlay: Vec<(Detail, i64)>,
+    overlay_active: bool,
+}
+
+impl DetailStacks {
+    fn base_detail(&self) -> Detail {
+        self.base.last().map_or(Detail::Page, |(kind, _)| kind.clone())
+    }
+
+    fn overlay_detail(&self) -> Detail {
+        self.overlay.last().map_or(Detail::Page, |(kind, _)| kind.clone())
+    }
+
+    /// The entry whose payload should be loaded in shared state: the overlay's
+    /// top while the overlay has pushed a detail, otherwise the page's top.
+    fn active_top(&self) -> Option<(Detail, i64)> {
+        if self.overlay_active && !self.overlay.is_empty() {
+            self.overlay.last().cloned()
+        } else {
+            self.base.last().cloned()
+        }
+    }
+
+    fn push(&mut self, kind: Detail, id: i64) {
+        let target = if self.overlay_active { &mut self.overlay } else { &mut self.base };
+        if target.last() != Some(&(kind.clone(), id)) {
+            target.push((kind, id));
+        }
+    }
+
+    fn pop(&mut self) -> bool {
+        if self.overlay_active {
+            self.overlay.pop().is_some()
+        } else {
+            self.base.pop().is_some()
+        }
+    }
+
+    fn set_overlay(&mut self, active: bool) -> bool {
+        if self.overlay_active == active {
+            return false;
+        }
+        self.overlay_active = active;
+        self.overlay.clear();
+        true
+    }
+
+    fn clear(&mut self) {
+        self.base.clear();
+        self.overlay.clear();
+    }
+
+    fn remove_kind(&mut self, kind: &Detail) {
+        self.base.retain(|(entry, _)| entry != kind);
+        self.overlay.retain(|(entry, _)| entry != kind);
+    }
 }
 
 /// The NetEase song a local file is.
@@ -904,7 +971,7 @@ pub async fn run(
         daily: Vec::new(),
         results: Vec::new(),
         local_results: Vec::new(),
-        stack: Vec::new(),
+        details: DetailStacks::default(),
         auto_matching: false,
         scanning: false,
         scan_again: false,
@@ -998,8 +1065,8 @@ impl Worker {
                     self.set_mode(PlayMode::RepeatAll);
                 }
                 self.liked.clear();
-                self.stack.retain(|(kind, _)| *kind != Detail::Account);
-                self.show_top();
+                self.details.remove_kind(&Detail::Account);
+                self.sync_details();
                 self.shared.update(|s| {
                     s.login = Login::Out;
                     s.current_liked = false;
@@ -1097,13 +1164,22 @@ impl Worker {
                 self.load_artist(id);
             }
             Job::Back => {
-                self.stack.pop();
-                self.show_top();
+                if self.details.pop() {
+                    self.sync_details();
+                }
+            }
+            Job::SetDetailOverlay(active) => {
+                if self.details.set_overlay(active) {
+                    self.sync_details();
+                }
             }
             Job::Close => {
-                self.stack.clear();
+                self.details.clear();
+                let overlay_active = self.details.overlay_active;
                 self.shared.update(|s| {
                     s.detail = Detail::Page;
+                    s.overlay_detail = Detail::Page;
+                    s.detail_overlay = overlay_active;
                     s.opened = None;
                     s.album = None;
                     s.artist = None;
@@ -2927,18 +3003,26 @@ impl Worker {
     /// `kind` `id` opened over what is open; opened already on top, nothing
     /// more.
     fn push(&mut self, kind: Detail, id: i64) {
-        if self.stack.last() != Some(&(kind.clone(), id)) {
-            self.stack.push((kind.clone(), id));
-        }
-        self.shared.update(|s| s.detail = kind);
+        self.details.push(kind, id);
+        let base = self.details.base_detail();
+        let overlay = self.details.overlay_detail();
+        self.shared.update(|s| {
+            s.detail = base;
+            s.overlay_detail = overlay;
+        });
     }
 
-    /// What is on top of the stack shown again, read again when what it
-    /// shows was replaced by another of its kind.
-    fn show_top(&mut self) {
-        let Some((kind, id)) = self.stack.last().cloned() else {
+    /// Publish both detail layers and load the active top entry again when
+    /// what it shows was replaced by another of its kind.
+    fn sync_details(&self) {
+        let base = self.details.base_detail();
+        let overlay = self.details.overlay_detail();
+        let overlay_active = self.details.overlay_active;
+        let Some((kind, id)) = self.details.active_top() else {
             return self.shared.update(|s| {
                 s.detail = Detail::Page;
+                s.overlay_detail = Detail::Page;
+                s.detail_overlay = overlay_active;
                 s.opened = None;
                 s.album = None;
                 s.artist = None;
@@ -2951,7 +3035,11 @@ impl Worker {
             Detail::Account => Some(id),
             Detail::Page => None,
         });
-        self.shared.update(|s| s.detail = kind.clone());
+        self.shared.update(|s| {
+            s.detail = base;
+            s.overlay_detail = overlay;
+            s.detail_overlay = overlay_active;
+        });
         if shown != Some(id) {
             match kind {
                 Detail::Playlist => self.open(id, None),
@@ -5508,5 +5596,84 @@ mod song_url_tests {
         .await;
         assert!(matches!(answer, Err(NcmError::Timeout(_))));
         assert_eq!(calls.get(), 1);
+    }
+}
+
+#[cfg(test)]
+mod detail_stack_tests {
+    use super::DetailStacks;
+    use enji_protocol::enji::Detail;
+
+    #[test]
+    fn opening_overlay_from_subpage_starts_clean_and_keeps_base() {
+        let mut stacks = DetailStacks::default();
+        stacks.push(Detail::Playlist, 10);
+        assert_eq!(stacks.base_detail(), Detail::Playlist);
+        assert_eq!(stacks.overlay_detail(), Detail::Page);
+
+        assert!(stacks.set_overlay(true));
+        assert_eq!(stacks.base_detail(), Detail::Playlist);
+        assert_eq!(stacks.overlay_detail(), Detail::Page);
+        assert_eq!(stacks.active_top(), Some((Detail::Playlist, 10)));
+
+        // Extra back while overlay has no detail does not pop the base subpage.
+        assert!(!stacks.pop());
+        assert_eq!(stacks.base_detail(), Detail::Playlist);
+        assert_eq!(stacks.active_top(), Some((Detail::Playlist, 10)));
+
+        assert!(stacks.set_overlay(false));
+        assert_eq!(stacks.base_detail(), Detail::Playlist);
+        assert_eq!(stacks.overlay_detail(), Detail::Page);
+    }
+
+    #[test]
+    fn overlay_can_open_even_the_same_detail_and_pop_back_to_search() {
+        let mut stacks = DetailStacks::default();
+        stacks.push(Detail::Playlist, 10);
+        assert!(stacks.set_overlay(true));
+
+        stacks.push(Detail::Playlist, 10);
+        assert_eq!(stacks.overlay_detail(), Detail::Playlist);
+        assert_eq!(stacks.active_top(), Some((Detail::Playlist, 10)));
+
+        stacks.push(Detail::Artist, 20);
+        assert_eq!(stacks.overlay_detail(), Detail::Artist);
+        assert_eq!(stacks.active_top(), Some((Detail::Artist, 20)));
+
+        assert!(stacks.pop());
+        assert_eq!(stacks.overlay_detail(), Detail::Playlist);
+        assert_eq!(stacks.active_top(), Some((Detail::Playlist, 10)));
+
+        assert!(stacks.pop());
+        assert_eq!(stacks.overlay_detail(), Detail::Page);
+        assert_eq!(stacks.base_detail(), Detail::Playlist);
+        assert_eq!(stacks.active_top(), Some((Detail::Playlist, 10)));
+    }
+
+    #[test]
+    fn closing_overlay_clears_overlay_details_and_keeps_base() {
+        let mut stacks = DetailStacks::default();
+        stacks.push(Detail::Album, 1);
+        assert!(stacks.set_overlay(true));
+        stacks.push(Detail::Playlist, 2);
+        assert_eq!(stacks.active_top(), Some((Detail::Playlist, 2)));
+
+        assert!(stacks.set_overlay(false));
+        assert_eq!(stacks.overlay_detail(), Detail::Page);
+        assert_eq!(stacks.base_detail(), Detail::Album);
+        assert_eq!(stacks.active_top(), Some((Detail::Album, 1)));
+    }
+
+    #[test]
+    fn remove_kind_strips_from_both_stacks() {
+        let mut stacks = DetailStacks::default();
+        stacks.push(Detail::Account, 7);
+        assert!(stacks.set_overlay(true));
+        stacks.push(Detail::Account, 7);
+
+        stacks.remove_kind(&Detail::Account);
+        assert_eq!(stacks.base_detail(), Detail::Page);
+        assert_eq!(stacks.overlay_detail(), Detail::Page);
+        assert_eq!(stacks.active_top(), None);
     }
 }

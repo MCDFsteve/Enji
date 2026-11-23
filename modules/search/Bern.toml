@@ -36,4 +36,4 @@ tab = false
 
 [contributes]
 phone_actions = ["search_button"]
-overlays = ["phone_search"]
+overlays = ["phone_search", "phone_search_scope"]

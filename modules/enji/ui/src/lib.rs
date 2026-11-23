@@ -294,7 +294,7 @@ pub fn mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                         shelf_back()
                     }
                 }
-                Shortcut(key: "escape") => draft.shelf.set(Shelf::Mine)
+                Shortcut(key: "escape", enabled: !app.detail_overlay) => draft.shelf.set(Shelf::Mine)
             }
             Shelf::History => {
                 Stack(align: top_leading) {
@@ -303,7 +303,7 @@ pub fn mine_page(app: enji::Client, #[session] draft: MainDraft) -> impl View {
                         shelf_back()
                     }
                 }
-                Shortcut(key: "escape") => draft.shelf.set(Shelf::Mine)
+                Shortcut(key: "escape", enabled: !app.detail_overlay) => draft.shelf.set(Shelf::Mine)
             }
             Shelf::Mine => {
                 if window.watch {
@@ -910,8 +910,24 @@ pub fn artist_card(app: enji::Client, artist: enji::Artist) -> impl View {
 #[component]
 pub fn detail_view(app: enji::Client) -> impl View {
     ui! {
+        detail_layer(app: app, detail: app.detail, active: !app.detail_overlay)
+    }
+}
+
+/// What is open over a full-screen overlay (such as phone search), kept
+/// apart from whatever detail subpage sits under the overlay.
+#[component]
+pub fn overlay_detail_view(app: enji::Client) -> impl View {
+    ui! {
+        detail_layer(app: app, detail: app.overlay_detail, active: true)
+    }
+}
+
+#[component]
+pub fn detail_layer(app: enji::Client, detail: Detail, active: bool) -> impl View {
+    ui! {
         Stack(align: top_leading) {
-            match app.detail {
+            match detail {
                 Detail::Album => {
                     if let Some(album) = app.album {
                         album_page(app: app, album: album)
@@ -935,7 +951,7 @@ pub fn detail_view(app: enji::Client) -> impl View {
             back_over(app: app)
             // On a phone, Android's Back goes back from each, as its button does.
             if window.compact || window.short || window.tv {
-                Shortcut(key: "escape") => app.back()
+                Shortcut(key: "escape", enabled: active) => app.back()
             }
         }
     }

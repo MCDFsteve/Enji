@@ -496,6 +496,9 @@ impl enji::Commands for EnjiEngine {
     fn back(&mut self) -> Result<(), CommandError> {
         self.submit(Job::Back)
     }
+    fn set_detail_overlay(&mut self, active: bool) -> Result<(), CommandError> {
+        self.submit(Job::SetDetailOverlay(active))
+    }
     fn dismiss_error(&mut self) -> Result<(), CommandError> {
         self.submit(Job::DismissError)
     }

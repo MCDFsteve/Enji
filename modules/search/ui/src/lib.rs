@@ -5,9 +5,10 @@ use bern::prelude::*;
 use enji_protocol::enji::{self, Detail, Source};
 use enji_ui::{
     album_card, album_card_props, artist_card, artist_card_props, detail_view, detail_view_props,
-    playlist_card, playlist_card_props, song_header, song_header_props, song_row, song_row_props,
-    watch_album_row, watch_album_row_props, watch_artist_row, watch_artist_row_props,
-    watch_playlist_row, watch_playlist_row_props,
+    overlay_detail_view, overlay_detail_view_props, playlist_card, playlist_card_props,
+    song_header, song_header_props, song_row, song_row_props, watch_album_row,
+    watch_album_row_props, watch_artist_row, watch_artist_row_props, watch_playlist_row,
+    watch_playlist_row_props,
 };
 use search_protocol::search::{self, SearchKind};
 
@@ -111,8 +112,8 @@ pub fn phone_search(
                         Shape(kind: rect, fill: surface.canvas)
                     }
                 }
-                if app.detail != Detail::Page {
-                    detail_view(app: app)
+                if app.overlay_detail != Detail::Page {
+                    overlay_detail_view(app: app)
                 } else {
                     Column(gap: 0) {
                         Row(gap: 12, padding_x: 16, padding_y: 8, align: center) {
@@ -123,9 +124,20 @@ pub fn phone_search(
                     }
                 }
                 Watch(value: search.search_tick) => draft.query.set(search.searched)
-                Shortcut(key: "escape") => draft.finding.set(false)
+                Shortcut(key: "escape", enabled: app.overlay_detail == Detail::Page) => draft.finding.set(false)
             }
         }
+    }
+}
+
+/// Keeps the core's overlay detail stack synchronized with phone search.
+#[component]
+pub fn phone_search_scope(
+    app: enji::Client,
+    #[session] draft: SearchDraft,
+) -> impl View {
+    ui! {
+        Watch(value: draft.finding) => app.set_detail_overlay(draft.finding)
     }
 }
 
