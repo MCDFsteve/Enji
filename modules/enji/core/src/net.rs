@@ -687,6 +687,10 @@ struct Worker {
     plugins_framed: Instant,
     /// Monotonic origin for plugin animation frame timestamps.
     plugins_started: Instant,
+    /// Cached system taskbar theme (`true` = light taskbar, `false` = dark).
+    taskbar_light: bool,
+    /// When the system taskbar theme was last polled for running plugins.
+    taskbar_theme_checked: Instant,
     /// What was played, the latest first.
     history: Vec<Entry>,
     /// What was listened to, for the account's record on NetEase.
@@ -944,6 +948,8 @@ pub async fn run(
         plugins_heard: Instant::now(),
         plugins_framed: Instant::now(),
         plugins_started: Instant::now(),
+        taskbar_light: bern::overlay::taskbar_light(),
+        taskbar_theme_checked: Instant::now(),
         history: Vec::new(),
         listens: listens::Listens::load(),
         top_all: Vec::new(),
@@ -2544,6 +2550,7 @@ impl Worker {
                 "duration": s.current.as_ref().map_or(0.0, |song| song.seconds),
                 "mode": plugin_api::mode_name(&s.mode),
                 "desktopLyrics": s.desktop_lyrics && s.current.is_some(),
+                "taskbarTheme": if self.taskbar_light { "light" } else { "dark" },
                 "playbackToken": s.current.as_ref().map(|_| self.token.to_string()),
                 "song": s.current.as_ref().map(plugin_api::public_song),
                 "loudness": self.normalization.snapshot(self.token, s.loudness_enabled, &s.loudness_provider),
@@ -2596,6 +2603,15 @@ impl Worker {
     /// The music's loudness for the plugins that hear it, and what the
     /// plugins asked for.
     fn plugin_tick(&mut self) {
+        if !self.plugins.is_empty() && self.taskbar_theme_checked.elapsed() >= Duration::from_millis(500) {
+            self.taskbar_theme_checked = Instant::now();
+            let light = bern::overlay::taskbar_light();
+            if light != self.taskbar_light {
+                self.taskbar_light = light;
+                let theme = if light { "light" } else { "dark" };
+                self.send_plugins("taskbarTheme", json!({ "theme": theme, "light": light }));
+            }
+        }
         let (playing, desktop_visible) = self.shared.read(|s| (s.playing, s.desktop_lyrics && s.current.is_some()));
         let hearing = self.plugins.wants_audio();
         audio::follow_beat(hearing);
@@ -2631,7 +2647,7 @@ impl Worker {
             match call {
                 plugins::Call::OverlayShow(id, spec) => {
                     let id = plugins::overlay_id(&plugin, &id);
-                    bern::overlay::show(&id, &plugins::overlay(&spec));
+                    bern::overlay::show_styled(&id, &plugins::overlay(&spec), plugins::overlay_style(&spec));
                     self.plugin_overlays.insert(id);
                 }
                 plugins::Call::OverlayHide(id) => {

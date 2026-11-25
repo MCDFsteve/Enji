@@ -38,8 +38,8 @@ pub(super) fn load(saved: &Value) -> Style {
         opacity: number("opacity", 100.0, 0.0, 100.0),
         effect: match saved["effect"].as_str() {
             Some("none") => Effect::None,
-            Some("outline") => Effect::Outline,
-            _ => Effect::Shadow,
+            Some("shadow") => Effect::Shadow,
+            _ => Effect::Outline,
         },
     }
 }
@@ -114,20 +114,26 @@ mod tests {
     #[test]
     fn settings_edits_save_and_restore_cleanly() {
         let mut s = load(&Value::Null);
-        assert_eq!(text(&s), TextStyle::default());
+        assert_eq!(
+            text(&s),
+            TextStyle {
+                effect: TextEffect::Outline,
+                opacity: 1.0
+            }
+        );
         assert_eq!(color(&s, false), [255, 255, 255, 215]);
         Edit::Color {
             primary: true,
             rgb: 0x12aa56,
         }
         .apply(&mut s);
-        Edit::Effect(Effect::Outline).apply(&mut s);
+        Edit::Effect(Effect::Shadow).apply(&mut s);
         Edit::Number(Field::Opacity, 0.).apply(&mut s);
         assert_eq!(color(&s, true), [0x12, 0xaa, 0x56, 255]);
         assert_eq!(
             text(&s),
             TextStyle {
-                effect: TextEffect::Outline,
+                effect: TextEffect::Shadow,
                 opacity: 0.
             }
         );

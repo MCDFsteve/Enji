@@ -6,7 +6,7 @@ var __enji = (function (config) {
   var permissions = config.permissions.slice();
   var features = ['playback.state', 'playback.control', 'queue.page', 'lyrics.timeline',
     'audio.levels', 'audio.loudness', 'audio.trackGain', 'plugin.settings', 'plugin.actions',
-    'desktopLyrics.color', 'animation.frame', 'bern.cli'];
+    'desktopLyrics.color', 'overlay.style', 'taskbar.theme', 'animation.frame', 'bern.cli'];
   var handlers = Object.create(null), pending = Object.create(null);
   var pendingCount = 0, sequence = 0, outbox = [], state = {}, frameSubscribed = false;
   var instance = stringify(config.requestPrefix);
@@ -123,6 +123,7 @@ var __enji = (function (config) {
     get song() { return state.song || null; },
     get playing() { return !!state.playing; },
     get loudness() { return has('loudness') || has('audio_gain') ? state.loudness || null : null; },
+    get taskbarTheme() { return has('overlay') && state.taskbarTheme === 'light' ? 'light' : 'dark'; },
     playback: playback, queue: queue, lyrics: lyrics, audio: audio, settings: settings,
     desktopLyrics: desktopLyrics,
   };

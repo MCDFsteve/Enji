@@ -163,6 +163,9 @@ pub(super) fn snapshot(pack: &Pack, value: &Value) -> Value {
     let mut out = fields(value, PLAYBACK);
     out["song"] = track(&value["song"]);
     if can_read_loudness(pack) { out["loudness"] = value["loudness"].clone(); }
+    if pack.has("overlay") && let Some(theme) = value.get("taskbarTheme") {
+        out["taskbarTheme"] = theme.clone();
+    }
     out
 }
 
@@ -176,6 +179,7 @@ pub(super) fn broadcast(pack: &Pack, event: &str, data: &Value) -> Option<Value>
         "queueChanged" if pack.has("queue") => fields(data, &["revision", "total", "currentIndex", "playbackToken"]),
         "lyricsChanged" if pack.has("lyrics") => fields(data, &["revision", "total", "playbackToken"]),
         "loudness" if can_read_loudness(pack) => data.clone(),
+        "taskbarTheme" if pack.has("overlay") => fields(data, &["theme", "light"]),
         _ => return None,
     })
 }

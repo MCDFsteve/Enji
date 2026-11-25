@@ -384,6 +384,22 @@ pub fn overlay(spec: &Value) -> bern::overlay::Overlay {
     }
 }
 
+/// Text style for a plugin overlay: `{ effect: "none" | "shadow" | "outline",
+/// opacity: 0..1 }`.
+pub fn overlay_style(spec: &Value) -> bern::overlay::TextStyle {
+    let effect = match spec["effect"].as_str() {
+        Some("none") => bern::overlay::TextEffect::None,
+        Some("outline") => bern::overlay::TextEffect::Outline,
+        Some("shadow") => bern::overlay::TextEffect::Shadow,
+        _ => bern::overlay::TextStyle::default().effect,
+    };
+    let opacity = spec["opacity"]
+        .as_f64()
+        .filter(|n| n.is_finite())
+        .map_or(1.0, |n| n.clamp(0.0, 1.0));
+    bern::overlay::TextStyle { effect, opacity }
+}
+
 /// The overlay id of a plugin's overlay `id`, apart from Enji's own.
 pub fn overlay_id(plugin: &str, id: &str) -> String {
     format!("plugin.{plugin}.{id}")
@@ -441,11 +457,17 @@ mod tests {
 
     #[test]
     fn plugin_overlays_take_their_colours_and_places() {
-        let shown = overlay(&json!({ "lines": [{ "text": "x", "size": 200, "bold": true, "color": "#11223380" }], "place": "taskbar" }));
+        let spec = json!({ "lines": [{ "text": "x", "size": 200, "bold": true, "color": "#11223380" }], "place": "taskbar", "effect": "none", "opacity": 0.75 });
+        let shown = overlay(&spec);
         assert_eq!(shown.lines[0].size, 96.0);
         assert_eq!(shown.lines[0].color, [0x11, 0x22, 0x33, 0x80]);
         assert_eq!(shown.place, bern::overlay::Place::Taskbar);
         assert!(shown.locked);
+        assert_eq!(
+            overlay_style(&spec),
+            bern::overlay::TextStyle { effect: bern::overlay::TextEffect::None, opacity: 0.75 }
+        );
+        assert_eq!(overlay_style(&json!({})), bern::overlay::TextStyle::default());
     }
 
     #[test]
