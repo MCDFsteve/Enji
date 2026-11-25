@@ -1,15 +1,13 @@
 ## 本次更新
 
-- 升级至 Bern 0.3.1：桌面端改用 `DetailFooter` 固定底部播放栏，设置页、插件管理与各设置子页面统一改用经典卡片排版，并纳入 Windows 标题栏集成、切页内存泄漏消除、宽窗设置布局与桌面歌词浮窗修复。
-- 新增歌单与本地音乐倒序排序；补齐桌面端（macOS / Windows / Linux）播放、切歌、按 5% 步进调音、播放方式与红心快捷键。
-- 完善播放队列与搜索体验：支持下一首插队区间管理与一键清空插队，在随机/心动模式及重启恢复时保留插队顺序并改用流式队列写入；搜索页支持按分类缓存与失败后单分类在线重试。
-- 扩展插件能力：向插件开放受控进程内 `bern.cli` 接口，并新增高性能桌面歌词实时变色与帧动画接口。
-- 修复歌词加载时左侧区域偏移，以及队列冷启动重复写盘、一起听跟播队列旋转等边界问题。
+- 修复 Windows 11 桌面歌词失去置顶、容易被其他窗口遮挡的问题；修复开启炫彩歌词等高频变色插件后，桌面歌词悬停控制栏不显示、按钮与解锁无法点击及拖拽回弹的问题。
+- 修复 Windows 11 设置页卡片导航行缩窄贴左、箭头未靠右对齐的问题，并升级底层 Bern 框架以纳入多项 Windows 界面修复（搜索建议亚克力毛玻璃、全屏与切图闪烁修复、沉浸模式与覆盖页细节优化）。
+- 修复手机端在子页面中打开搜索时界面被底层详情页遮挡的问题，并修复 Apple 端标签页内容分裂问题。
+- Wear OS 默认最低支持版本降至 Android 8.0（API 26），并默认提供 64/32 位双架构安装包。
 
 ## What's new
 
-- Updated to Bern 0.3.1: pinned the desktop playback bar with `DetailFooter`, unified Settings, Plugin Management, and settings subpages with a classic card layout, and brought in Windows title bar integration, page-switch memory leak fixes, wide-window settings layout fixes, and desktop lyrics overlay fixes.
-- Added reverse sorting for playlists and local music, and completed desktop keyboard shortcuts (macOS / Windows / Linux) for playback, track switching, 5% volume steps, play mode, and favorites.
-- Improved playback queue and search: managed "Play Next" as a contiguous up-next section with one-click clear, preserved up-next order across shuffle, heartbeat mode, and app restarts with streaming queue persistence, and added per-category search caching with individual online retry.
-- Expanded plugin APIs with scoped in-process `bern.cli` access plus high-performance real-time desktop lyrics color updates and animation frame callbacks.
-- Fixed left-side layout shift while lyrics load, as well as duplicate cold-start queue writes, Listen Together queue rotation, and other queue edge cases.
+- Fixed Windows 11 desktop lyrics losing always-on-top and getting covered by other windows, as well as the hover bar, buttons, unlock control, and dragging breaking when high-rate color plugins such as Rainbow Lyrics are enabled.
+- Fixed Windows 11 settings card navigation rows shrinking to the left with misaligned chevrons, and updated the underlying Bern framework with additional Windows UI fixes (acrylic search suggestions dropdown, fullscreen/transition flicker fixes, and overlay polish).
+- Fixed phone search being covered by the underlying detail page when opened from a subpage, and fixed SwiftUI tab content splitting across tabs.
+- Lowered the default Wear OS minimum version to Android 8.0 (API 26) with dual 64-bit/32-bit packages.
