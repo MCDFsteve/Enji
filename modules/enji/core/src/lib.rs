@@ -17,6 +17,8 @@ mod resume;
 mod shuffle;
 mod store;
 mod together;
+#[cfg(target_os = "ios")]
+mod ios_audio;
 #[cfg(target_os = "tvos")]
 mod tv_audio;
 #[cfg(any(target_os = "android", test))]

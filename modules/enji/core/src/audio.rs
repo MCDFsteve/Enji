@@ -6,6 +6,8 @@
 pub(crate) mod loudness;
 
 use crate::beats::{Beat, Beats};
+#[cfg(target_os = "ios")]
+use crate::ios_audio::Output;
 #[cfg(target_os = "tvos")]
 use crate::tv_audio::Output;
 #[cfg(target_os = "android")]
@@ -72,7 +74,7 @@ pub fn levels() -> (f32, f32) {
 }
 
 /// The system's audio output, as rodio plays through it.
-#[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
+#[cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "watchos")))]
 struct Shared {
     _stream: rodio::OutputStream,
     handle: rodio::OutputStreamHandle,
@@ -80,7 +82,7 @@ struct Shared {
 
 /// Where a song plays. A DAC of its own leaves no room for the shared
 /// output, which would keep it mixing.
-#[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
+#[cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "watchos")))]
 struct Output {
     shared: Option<Shared>,
     /// A USB DAC is to be used alone.
@@ -93,7 +95,7 @@ struct Output {
     exclusive: Option<Exclusive>,
 }
 
-#[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
+#[cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "watchos")))]
 impl Output {
     fn open() -> Result<Output, String> {
         let mut output = Output {
@@ -140,9 +142,14 @@ impl Output {
         false
     }
     fn bit_perfect(&self) -> bool { false }
-    fn rest(&self) {}
-    fn wake(&self) {}
     fn report(&self, _: &mut Status, _: bool) {}
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+impl Output {
+    fn rest(&self) {}
+    fn wake(&self) -> bool { true }
+    fn mute(&self, _: bool) {}
 }
 
 #[cfg(target_os = "android")]
@@ -191,9 +198,12 @@ impl Output {
         self.exclusive.iter().for_each(Exclusive::rest);
     }
 
-    fn wake(&self) {
+    fn wake(&self) -> bool {
         self.exclusive.iter().for_each(Exclusive::wake);
+        true
     }
+
+    fn mute(&self, _: bool) {}
 
     fn report(&self, status: &mut Status, playing: bool) {
         status.usb_plugged = self.usb.is_some();
@@ -708,11 +718,15 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                 gain_db = requested;
                 match start(&mut output, &stream, volume, gain_db) {
                     Ok(next) => {
+                        let _ = output.wake();
                         sink = Some(next);
                         current = Some(token);
                         song = Some(stream);
                     }
-                    Err(message) => report(&|s| s.error = Some(message.clone())),
+                    Err(message) => {
+                        output.rest();
+                        report(&|s| s.error = Some(message.clone()));
+                    }
                 }
             }
             Ok(Command::Pause) => {
@@ -720,16 +734,26 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                 output.rest();
             }
             Ok(Command::Resume) => {
-                output.wake();
-                sink.iter().for_each(Sink::play);
+                if let Some(sink) = &sink {
+                    let _ = output.wake();
+                    sink.play();
+                }
             }
             Ok(Command::Seek(seconds)) => {
                 if let Some(sink) = &sink {
                     // A seek waits for the output to read on.
-                    output.wake();
-                    let _ = sink.try_seek(Duration::from_secs_f64(seconds.max(0.0)));
-                    if sink.is_paused() {
-                        output.rest();
+                    let paused = sink.is_paused();
+                    if paused {
+                        output.mute(true);
+                    }
+                    if output.wake() {
+                        let _ = sink.try_seek(Duration::from_secs_f64(seconds.max(0.0)));
+                        if paused {
+                            output.rest();
+                        }
+                    }
+                    if paused {
+                        output.mute(false);
                     }
                 }
             }
@@ -741,7 +765,9 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                 moving = output.set_exclusive(on);
             }
             Ok(Command::Stop) => {
-                sink = None;
+                if sink.take().is_some() {
+                    output.rest();
+                }
                 current = None;
                 song = None;
             }
@@ -765,27 +791,34 @@ fn run(commands: mpsc::Receiver<Command>, status: Arc<Mutex<Status>>, mut volume
                 }
             }
         }
-        let mut now = status.lock().unwrap_or_else(|e| e.into_inner());
-        output.report(&mut now, current.is_some());
-        match &sink {
-            Some(sink) => {
-                now.position = sink.get_pos().as_secs_f64();
-                now.playing = !sink.is_paused() && !sink.empty();
-                if sink.empty()
-                    && let Some(token) = current.take()
-                {
-                    now.ended = Some(token);
-                    song = None;
+        let mut ended = false;
+        {
+            let mut now = status.lock().unwrap_or_else(|e| e.into_inner());
+            output.report(&mut now, current.is_some());
+            match &sink {
+                Some(sink) => {
+                    now.position = sink.get_pos().as_secs_f64();
+                    now.playing = !sink.is_paused() && !sink.empty();
+                    if sink.empty()
+                        && let Some(token) = current.take()
+                    {
+                        now.ended = Some(token);
+                        song = None;
+                        ended = true;
+                    }
+                }
+                None => {
+                    now.position = 0.0;
+                    now.playing = false;
                 }
             }
-            None => {
-                now.position = 0.0;
-                now.playing = false;
-            }
+            now.gain_token = current;
+            now.bit_perfect_bypass = current.is_some() && output.bit_perfect();
+            now.effective_gain_db = if current.is_some() { routed_gain(gain_db, now.bit_perfect_bypass) } else { 0.0 };
         }
-        now.gain_token = current;
-        now.bit_perfect_bypass = current.is_some() && output.bit_perfect();
-        now.effective_gain_db = if current.is_some() { routed_gain(gain_db, now.bit_perfect_bypass) } else { 0.0 };
+        if ended {
+            output.rest();
+        }
     }
 }
 

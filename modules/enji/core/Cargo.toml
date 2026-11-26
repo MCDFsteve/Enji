@@ -41,6 +41,15 @@ ndk-context = "0.1"
 # Resolve API 34 hardware-format queries only on hosts offering the USB mixer.
 libloading = "0.8.9"
 
+# iOS stops its RemoteIO output unit whenever playback pauses so the system
+# Now Playing controls and Dynamic Island reflect the paused state.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2-avf-audio = { version = "0.3", default-features = false, features = [
+    "std",
+    "AVAudioSession",
+    "AVAudioSessionTypes",
+] }
+
 # Apple Watch has no AudioToolbox; AVAudioEngine pulls samples from rodio's mixer.
 [target.'cfg(target_os = "watchos")'.dependencies]
 block2 = "0.6"
