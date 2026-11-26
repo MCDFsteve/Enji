@@ -1,13 +1,13 @@
 ## 本次更新
 
-- 修复 Windows 11 桌面歌词失去置顶、容易被其他窗口遮挡的问题；修复开启炫彩歌词等高频变色插件后，桌面歌词悬停控制栏不显示、按钮与解锁无法点击及拖拽回弹的问题。
-- 修复 Windows 11 设置页卡片导航行缩窄贴左、箭头未靠右对齐的问题，并升级底层 Bern 框架以纳入多项 Windows 界面修复（搜索建议亚克力毛玻璃、全屏与切图闪烁修复、沉浸模式与覆盖页细节优化）。
-- 修复手机端在子页面中打开搜索时界面被底层详情页遮挡的问题，并修复 Apple 端标签页内容分裂问题。
-- Wear OS 默认最低支持版本降至 Android 8.0（API 26），并默认提供 64/32 位双架构安装包。
+- 修复 Windows 11 上桌面歌词被桌面歌词设置浮窗遮挡的问题（桌面歌词始终保持在设置浮窗之上），并改进设置浮窗在 Windows 与 macOS 上的避让逻辑，左右空间不足时自动改放到歌词上方或下方。
+- 修复 Windows 11 桌面歌词设置浮窗中调色器（`ColorPicker`）弹层被裁剪在浮窗边界内的问题，现可完整展开显示。
+- 桌面歌词默认文字效果调整为描边。
+- 扩展插件浮层接口，支持指定文字效果（`effect`）并实时感知 Windows 系统任务栏深浅主题（`enji.taskbarTheme` / `taskbarTheme` 事件），配合新版「任务栏歌词 1.1.0」实现纯色显示与深色任务栏白字 / 浅色任务栏黑字自动适配。
 
 ## What's new
 
-- Fixed Windows 11 desktop lyrics losing always-on-top and getting covered by other windows, as well as the hover bar, buttons, unlock control, and dragging breaking when high-rate color plugins such as Rainbow Lyrics are enabled.
-- Fixed Windows 11 settings card navigation rows shrinking to the left with misaligned chevrons, and updated the underlying Bern framework with additional Windows UI fixes (acrylic search suggestions dropdown, fullscreen/transition flicker fixes, and overlay polish).
-- Fixed phone search being covered by the underlying detail page when opened from a subpage, and fixed SwiftUI tab content splitting across tabs.
-- Lowered the default Wear OS minimum version to Android 8.0 (API 26) with dual 64-bit/32-bit packages.
+- Fixed desktop lyrics being covered by the desktop lyrics settings utility window on Windows 11 (keeping lyrics above the settings window), and improved utility window placement on Windows and macOS to fall back above or below when left/right space is tight.
+- Fixed the Windows 11 `ColorPicker` flyout inside the compact desktop lyrics settings window being clipped to the window bounds.
+- Changed the default desktop lyrics text effect to Outline.
+- Extended plugin overlay APIs with text effect selection (`effect`) and live Windows taskbar theme reporting (`enji.taskbarTheme` / `taskbarTheme` event), enabling Taskbar Lyrics 1.1.0 to render solid text in white on dark taskbars and black on light taskbars.
